@@ -303,7 +303,7 @@ function Orders({token}:any){
  const[data,setData]=useState<any[]>([]),[filter,setFilter]=useState('all');
  const[selected,setSelected]=useState<any>(null),[error,setError]=useState('');
  const[busy,setBusy]=useState(''),[editing,setEditing]=useState(false);
- const[draft,setDraft]=useState<Record<string,string>>({}),[reason,setReason]=useState('');
+ const[draft,setDraft]=useState<Record<string,string>>({}),[outOfStock,setOutOfStock]=useState<Record<string,boolean>>({}),[reason,setReason]=useState('');
  const[notice,setNotice]=useState('');
  async function load(selectedId?:string){
    try{
@@ -314,12 +314,12 @@ function Orders({token}:any){
    }catch(e:any){setError(e.message);return [];}
  }
  useEffect(()=>{load();},[token]);
- function openOrder(o:any){setSelected(o);setEditing(false);setDraft({});setReason('');setNotice('');setError('');}
+ function openOrder(o:any){setSelected(o);setEditing(false);setDraft({});setOutOfStock({});setReason('');setNotice('');setError('');}
  function closeOrder(){if(!busy){setSelected(null);setEditing(false);setNotice('');}}
  function startEditing(){
    if(!selected)return;
    setDraft(Object.fromEntries((selected.items||[]).map((i:any)=>[i.id,String(i.quantity)])));
-   setReason('');setNotice('');setEditing(true);
+   setReason('');setOutOfStock({});setNotice('');setEditing(true);
  }
  function numberFor(i:any):number{
    const value=draft[i.id]??String(i.quantity);
@@ -360,10 +360,10 @@ function Orders({token}:any){
        method:'PATCH',body:JSON.stringify({
          expectedVersion:Number(selected.adjustment_version||0),
          reason:reason.trim(),
-         updates:changes.map((i:any)=>({itemId:i.id,quantity:numberFor(i)}))
+         updates:changes.map((i:any)=>({itemId:i.id,quantity:numberFor(i),markOutOfStock:numberFor(i)===0&&!!outOfStock[i.id]}))
        })
      },token);
-     setEditing(false);setDraft({});setReason('');
+     setEditing(false);setDraft({});setOutOfStock({});setReason('');
      await load(selected.id);
      setNotice(response.notificationStatus==='sent'
        ?'Pedido atualizado! A Evolution aceitou a notificação enviada ao cliente.'
@@ -452,6 +452,11 @@ function Orders({token}:any){
                    {q===0?'Restaurar':'Retirar item'}
                  </button>
                </div>}
+               {editing&&q===0&&<label className="order-outofstock-checkbox">
+                 <input type="checkbox" checked={!!outOfStock[i.id]}
+                   onChange={e=>setOutOfStock(o=>({...o,[i.id]:e.target.checked}))}/>
+                 <span>Marcar como esgotado na vitrine (zerar estoque disponível para novas vendas)</span>
+               </label>}
                {editing&&changed&&<small className="order-edit-difference">
                  {q===0?'Produto retirado':Number.isSafeInteger(q)&&q>0?
                    `Novo valor: ${money(lineTotal)}`:'Confira a quantidade'}
