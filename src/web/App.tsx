@@ -233,7 +233,219 @@ function PageHead({eyebrow,title,desc,action}:any){return <div className="page-h
 function Dashboard({token,user}:any){const[data,setData]=useState<any>(null),[error,setError]=useState('');useEffect(()=>{req('/admin/dashboard',{},token).then(setData).catch(e=>setError(e.message));},[]);return <><PageHead eyebrow={`OLÁ, ${user.name?.split(' ')[0]?.toUpperCase()||'LOJISTA'} 👋`} title="Sua loja em um olhar" desc="Acompanhe os pedidos e o movimento de hoje." action={<button className="btn btn-outline" onClick={()=>location.reload()}><RefreshCw size={16}/> Atualizar</button>}/>{error&&<div className="error-banner">{error}</div>}<div className="stats-grid">{[[ClipboardList,'Pedidos hoje',data?.today?.orders||0,'primary'],[BarChart3,'Vendas hoje',money(data?.today?.sales||0),'orange'],[Clock,'Aguardando aceite',data?.counts?.received||0,'blue'],[Truck,'Em entrega',data?.counts?.out_for_delivery||0,'purple']].map(([Icon,label,value,color]:any)=><div className="stat-card" key={label}><div className={`stat-icon ${color}`}><Icon size={20}/></div><div><small>{label}</small><b>{value}</b></div><span className="stat-spark">↗</span></div>)}</div><div className="dashboard-grid"><section className="panel-card recent-panel"><div className="panel-heading"><div><h2>Pedidos recentes</h2><p>Os últimos pedidos da sua loja</p></div><button className="text-link-btn" onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'orders'}))}>Ver todos <ArrowRight size={14}/></button></div><div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Data</th><th>Status</th><th>Total</th></tr></thead><tbody>{(data?.recentOrders||[]).map((o:any)=><tr key={o.id}><td><b>#{o.order_number}</b></td><td>{o.customer_name}</td><td>{new Date(o.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td><td><StatusBadge status={o.status}/></td><td><b>{money(o.total_cents)}</b></td></tr>)}</tbody></table>{!data?.recentOrders?.length&&<div className="empty-table">Nenhum pedido por enquanto.</div>}</div></section><section className="panel-card lowstock-panel"><div className="panel-heading"><div><h2>Estoque baixo</h2><p>Produtos que precisam de atenção</p></div><Box size={18}/></div>{(data?.lowStock||[]).map((p:any)=><div className="lowstock-row" key={p.id}><span className="lowstock-img">🥬</span><span><b>{p.name}</b><small>{p.physical_qty-p.reserved_qty} {p.unit_label} disponíveis</small></span><span className="lowstock-alert">Baixo</span></div>)}{!data?.lowStock?.length&&<div className="positive-state"><Check/> Estoque em dia. Bom trabalho!</div>}</section></div><div className="quick-actions"><span>Acesso rápido</span><button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'products'}))}><Plus/> Novo produto</button><button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'orders'}))}><ClipboardList/> Ver pedidos</button><button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'whatsapp'}))}><MessageCircle/> Conectar WhatsApp</button></div><NavEvents/></>}
 function NavEvents(){const nav=(e:any)=>{const btn=[...document.querySelectorAll('.admin-menu button')].find((x:any)=>x.textContent?.toLowerCase().includes(e.detail==='products'?'produtos':e.detail==='orders'?'pedidos':'whatsapp')) as HTMLButtonElement;btn?.click();};useEffect(()=>{window.addEventListener('nav',nav);return()=>window.removeEventListener('nav',nav);},[]);return null}
 function StatusBadge({status}:any){const cl={received:'yellow',accepted:'blue',preparing:'purple',out_for_delivery:'orange',delivered:'green',cancelled:'gray'}[status as string]||'gray';return <span className={`status-badge ${cl}`}><i/>{ORDER_STATUS_LABELS[status as keyof typeof ORDER_STATUS_LABELS]||status}</span>}
-function Orders({token}:any){const[data,setData]=useState<any[]>([]),[filter,setFilter]=useState('all'),[selected,setSelected]=useState<any>(null),[error,setError]=useState(''),[busy,setBusy]=useState('');async function load(){try{const x=await req('/admin/orders',{},token);setData(x.orders||[]);}catch(e:any){setError(e.message);}}useEffect(()=>{load();},[]);async function change(o:any,status:string){setBusy(o.id);setError('');try{await req(`/admin/orders/${o.id}/status`,{method:'PATCH',body:JSON.stringify({status,reason:'Cancelado pelo estabelecimento'})},token);await load();setSelected(null);}catch(e:any){setError(e.message);}finally{setBusy('');}}const filtered=filter==='all'?data:data.filter(o=>o.status===filter);return <><PageHead eyebrow="OPERAÇÃO DA LOJA" title="Pedidos" desc="Acompanhe, aceite e atualize cada pedido." action={<button className="btn btn-outline" onClick={load}><RefreshCw size={16}/> Atualizar</button>}/>{error&&<div className="error-banner">{error}</div>}<div className="filter-row"><div className="filter-scroll">{[['all','Todos'],['received','Recebidos'],['accepted','Aceitos'],['preparing','Preparação'],['out_for_delivery','Em entrega'],['delivered','Entregues'],['cancelled','Cancelados']].map(([id,label])=><button className={filter===id?'active':''} onClick={()=>setFilter(id)} key={id}>{label}{id==='all'&&<small>{data.length}</small>}</button>)}</div></div><div className="panel-card"><div className="table-wrap orders-table"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Data e hora</th><th>Pagamento</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody>{filtered.map(o=><tr key={o.id}><td><b>#{o.order_number}</b></td><td><b>{o.customer_name}</b><small className="cell-sub">{o.customer_phone}</small></td><td>{new Date(o.created_at).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td><td>{PAYMENT_METHOD_LABELS[o.payment_method as keyof typeof PAYMENT_METHOD_LABELS]}</td><td><StatusBadge status={o.status}/></td><td><b>{money(o.total_cents)}</b></td><td><button className="btn btn-xs btn-outline" onClick={()=>setSelected(o)}>Detalhes</button></td></tr>)}</tbody></table>{!filtered.length&&<div className="empty-table">Nenhum pedido nesta etapa.</div>}</div></div>{selected&&<div className="modal-backdrop" onClick={()=>setSelected(null)}><div className="order-modal" onClick={e=>e.stopPropagation()}><div className="modal-heading"><div><span className="eyebrow">DETALHES DO PEDIDO</span><h2>Pedido #{selected.order_number}</h2></div><button className="icon-btn" onClick={()=>setSelected(null)}><X/></button></div><div className="order-customer"><span className="profile-avatar">{selected.customer_name[0]}</span><span><b>{selected.customer_name}</b><small>{selected.customer_phone}</small></span><a className="btn btn-xs btn-soft" href={`https://wa.me/${selected.customer_phone}`} target="_blank"><MessageCircle size={14}/> WhatsApp</a></div><div className="order-address"><MapPin size={17}/><span>{selected.address_street}, {selected.address_number} · {selected.address_neighborhood}{selected.address_complement&&`, ${selected.address_complement}`}{selected.address_reference&&` · Ref: ${selected.address_reference}`}</span></div><div className="order-items-list">{(selected.items||[]).map((i:any,idx:number)=><div key={idx}><span>{i.product_name_snapshot} {i.variant_name_snapshot&&`— ${i.variant_name_snapshot}`}<small>{i.quantity_display} × {money(i.unit_price_cents)}</small></span><b>{money(i.line_total_cents)}</b></div>)}</div><div className="order-payment"><div><span>Pagamento</span><b>{PAYMENT_METHOD_LABELS[selected.payment_method as keyof typeof PAYMENT_METHOD_LABELS]}</b></div>{selected.needs_change?<div><span>Troco para / devolver</span><b>{money(selected.change_for_cents)} / {money(selected.change_amount_cents)}</b></div>:null}<div><span>Subtotal + entrega</span><b>{money(selected.subtotal_cents)} + {money(selected.delivery_fee_cents)}</b></div><div className="order-total"><span>Total</span><b>{money(selected.total_cents)}</b></div></div><div className="order-actions">{selected.status!=='delivered'&&selected.status!=='cancelled'&&<><button className="btn btn-danger-soft" disabled={!!busy} onClick={()=>change(selected,'cancelled')}>Cancelar</button><button className="btn btn-primary" disabled={!!busy} onClick={()=>change(selected,({received:'accepted',accepted:'preparing',preparing:'out_for_delivery',out_for_delivery:'delivered'} as any)[selected.status])}>{busy?'Salvando…':({received:'Aceitar pedido',accepted:'Em preparação',preparing:'Saiu para entrega',out_for_delivery:'Marcar como entregue'} as any)[selected.status]}</button></>}</div></div></div>}</>}
+function Orders({token}:any){
+ const[data,setData]=useState<any[]>([]),[filter,setFilter]=useState('all');
+ const[selected,setSelected]=useState<any>(null),[error,setError]=useState('');
+ const[busy,setBusy]=useState(''),[editing,setEditing]=useState(false);
+ const[draft,setDraft]=useState<Record<string,string>>({}),[reason,setReason]=useState('');
+ const[notice,setNotice]=useState('');
+ async function load(selectedId?:string){
+   try{
+     const x=await req('/admin/orders',{},token),orders=x.orders||[];
+     setData(orders);
+     if(selectedId)setSelected(orders.find((o:any)=>o.id===selectedId)||null);
+     return orders;
+   }catch(e:any){setError(e.message);return [];}
+ }
+ useEffect(()=>{load();},[token]);
+ function openOrder(o:any){setSelected(o);setEditing(false);setDraft({});setReason('');setNotice('');setError('');}
+ function closeOrder(){if(!busy){setSelected(null);setEditing(false);setNotice('');}}
+ function startEditing(){
+   if(!selected)return;
+   setDraft(Object.fromEntries((selected.items||[]).map((i:any)=>[i.id,String(i.quantity)])));
+   setReason('');setNotice('');setEditing(true);
+ }
+ function numberFor(i:any):number{
+   const value=draft[i.id]??String(i.quantity);
+   return value.trim()===''?NaN:Number(value);
+ }
+ const changes=editing&&selected?(selected.items||[]).filter((i:any)=>numberFor(i)!==Number(i.quantity)):[];
+ const invalid=changes.some((i:any)=>{
+   const q=numberFor(i);
+   return !Number.isSafeInteger(q)||q<0||q>i.quantity||
+    (q>0 && !Number.isSafeInteger(i.quantity&&Math.round(i.quantity)&&i.quantity?i.quantity:q))||
+    (q>0 && !Number.isInteger((i.stock_deducted_qty||0)*q/i.quantity));
+ });
+ const previewSubtotal=editing&&selected?
+   (selected.items||[]).reduce((sum:number,i:any)=>{
+     const q=numberFor(i);
+     if(!Number.isSafeInteger(q)||q<0)return sum;
+     return sum+Math.round(i.line_total_cents*q/i.quantity);
+   },0):0;
+ const previewTotal=selected?previewSubtotal+selected.delivery_fee_cents:0;
+ async function change(o:any,status:string){
+   setBusy(o.id);setError('');setNotice('');
+   try{
+     await req(`/admin/orders/${o.id}/status`,{method:'PATCH',
+       body:JSON.stringify({status,reason:'Cancelado pelo estabelecimento'})},token);
+     await load();setSelected(null);setEditing(false);
+   }catch(e:any){setError(e.message);}finally{setBusy('');}
+ }
+ async function saveItems(){
+   if(!selected||busy)return;
+   setError('');setNotice('');
+   if(invalid||!changes.length){setError('Informe uma redução válida em pelo menos um produto.');return;}
+   if(reason.trim().length<5){setError('Informe o motivo da alteração para o cliente.');return;}
+   if((selected.items||[]).every((i:any)=>numberFor(i)===0)){
+     setError('Para retirar todos os produtos, utilize Cancelar pedido.');return;
+   }
+   setBusy(selected.id);
+   try{
+     const response=await req(`/admin/orders/${selected.id}/items`,{
+       method:'PATCH',body:JSON.stringify({
+         expectedVersion:Number(selected.adjustment_version||0),
+         reason:reason.trim(),
+         updates:changes.map((i:any)=>({itemId:i.id,quantity:numberFor(i)}))
+       })
+     },token);
+     setEditing(false);setDraft({});setReason('');
+     await load(selected.id);
+     setNotice(response.notificationStatus==='sent'
+       ?'Pedido atualizado! A Evolution aceitou a notificação enviada ao cliente.'
+       :response.notificationStatus==='skipped_no_optin'
+       ?'Pedido atualizado! O cliente não autorizou avisos por WhatsApp; ele verá o novo total no acompanhamento.'
+       :'Pedido atualizado! O aviso ao cliente está na fila do WhatsApp e poderá ser consultado no Histórico de envios.');
+   }catch(e:any){setError(e.message||'Falha ao salvar alterações.');}
+   finally{setBusy('');}
+ }
+ const filtered=filter==='all'?data:data.filter(o=>o.status===filter);
+ const canEdit=selected&&selected.stock_state==='reserved'&&
+   ['received','accepted','preparing'].includes(selected.status);
+ return <>
+   <PageHead eyebrow="OPERAÇÃO DA LOJA" title="Pedidos"
+     desc="Acompanhe, aceite, edite quantidades e atualize cada pedido."
+     action={<button className="btn btn-outline" onClick={()=>load()}>
+       <RefreshCw size={16}/> Atualizar</button>}/>
+   {error&&!selected&&<div className="error-banner">{error}</div>}
+   <div className="filter-row"><div className="filter-scroll">
+     {([['all','Todos'],['received','Recebidos'],['accepted','Aceitos'],['preparing','Preparação'],
+       ['out_for_delivery','Em entrega'],['delivered','Entregues'],['cancelled','Cancelados']] as string[][])
+       .map(([id,label])=><button className={filter===id?'active':''}
+         onClick={()=>setFilter(id)} key={id}>{label}{id==='all'&&<small>{data.length}</small>}</button>)}
+   </div></div>
+   <div className="panel-card"><div className="table-wrap orders-table"><table>
+     <thead><tr><th>Pedido</th><th>Cliente</th><th>Data e hora</th><th>Pagamento</th>
+       <th>Status</th><th>Total</th><th></th></tr></thead>
+     <tbody>{filtered.map(o=><tr key={o.id}>
+       <td><b>#{o.order_number}</b></td>
+       <td><b>{o.customer_name}</b><small className="cell-sub">{o.customer_phone}</small></td>
+       <td>{new Date(o.created_at).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td>
+       <td>{PAYMENT_METHOD_LABELS[o.payment_method as keyof typeof PAYMENT_METHOD_LABELS]}</td>
+       <td><StatusBadge status={o.status}/></td>
+       <td><b>{money(o.total_cents)}</b></td>
+       <td><button className="btn btn-xs btn-outline" onClick={()=>openOrder(o)}>Detalhes</button></td>
+     </tr>)}</tbody>
+   </table>{!filtered.length&&<div className="empty-table">Nenhum pedido nesta etapa.</div>}</div></div>
+   {selected&&<div className="modal-backdrop" onClick={closeOrder}>
+     <div className="order-modal" onClick={e=>e.stopPropagation()}>
+       <div className="modal-heading"><div>
+         <span className="eyebrow">DETALHES DO PEDIDO</span>
+         <h2>Pedido #{selected.order_number}</h2>
+       </div><button className="icon-btn" aria-label="Fechar pedido" onClick={closeOrder}><X/></button></div>
+       <div className="order-customer">
+         <span className="profile-avatar">{selected.customer_name[0]}</span>
+         <span><b>{selected.customer_name}</b><small>{selected.customer_phone}</small></span>
+         <a className="btn btn-xs btn-soft" href={`https://wa.me/${selected.customer_phone}`}
+           target="_blank" rel="noopener noreferrer"><MessageCircle size={14}/> WhatsApp</a>
+       </div>
+       <div className="order-address"><MapPin size={17}/><span>
+         {selected.address_street}, {selected.address_number} · {selected.address_neighborhood}
+         {selected.address_complement&&`, ${selected.address_complement}`}
+         {selected.address_reference&&` · Ref: ${selected.address_reference}`}
+       </span></div>
+       {error&&<div className="error-banner order-inline-alert" role="alert">{error}</div>}
+       {notice&&<p className="order-edit-notice" role="status">{notice}</p>}
+       <div className="order-edit-header"><h3>Produtos do pedido</h3>
+         {canEdit&&!editing&&<button className="btn btn-xs btn-outline" type="button"
+           disabled={!!busy} onClick={startEditing}>Editar itens</button>}
+       </div>
+       {editing&&<p className="order-edit-help">Reduza ou retire o que estiver em falta.
+         O preço será atualizado automaticamente. A edição não adiciona novos produtos.</p>}
+       <div className="order-items-list">
+         {(selected.items||[]).map((i:any,idx:number)=>{
+           const q=editing?numberFor(i):i.quantity;
+           const changed=editing&&q!==i.quantity;
+           const lineTotal=changed&&Number.isSafeInteger(q)&&q>=0?
+             Math.round(i.line_total_cents*q/i.quantity):i.line_total_cents;
+           return <div key={i.id||idx} className={changed?'order-item-changed':''}>
+             <span><b>{i.product_name_snapshot}
+               {i.variant_name_snapshot&&` — ${i.variant_name_snapshot}`}</b>
+               <small>{i.quantity_display} · {money(i.unit_price_cents)}
+                 {i.sale_mode==='weight'?' / kg':' / un'}</small>
+               {editing&&<div className="order-edit-line">
+                 <label>Nova quantidade
+                   <span className="order-edit-qty">
+                     <input aria-label={`Nova quantidade de ${i.product_name_snapshot}`}
+                       type="number" inputMode="numeric" min="0" step="1"
+                       max={i.quantity} value={draft[i.id]??String(i.quantity)}
+                       onChange={e=>setDraft(d=>({...d,[i.id]:e.target.value}))}/>
+                     <em>{i.sale_mode==='weight'?'g':'un'}</em>
+                   </span>
+                 </label>
+                 <button type="button" className="order-remove-line"
+                   onClick={()=>setDraft(d=>({...d,[i.id]:q===0?String(i.quantity):'0'}))}>
+                   {q===0?'Restaurar':'Retirar item'}
+                 </button>
+               </div>}
+               {editing&&changed&&<small className="order-edit-difference">
+                 {q===0?'Produto retirado':Number.isSafeInteger(q)&&q>0?
+                   `Novo valor: ${money(lineTotal)}`:'Confira a quantidade'}
+               </small>}
+             </span><b>{money(lineTotal)}</b>
+           </div>;
+         })}
+       </div>
+       {editing&&<div className="order-edit-reason">
+         <label>Motivo da alteração (será informado ao cliente)
+           <textarea required minLength={5} maxLength={240} rows={2}
+             value={reason} placeholder="Ex.: Não temos a quantidade solicitada de banana."
+             onChange={e=>setReason(e.target.value)}/>
+         </label>
+         <small>{selected.whatsapp_opt_in?
+           'Se o WhatsApp estiver conectado, o cliente receberá o resumo e o novo total automaticamente.':
+           'O cliente não autorizou WhatsApp. Ele poderá consultar a alteração pelo acompanhamento do pedido.'}</small>
+         <div className="order-edit-preview">
+           <span>Total anterior <s>{money(selected.total_cents)}</s></span>
+           <strong>Novo total previsto: {invalid?'Confira os valores':money(previewTotal)}</strong>
+           <small>Taxa de entrega mantida: {money(selected.delivery_fee_cents)}</small>
+         </div>
+       </div>}
+       <div className="order-payment">
+         <div><span>Pagamento</span><b>{PAYMENT_METHOD_LABELS[selected.payment_method as keyof typeof PAYMENT_METHOD_LABELS]}</b></div>
+         {selected.needs_change&&<div><span>Troco para / devolver</span>
+           <b>{money(selected.change_for_cents)} / {money(selected.change_amount_cents)}</b></div>}
+         <div><span>Subtotal + entrega</span>
+           <b>{money(selected.subtotal_cents)} + {money(selected.delivery_fee_cents)}</b></div>
+         <div className="order-total"><span>Total</span><b>{money(selected.total_cents)}</b></div>
+       </div>
+       {!!selected.adjustments?.length&&<div className="order-edit-history">
+         <h3>Histórico de alterações</h3>
+         {selected.adjustments.map((a:any)=><div key={a.id}>
+           <b>{new Date(a.created_at).toLocaleString('pt-BR')} · {a.reason}</b>
+           {(a.changes||[]).map((c:any)=><small key={c.itemId}>
+             {c.name}: {c.from} → {c.to}</small>)}
+           <small>Total: {money(a.old_total_cents)} → {money(a.new_total_cents)}</small>
+         </div>)}
+       </div>}
+       <div className="order-actions">
+         {editing?<><button className="btn btn-outline" disabled={!!busy}
+           onClick={()=>{setEditing(false);setError('');}}>Voltar</button>
+           <button className="btn btn-primary" disabled={!!busy||invalid||!changes.length}
+             onClick={saveItems}>{busy?'Salvando…':'Salvar e avisar cliente'}</button></>:
+         selected.status!=='delivered'&&selected.status!=='cancelled'&&<>
+           <button className="btn btn-danger-soft" disabled={!!busy}
+             onClick={()=>change(selected,'cancelled')}>Cancelar</button>
+           <button className="btn btn-primary" disabled={!!busy}
+             onClick={()=>change(selected,({received:'accepted',accepted:'preparing',
+               preparing:'out_for_delivery',out_for_delivery:'delivered'} as any)[selected.status])}>
+             {busy?'Salvando…':({received:'Aceitar pedido',accepted:'Em preparação',
+               preparing:'Saiu para entrega',out_for_delivery:'Marcar como entregue'} as any)[selected.status]}
+           </button></>}
+       </div>
+     </div>
+   </div>}
+ </>;
+}
 function Products({token}:any){const[items,setItems]=useState<any[]>([]),[categories,setCategories]=useState<any[]>([]),[modal,setModal]=useState(false),[editing,setEditing]=useState<any>(null),[error,setError]=useState(''),[form,setForm]=useState<any>({name:'',saleMode:'weight',unitLabel:'kg',price:'',promoPrice:'',unitPrice:'',unitWeightGrams:'',stock:'',categoryId:'',minQty:100,stepQty:50,sharedPool:true,poolStock:360,variants:[{name:'Cartela com 30 ovos',sku:'',price:'23,90',promoPrice:'',deductionQty:30},{name:'Dúzia (12 ovos)',sku:'',price:'10,90',promoPrice:'',deductionQty:12},{name:'Meia dúzia (6 ovos)',sku:'',price:'5,90',promoPrice:'',deductionQty:6}]});async function load(){const[x,y]=await Promise.all([req('/admin/products',{},token),req('/admin/categories',{},token)]);setItems(x.products);setCategories(y.categories);}useEffect(()=>{load().catch(e=>setError(e.message));},[]);function openEdit(p:any){setEditing(p);setForm({name:p.name,saleMode:productIsDual(p)?'dual':p.sale_mode,unitLabel:p.unit_label,unitPrice:p.unit_price_cents!=null?(p.unit_price_cents/100).toFixed(2).replace('.',','):'',unitWeightGrams:p.unit_weight_grams||'',price:(Number(p.price_cents||0)/100).toFixed(2).replace('.',','),promoPrice:p.promo_price_cents?(Number(p.promo_price_cents)/100).toFixed(2).replace('.',','):'',stock:p.sale_mode==='weight'?Number(p.physical_qty||0)/1000:p.physical_qty,categoryId:p.category_id||'',minQty:p.min_qty,stepQty:p.step_qty,featured:!!p.is_featured,description:p.description||'',imageUrl:p.image_url||'',sharedPool:!!p.variants?.[0]?.stock_pool_id,poolStock:p.variants?.[0]?.pool_physical_qty||0,variants:(p.variants||[]).map((v:any)=>({...v,price:(Number(v.price_cents)/100).toFixed(2).replace('.',','),promoPrice:v.promo_price_cents?(Number(v.promo_price_cents)/100).toFixed(2).replace('.',','):'',deductionQty:v.pool_deduction_qty,stockQty:v.physical_qty}))});setError('');setModal(true);}async function save(e:any){e.preventDefault();setError('');try{if(editing){await req(`/admin/products/${editing.id}`,{method:'PATCH',body:JSON.stringify({name:form.name,categoryId:form.categoryId||null,description:form.description,imageUrl:form.imageUrl,featured:form.featured,...(form.saleMode!=='variants'?{saleMode:form.saleMode==='dual'?'dual':form.saleMode==='weight'?'weight':undefined,priceCents:parseBRLToCents(form.price),promoPriceCents:form.promoPrice?parseBRLToCents(form.promoPrice):null,unitPriceCents:form.saleMode==='dual'?parseBRLToCents(form.unitPrice):null,unitWeightGrams:form.saleMode==='dual'?Number(form.unitWeightGrams):null,minQty:Number(form.minQty),stepQty:Number(form.stepQty)}:{})})},token);if(form.saleMode==='variants'){const retained=form.variants.filter((v:any)=>v.id);for(const old of editing.variants||[])if(!retained.some((v:any)=>v.id===old.id))await req(`/admin/products/variant-items/${old.id}`,{method:'DELETE'},token);for(const v of form.variants.filter((x:any)=>x.name&&x.price)){const payload={name:v.name,sku:v.sku,priceCents:parseBRLToCents(v.price),promoPriceCents:v.promoPrice?parseBRLToCents(v.promoPrice):null,deductionQty:Number(v.deductionQty)};if(v.id)await req(`/admin/products/variant-items/${v.id}`,{method:'PATCH',body:JSON.stringify(payload)},token);else await req(`/admin/products/${editing.id}/variants`,{method:'POST',body:JSON.stringify({...payload,stockPoolId:form.sharedPool?editing.variants?.[0]?.stock_pool_id:null,stockQty:Number(v.stockQty||0)})},token);}}}else if(form.saleMode==='variants'){await req('/admin/products/with-variants',{method:'POST',body:JSON.stringify({name:form.name,categoryId:form.categoryId||null,description:form.description,imageUrl:form.imageUrl,featured:form.featured,sharedPool:!!form.sharedPool,poolPhysicalQty:Number(form.poolStock),poolName:`${form.name} — estoque compartilhado`,variants:form.variants.filter((v:any)=>v.name&&v.price).map((v:any)=>({...v,priceCents:parseBRLToCents(v.price),promoPriceCents:v.promoPrice?parseBRLToCents(v.promoPrice):null}))})},token);}else{await req('/admin/products',{method:'POST',body:JSON.stringify({name:form.name,saleMode:form.saleMode,unitLabel:form.unitLabel,unitPriceCents:form.saleMode==='dual'?parseBRLToCents(form.unitPrice):null,unitWeightGrams:form.saleMode==='dual'?Number(form.unitWeightGrams):null,priceCents:parseBRLToCents(form.price),promoPriceCents:form.promoPrice?parseBRLToCents(form.promoPrice):null,imageUrl:form.imageUrl,stockQty:form.saleMode==='weight'||form.saleMode==='dual'?Math.round(Number(form.stock)*1000):Number(form.stock),categoryId:form.categoryId||null,minQty:Number(form.minQty),stepQty:Number(form.stepQty),featured:form.featured,description:form.description})},token);}setModal(false);setEditing(null);await load();}catch(e:any){setError(e.message);}}return <><PageHead eyebrow="CATÁLOGO" title="Produtos" desc={`${items.length} produtos cadastrados na sua loja.`} action={<button className="btn btn-primary" onClick={()=>{setEditing(null);setError('');setModal(true);}}><Plus size={17}/> Novo produto</button>}/>{error&&<div className="error-banner">{error}</div>}<div className="panel-card"><div className="table-wrap"><table><thead><tr><th>Produto</th><th>Categoria</th><th>Modo de venda</th><th>Preço</th><th>Estoque interno</th><th>Disponível</th><th></th></tr></thead><tbody>{items.map(p=><tr key={p.id}><td><div className="product-cell"><img src={img(p.image_url)}/><span><b>{p.name}</b><small>{p.sku||'Sem SKU'}</small></span></div></td><td>{p.category_name||'—'}</td><td>{productIsDual(p)?'Por kg e unidade':p.sale_mode==='weight'?'Peso':p.sale_mode==='variants'?'Variações':'Unidade'}</td><td><b>{p.sale_mode==='variants'&&p.variants?.length?money(Math.min(...p.variants.map((v:any)=>v.promo_price_cents&&v.promo_price_cents<v.price_cents?v.promo_price_cents:v.price_cents))):money(p.promo_price_cents||p.price_cents)}</b><small className="cell-sub">{productIsDual(p)?`/ kg · ${money(p.unit_price_cents)} / unidade`:p.sale_mode==='variants'?'a partir de':p.unit_label}</small></td><td>{p.sale_mode==='variants'?'Por variação':p.sale_mode==='weight'?formatWeightGrams(p.available_internal):`${p.available_internal} ${p.unit_label}`}</td><td><span className={`status-badge ${p.is_active?'green':'gray'}`}><i/>{p.is_active?'Ativo':'Inativo'}</span></td><td><div className="table-actions"><button className="btn btn-xs btn-outline" onClick={()=>openEdit(p)}>Editar</button><button className="btn btn-xs btn-outline" onClick={async()=>{await req(`/admin/products/${p.id}`,{method:'PATCH',body:JSON.stringify({active:!p.is_active})},token);load();}}>{p.is_active?'Desativar':'Ativar'}</button></div></td></tr>)}</tbody></table>{!items.length&&<div className="empty-table">Cadastre o primeiro produto para começar.</div>}</div></div>{modal&&<div className="modal-backdrop"><form className="form-modal" onSubmit={save}><div className="modal-heading"><div><span className="eyebrow">{editing?'EDITAR CATÁLOGO':'NOVO ITEM NO CATÁLOGO'}</span><h2>{editing?'Editar produto':'Cadastrar produto'}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)}><X/></button></div><div className="form-grid"><label className="full">Nome do produto<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex.: Tomate italiano"/></label><label>Categoria<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Sem categoria</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Modo de venda<select disabled={!!editing&&editing.sale_mode!=='weight'} value={form.saleMode} onChange={e=>{const mode=e.target.value;setForm({...form,saleMode:mode,unitLabel:mode==='weight'||mode==='dual'?'kg':'un',minQty:mode==='unit'?1:100,stepQty:mode==='unit'?1:50});}}><option value="weight">Somente por kg</option><option value="unit" disabled={!!editing}>Somente por unidade</option><option value="dual">Por kg e por unidade</option><option value="variants" disabled={!!editing}>Embalagens / variações</option></select></label>{form.saleMode==='variants'?<><label className="check-row full"><input type="checkbox" disabled={!!editing} checked={form.sharedPool} onChange={e=>setForm({...form,sharedPool:e.target.checked})}/> As variações usam o mesmo estoque físico</label>{form.sharedPool&&<label className="full">Estoque físico total (unidades base)<input required type="number" min="1" value={form.poolStock} onChange={e=>setForm({...form,poolStock:e.target.value})}/><small>Exemplo: 360 ovos no total. Cada embalagem desconta a quantidade definida abaixo.</small></label>}<div className="variant-editor full"><div className="variant-editor-head"><b>Embalagens para venda</b><button type="button" className="btn btn-xs btn-outline" onClick={()=>setForm({...form,variants:[...form.variants,{name:'',sku:'',price:'',promoPrice:'',deductionQty:1}]})}><Plus size={13}/> Adicionar variação</button></div>{form.variants.map((v:any,i:number)=><div className="variant-row" key={i}><input aria-label="Nome da variação" placeholder="Nome (ex.: Dúzia)" value={v.name} onChange={e=>setForm({...form,variants:form.variants.map((x:any,j:number)=>j===i?{...x,name:e.target.value}:x)})}/><input aria-label="SKU" placeholder="SKU" value={v.sku} onChange={e=>setForm({...form,variants:form.variants.map((x:any,j:number)=>j===i?{...x,sku:e.target.value}:x)})}/><input aria-label="Preço da variação" placeholder="Preço R$" value={v.price} onChange={e=>setForm({...form,variants:form.variants.map((x:any,j:number)=>j===i?{...x,price:e.target.value}:x)})}/><input aria-label="Preço promocional da variação" placeholder="Promo R$" value={v.promoPrice||''} onChange={e=>setForm({...form,variants:form.variants.map((x:any,j:number)=>j===i?{...x,promoPrice:e.target.value}:x)})}/><input aria-label="Unidades consumidas" type="number" min="1" title="Unidades do estoque físico consumidas" placeholder="Consome" value={v.deductionQty} onChange={e=>setForm({...form,variants:form.variants.map((x:any,j:number)=>j===i?{...x,deductionQty:e.target.value}:x)})}/>{form.variants.length>1&&<button type="button" className="icon-btn" onClick={()=>setForm({...form,variants:form.variants.filter((_:any,j:number)=>j!==i)})}><X size={15}/></button>}{!form.sharedPool&&<input aria-label="Estoque inicial da variação" type="number" min="0" placeholder="Estoque" value={v.stockQty||0} onChange={e=>setForm({...form,variants:form.variants.map((x:any,j:number)=>j===i?{...x,stockQty:e.target.value}:x)})}/>}</div>)}</div></>:<><label>{form.saleMode==='unit'?'Preço por unidade (R$)':'Preço por kg (R$)'}<input required value={form.price} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00" inputMode="decimal"/></label>{form.saleMode==='dual'&&<><label>Preço de 1 unidade (R$)<input required inputMode="decimal" value={form.unitPrice||''} onChange={e=>setForm({...form,unitPrice:e.target.value})} placeholder="Ex.: 1,50"/></label><label>Peso médio de 1 unidade (gramas)<input required type="number" min="1" step="1" value={form.unitWeightGrams||''} onChange={e=>setForm({...form,unitWeightGrams:e.target.value})} placeholder="Ex.: 180"/><small>Usado para descontar do mesmo estoque em kg. Ex.: 1 unidade pesa aproximadamente 180 g.</small></label></>}<label>Preço promocional (opcional)<input value={form.promoPrice||''} onChange={e=>setForm({...form,promoPrice:e.target.value})} placeholder="0,00" inputMode="decimal"/></label><label>Estoque inicial ({form.saleMode==='weight'||form.saleMode==='dual'?'kg':'un'})<input type="number" min="0" step="any" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Quantidade mínima{form.saleMode==='weight'||form.saleMode==='dual'?' (g)':' (un)'}<input type="number" min="1" value={form.minQty} onChange={e=>setForm({...form,minQty:e.target.value})}/></label><label>Incremento{form.saleMode==='weight'||form.saleMode==='dual'?' (g)':' (un)'}<input type="number" min="1" value={form.stepQty} onChange={e=>setForm({...form,stepQty:e.target.value})}/></label></>}<label className="full">Foto do produto<input type="file" accept="image/jpeg,image/png,image/webp" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;const dataUri=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Falha ao ler imagem.'));reader.readAsDataURL(file);});try{const uploaded=await req('/admin/media/upload',{method:'POST',body:JSON.stringify({dataUri,folder:'products'})},token);setForm({...form,imageUrl:uploaded.url});}catch(err:any){setError(err.message);}}}/>{form.imageUrl&&<img className="upload-preview" src={form.imageUrl} alt="Prévia do produto"/>}</label><label className="full">Descrição<textarea value={form.description||''} onChange={e=>setForm({...form,description:e.target.value})}/></label><label className="check-row full"><input type="checkbox" checked={form.featured||false} onChange={e=>setForm({...form,featured:e.target.checked})}/> Destacar na vitrine</label></div>{error&&<div className="error-banner">{error}</div>}<div className="modal-footer"><button type="button" className="btn btn-outline" onClick={()=>setModal(false)}>Cancelar</button><button className="btn btn-primary">Salvar produto</button></div></form></div>}</>}
 function Categories({token}:any){const[items,setItems]=useState<any[]>([]),[name,setName]=useState(''),[icon,setIcon]=useState('🥬'),[error,setError]=useState('');async function load(){setItems((await req('/admin/categories',{},token)).categories||[]);}useEffect(()=>{load();},[]);async function add(e:any){e.preventDefault();try{await req('/admin/categories',{method:'POST',body:JSON.stringify({name,icon})},token);setName('');load();}catch(e:any){setError(e.message);}}return <><PageHead eyebrow="ORGANIZAÇÃO DO CATÁLOGO" title="Categorias" desc="Agrupe produtos para facilitar a navegação na vitrine."/><form className="inline-create panel-card" onSubmit={add}><label>Nome da nova categoria<input value={name} onChange={e=>setName(e.target.value)} placeholder="Ex.: Temperos" required/></label><label>Ícone<input className="emoji-input" value={icon} onChange={e=>setIcon(e.target.value)}/></label><button className="btn btn-primary"><Plus size={16}/> Criar categoria</button></form>{error&&<div className="error-banner">{error}</div>}<div className="category-admin-grid">{items.map((c:any)=><div className="category-admin-card" key={c.id}><span>{c.icon}</span><div><b>{c.name}</b><small>{c.slug}</small></div><div className="category-actions"><button className="btn btn-xs btn-outline" onClick={async()=>{const next=window.prompt('Nome da categoria:',c.name);if(next&&next.trim()){await req(`/admin/categories/${c.id}`,{method:'PATCH',body:JSON.stringify({name:next.trim()})},token);load();}}}>Editar</button><button className="btn btn-xs btn-outline" onClick={async()=>{await req(`/admin/categories/${c.id}`,{method:'PATCH',body:JSON.stringify({active:!c.is_active})},token);load();}}>{c.is_active?'Desativar':'Ativar'}</button></div></div>)}</div></>}
 function Stock({token}:any){const[data,setData]=useState<any>({products:[],variants:[],pools:[],movements:[]}),[target,setTarget]=useState<any>(null),[qty,setQty]=useState(''),[reason,setReason]=useState(''),[error,setError]=useState('');async function load(){try{const response=await req('/admin/stock',{},token);setData({products:Array.isArray(response.products)?response.products:[],variants:Array.isArray(response.variants)?response.variants:[],pools:Array.isArray(response.pools)?response.pools:[],movements:Array.isArray(response.movements)?response.movements:[]});setError('');}catch(e:any){setError(e?.message||'Não foi possível carregar o estoque.');}}useEffect(()=>{load();},[]);async function adjust(e:any){e.preventDefault();try{await req('/admin/stock/adjust',{method:'POST',body:JSON.stringify({targetType:target.type,targetId:target.id,quantity:Number(qty),reason})},token);setTarget(null);setQty('');load();}catch(e:any){setError(e.message);}}return <><PageHead eyebrow="CONTROLE OPERACIONAL" title="Estoque" desc="Disponibilidade interna e histórico de movimentações."/>{error&&<div className="error-banner">{error}</div>}<div className="panel-card"><div className="panel-heading"><div><h2>Estoque de produtos</h2><p>A quantidade exibida aqui é interna, somente para equipe.</p></div></div><div className="table-wrap"><table><thead><tr><th>Produto</th><th>Modo</th><th>Físico</th><th>Reservado</th><th>Disponível</th><th></th></tr></thead><tbody>{data.products.map((p:any)=><tr key={p.id}><td><b>{p.name}</b></td><td>{p.sale_mode}</td><td>{p.sale_mode==='weight'?formatWeightGrams(p.physical_qty):p.physical_qty}</td><td>{p.reserved_qty}</td><td><b>{p.sale_mode==='weight'?formatWeightGrams(p.physical_qty-p.reserved_qty):p.physical_qty-p.reserved_qty}</b></td><td><button className="btn btn-xs btn-outline" onClick={()=>setTarget({id:p.id,type:'product',name:p.name})}>Ajustar</button></td></tr>)}{data.variants.map((p:any)=><tr key={p.id}><td><b>{p.product_name} — {p.name}</b><small className="cell-sub">Variação</small></td><td>un</td><td>{p.physical_qty}</td><td>{p.reserved_qty}</td><td><b>{p.physical_qty-p.reserved_qty}</b></td><td><button className="btn btn-xs btn-outline" onClick={()=>setTarget({id:p.id,type:'variant',name:`${p.product_name} — ${p.name}`})}>Ajustar</button></td></tr>)}{data.pools.map((p:any)=><tr key={p.id}><td><b>{p.name}</b><small className="cell-sub">Pool compartilhado</small></td><td>{p.base_unit}</td><td>{p.physical_qty}</td><td>{p.reserved_qty}</td><td><b>{p.physical_qty-p.reserved_qty}</b></td><td><button className="btn btn-xs btn-outline" onClick={()=>setTarget({id:p.id,type:'pool',name:p.name})}>Ajustar</button></td></tr>)}</tbody></table></div></div><div className="panel-card movement-card"><div className="panel-heading"><div><h2>Movimentações recentes</h2><p>Registro de reservas, baixas e ajustes.</p></div><History size={18}/></div><div className="table-wrap"><table><thead><tr><th>Data</th><th>Item</th><th>Movimento</th><th>Δ físico</th><th>Motivo</th></tr></thead><tbody>{data.movements.slice(0,35).map((m:any)=><tr key={m.id}><td>{new Date(m.created_at).toLocaleString('pt-BR')}</td><td>{m.target_name}</td><td>{m.movement_type}</td><td>{m.delta_physical}</td><td>{m.reason||'—'}</td></tr>)}</tbody></table></div></div>{target&&<div className="modal-backdrop"><form className="form-modal narrow" onSubmit={adjust}><div className="modal-heading"><div><span className="eyebrow">AJUSTE MANUAL</span><h2>{target.name}</h2></div><button type="button" className="icon-btn" onClick={()=>setTarget(null)}><X/></button></div><label>Quantidade a somar ou subtrair<input required type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="Ex.: 10 ou -2"/></label><label>Motivo do ajuste<input value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reposição, perda, conferência…"/></label>{error&&<div className="error-banner">{error}</div>}<button className="btn btn-primary btn-block">Salvar ajuste</button></form></div>}</>}
