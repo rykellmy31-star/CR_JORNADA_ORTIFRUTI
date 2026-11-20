@@ -24,3 +24,4 @@ CREATE INDEX IF NOT EXISTS idx_disconnect_alerts_pending
   ON whatsapp_disconnect_alerts(status, next_retry_at, created_at);
 CREATE INDEX IF NOT EXISTS idx_disconnect_alerts_tenant
   ON whatsapp_disconnect_alerts(tenant_id,created_at DESC);
+-- Migração ativada no pipeline D1 remoto antes de habilitar os novos recursos.
