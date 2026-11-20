@@ -68,3 +68,11 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - [ ] Teste concorrente D1 em staging, cancelamentos/retornos, troca, reserva, backup e restore.
 - [ ] Domínio HTTPS, SPF/DMARC onde necessário, monitoramento de fila/falhas/alertas e limites por tenant.
 - [ ] Criar repositório GitHub Private, revisar branch protection e CI com permissões mínimas.
+
+## Atualização — Venda por kg e unidade (20/11/2026)
+
+- Vitrine exclusiva por loja, sem diretório público de estabelecimentos nem links para outros hortifrutis.
+- Cadastro opcional de dois preços: por kg e por unidade; peso médio (g/unidade) define consumo do mesmo estoque em gramas.
+- Checkout preserva o modo escolhido e registra preço e quantidade específicos de cada item.
+- Clientes, pedidos, produtos e estoques continuam isolados por identificador de estabelecimento.
+- Migração D1 `0003_dual_sale_mode.sql` aplicada antes do deploy; nenhum dado anterior removido.
