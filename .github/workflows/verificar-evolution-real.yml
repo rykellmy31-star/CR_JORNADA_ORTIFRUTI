@@ -1,0 +1,55 @@
+name: Verificar credenciais reais Evolution Hortifruti
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verificar-evolution-real.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Conferir os segredos sem revelar valores
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      EVOLUTION_API_URL: ${{ secrets.EVOLUTION_API_URL }}
+      EVOLUTION_API_KEY: ${{ secrets.EVOLUTION_API_KEY }}
+      EVOLUTION_WEBHOOK_TOKEN: ${{ secrets.EVOLUTION_WEBHOOK_TOKEN }}
+    steps:
+      - name: Validar credenciais e consultar a API sem alterar instâncias
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for key in EVOLUTION_API_URL EVOLUTION_API_KEY EVOLUTION_WEBHOOK_TOKEN; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::$key: ausente nos GitHub Secrets ou no ambiente production"
+              missing=1
+            else
+              echo "$key: presente"
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit 1; fi
+          case "$EVOLUTION_API_URL" in
+            https://*) ;;
+            *) echo "::error::EVOLUTION_API_URL deve usar HTTPS."; exit 1 ;;
+          esac
+          case "$EVOLUTION_API_URL" in
+            */manager*|*/manager/*) echo "::error::EVOLUTION_API_URL deve apontar para a API, sem /manager."; exit 1 ;;
+          esac
+          api="${EVOLUTION_API_URL%/}"
+          status="$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' \
+            -H "apikey: $EVOLUTION_API_KEY" "$api/instance/fetchInstances")" || {
+            echo "::error::Falha de conexão HTTPS com a Evolution. Verifique acesso público e certificado TLS."
+            exit 1
+          }
+          if [ "$status" != "200" ]; then
+            echo "::error::Evolution API não autorizou a consulta de instâncias: HTTP $status."
+            exit 1
+          fi
+          echo "Evolution API respondeu à consulta autenticada: HTTP 200."
+          echo "Preflight concluído sem criar, desconectar ou alterar instâncias."
