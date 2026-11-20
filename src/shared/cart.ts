@@ -9,3 +9,17 @@ export function countCartItems<T extends { product: { id: string } }>(
 ): number {
   return new Set(cart.map((line) => line.product.id)).size;
 }
+
+/**
+ * Remove apenas a modalidade/embalagem selecionada no carrinho, sem
+ * interferir no mesmo produto adicionado em outra forma de venda.
+ */
+export function removeCartSelection<
+  T extends { product: { id: string }; variant?: { id: string } | null; purchaseMode: string }
+>(cart: readonly T[], target: T): T[] {
+  return cart.filter(line =>
+    line.product.id !== target.product.id ||
+    (line.variant?.id ?? '') !== (target.variant?.id ?? '') ||
+    line.purchaseMode !== target.purchaseMode
+  );
+}
