@@ -1,0 +1,64 @@
+name: Extrair projeto Hortifruti do ZIP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/extrair-hortifruti.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  extrair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Conferir e extrair projeto original
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          from zipfile import ZipFile
+          from shutil import copyfileobj
+
+          zip_file = Path("CR-Jornada-Hortifruti.zip")
+          expected_sha256 = "d64b1f665f126b9d13d404db92b7ad868e59d7a660a39ec7fd805e720764616e"
+          if not zip_file.is_file():
+              raise SystemExit("ERRO: ZIP original não encontrado na raiz")
+          if hashlib.sha256(zip_file.read_bytes()).hexdigest() != expected_sha256:
+              raise SystemExit("ERRO: o ZIP foi alterado; extração cancelada por segurança")
+          total = 0
+          with ZipFile(zip_file) as archive:
+              for entry in archive.infolist():
+                  if entry.is_dir():
+                      continue
+                  target = Path(entry.filename)
+                  if target.is_absolute() or ".." in target.parts or not target.parts:
+                      raise SystemExit("ERRO: caminho inválido no ZIP")
+                  if target.parts[0] in (".git", "node_modules", "dist") or target.name in (".env", ".dev.vars"):
+                      raise SystemExit("ERRO: arquivo não permitido no ZIP")
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  with archive.open(entry) as src, target.open("wb") as dst:
+                      copyfileobj(src, dst)
+                  total += 1
+          print(f"Extraídos {total} arquivos na raiz do repositório.")
+          if total != 58:
+              raise SystemExit("ERRO: quantidade inesperada de arquivos")
+          PY
+
+      - name: Publicar arquivos extraídos na main
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nenhum arquivo novo para publicar."
+            exit 0
+          fi
+          git commit -m "Extrair arquivos do CR Jornada Hortifruti para main"
+          git push origin HEAD:main
