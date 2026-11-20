@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import {Link,useLocation,useNavigate} from 'react-router-dom';
 import {Apple,ArrowLeft,ArrowRight,BarChart3,Box,Check,ChevronDown,Clock,DoorOpen,Eye,EyeOff,Leaf,LogOut,Menu,MessageCircle,Package,Plus,RefreshCw,Search,Settings,ShoppingBasket,ShoppingCart,Store,Truck,Users,Trash2,X,LayoutDashboard,Tags,History,ClipboardList,ShieldCheck,Send,Image as ImageIcon,Phone,MapPin} from 'lucide-react';
 import {calculateLineTotalCents,formatBRL,formatWeightGrams,formatQuantityDisplay,parseBRLToCents,getDiscountPercent,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
@@ -44,6 +44,20 @@ const cartLineTotal=(line:CartLine)=>calculateLineTotalCents(cartLinePrice(line)
 const cartLineKey=(line:CartLine)=>[line.product.id,line.variant?.id||'',line.purchaseMode].join(':');
 
 function Storefront(){const slug=useLocation().pathname.split('/')[2]||'';const[storeData,setStoreData]=useState<any>(null),[showSignup,setShowSignup]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState(''),[cat,setCat]=useState('all'),[cart,setCart]=useState<CartLine[]>([]),[checkout,setCheckout]=useState(false),[placed,setPlaced]=useState<any>(null),[loading,setLoading]=useState(true),[mobileCart,setMobileCart]=useState(false);const navigate=useNavigate();
+ const categoryListRef=useRef<HTMLDivElement>(null);
+ const [canScrollCategoriesBack,setCanScrollCategoriesBack]=useState(false);
+ const [canScrollCategoriesForward,setCanScrollCategoriesForward]=useState(false);
+ function updateCategoryArrows(){
+   const list=categoryListRef.current;
+   if(!list)return;
+   setCanScrollCategoriesBack(list.scrollLeft>3);
+   setCanScrollCategoriesForward(list.scrollLeft+list.clientWidth<list.scrollWidth-3);
+ }
+ function moveCategories(direction:-1|1){
+   const list=categoryListRef.current;
+   if(!list)return;
+   list.scrollBy({left:direction*Math.max(170,list.clientWidth*.72),behavior:'smooth'});
+ }
  useEffect(()=>{setLoading(true);req(`/store/${slug}`).then((x:any)=>setStoreData({...x,store:{...x.store,neighborhoods:x.neighborhoods}})).catch(e=>setError(e.message)).finally(()=>setLoading(false));},[slug]);
  useEffect(()=>{
    if(!storeData?.store?.signup_popup_enabled)return;
@@ -64,6 +78,17 @@ function Storefront(){const slug=useLocation().pathname.split('/')[2]||'';const[
  }
  const store=storeData?.store,products=storeData?.products||[],categories=storeData?.categories||[],neighborhoods=storeData?.neighborhoods||[];
  const shown=products.filter((p:any)=>(cat==='all'||p.category_id===cat)&&p.name.toLowerCase().includes(search.toLowerCase()));
+ useEffect(()=>{
+   const list=categoryListRef.current;
+   if(!list)return;
+   const update=()=>updateCategoryArrows();
+   update();
+   window.addEventListener('resize',update);
+   // Após o carregamento da fonte / categorias, verificar novamente o tamanho.
+   const observer=typeof ResizeObserver!=='undefined'?new ResizeObserver(update):null;
+   if(observer){observer.observe(list);if(list.firstElementChild)observer.observe(list.firstElementChild);}
+   return()=>{window.removeEventListener('resize',update);observer?.disconnect();};
+ },[categories.length,loading]);
  const subtotal=cart.reduce((sum,line)=>sum+cartLineTotal(line),0);
  const cartItemCount=countCartItems(cart);
  const setLine=(product:any,variant:any,purchaseMode:PurchaseMode,quantity:number)=>setCart(old=>{
@@ -76,7 +101,18 @@ function Storefront(){const slug=useLocation().pathname.split('/')[2]||'';const[
  const removeLine=(line:CartLine)=>setCart(old=>removeCartSelection(old,line));
  if(loading)return <div className="loading"><span className="spinner"/>Carregando a loja…</div>;if(error||!store)return <div className="center-page"><h2>Não foi possível carregar esta loja</h2><p>{error}</p><button type="button" className="btn btn-primary" onClick={()=>window.location.reload()}>Tentar novamente</button></div>;
  return <div className="storefront" style={{'--store-color':store.primary_color||'#16834b'} as any}><div className="announcement"><Leaf size={14}/> Produtos fresquinhos selecionados todos os dias <span>•</span> Entrega no seu bairro</div><header className="store-header"><div className="store-logo"><span className="store-logo-icon">{store.logo_url?<img src={store.logo_url} alt={`Logomarca de ${store.name}`}/>:<Leaf size={24}/>}</span><span><b>{store.name}</b><small>Fresquinho todo dia</small></span></div><div className="store-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="O que você procura hoje?"/><kbd>⌘ K</kbd></div><div className="store-head-actions"><a className="contact-link" href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank"><MessageCircle size={17}/><span>Fale conosco</span></a><button className="cart-head" onClick={()=>setMobileCart(true)}><ShoppingCart size={19}/><span className="cart-count" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'} na cesta`}>{cartItemCount}</span></button></div></header>
- <main className="store-body"><section className="store-hero" style={{backgroundImage:`linear-gradient(90deg, rgba(7,48,31,.90),rgba(7,48,31,.12)),url(${store.banner_url||'/images/banners/hero-hortifruti.jpg'})`}}><div><span className="hero-badge">🌿 DIRETO DO FRESCOR</span><h1>{store.banner_title||'Fresquinho todo dia'}</h1><p>{store.banner_subtitle||'Frutas, verduras e legumes selecionados com carinho.'}</p><a href="#catalogo" className="btn btn-white">Ver produtos <ArrowRight size={16}/></a></div><div className="hero-leaf">✦</div></section><div className="store-benefits"><span><Truck/> Entrega no mesmo dia</span><span><Check/> Pagamento na entrega</span><span><Clock/> {store.business_hours}</span></div><div className="catalog-layout" id="catalogo"><section className="catalog-main"><div className="catalog-heading"><div><span className="eyebrow">DA NOSSA BANCA PARA SUA CASA</span><h2>Escolha seus fresquinhos</h2></div><span className="result-count">{shown.length} produtos disponíveis</span></div><div className="category-chips"><button className={cat==='all'?'active':''} onClick={()=>setCat('all')}>Todos</button>{categories.map((c:any)=><button key={c.id} className={cat===c.id?'active':''} onClick={()=>setCat(c.id)}><span>{c.icon}</span>{c.name}</button>)}</div>{shown.length===0?<div className="empty-state"><Search size={28}/><b>Nenhum produto encontrado</b><p>Tente outra busca ou categoria.</p></div>:<div className="product-grid">{shown.map((p:any)=><ProductCard key={p.id} p={p} getLine={getLine} setLine={setLine}/>)}</div>}</section><aside className="cart-panel"><CartSummary cart={cart} subtotal={subtotal} store={store} onQty={setLine} onRemove={removeLine} onCheckout={()=>cart.length&&setCheckout(true)}/></aside></div></main><footer className="store-footer"><div><b>{store.name}</b><span>{store.address_text}</span><span>{store.business_hours}</span></div><div><a href={store.instagram_url} target="_blank">Instagram</a><a href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank">WhatsApp</a></div></footer>
+ <main className="store-body"><section className="store-hero" style={{backgroundImage:`linear-gradient(90deg, rgba(7,48,31,.90),rgba(7,48,31,.12)),url(${store.banner_url||'/images/banners/hero-hortifruti.jpg'})`}}><div><span className="hero-badge">🌿 DIRETO DO FRESCOR</span><h1>{store.banner_title||'Fresquinho todo dia'}</h1><p>{store.banner_subtitle||'Frutas, verduras e legumes selecionados com carinho.'}</p><a href="#catalogo" className="btn btn-white">Ver produtos <ArrowRight size={16}/></a></div><div className="hero-leaf">✦</div></section><div className="store-benefits"><span><Truck/> Entrega no mesmo dia</span><span><Check/> Pagamento na entrega</span><span><Clock/> {store.business_hours}</span></div><div className="catalog-layout" id="catalogo"><section className="catalog-main"><div className="catalog-heading"><div><span className="eyebrow">DA NOSSA BANCA PARA SUA CASA</span><h2>Escolha seus fresquinhos</h2></div><span className="result-count">{shown.length} produtos disponíveis</span></div><div className="category-nav" aria-label="Categorias de produtos">
+ <button type="button" className="category-nav-arrow" aria-label="Ver categorias anteriores"
+   disabled={!canScrollCategoriesBack} onClick={()=>moveCategories(-1)}><ArrowLeft size={18}/></button>
+ <div className="category-chips" ref={categoryListRef} onScroll={updateCategoryArrows}
+   role="group" aria-label="Filtrar produtos por categoria">
+   <button type="button" className={cat==='all'?'active':''} onClick={()=>setCat('all')}>Todos</button>
+   {categories.map((c:any)=><button type="button" key={c.id} className={cat===c.id?'active':''}
+     onClick={()=>setCat(c.id)}><span>{c.icon}</span>{c.name}</button>)}
+ </div>
+ <button type="button" className="category-nav-arrow" aria-label="Ver próximas categorias"
+   disabled={!canScrollCategoriesForward} onClick={()=>moveCategories(1)}><ArrowRight size={18}/></button>
+</div>{shown.length===0?<div className="empty-state"><Search size={28}/><b>Nenhum produto encontrado</b><p>Tente outra busca ou categoria.</p></div>:<div className="product-grid">{shown.map((p:any)=><ProductCard key={p.id} p={p} getLine={getLine} setLine={setLine}/>)}</div>}</section><aside className="cart-panel"><CartSummary cart={cart} subtotal={subtotal} store={store} onQty={setLine} onRemove={removeLine} onCheckout={()=>cart.length&&setCheckout(true)}/></aside></div></main><footer className="store-footer"><div><b>{store.name}</b><span>{store.address_text}</span><span>{store.business_hours}</span></div><div><a href={store.instagram_url} target="_blank">Instagram</a><a href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank">WhatsApp</a></div></footer>
  {showSignup&&<SignupPopup slug={slug} store={store} onDone={()=>closeSignup(true)} onClose={()=>closeSignup(false)}/>}
  {mobileCart&&<div className="modal-backdrop" onClick={()=>setMobileCart(false)}><div className="mobile-cart-drawer" onClick={e=>e.stopPropagation()}><button className="icon-btn drawer-close" onClick={()=>setMobileCart(false)}><X/></button><CartSummary cart={cart} subtotal={subtotal} store={store} onQty={setLine} onRemove={removeLine} onCheckout={()=>{setMobileCart(false);cart.length&&setCheckout(true)}}/></div></div>}
  {checkout&&<CheckoutModal store={store} neighborhoods={neighborhoods} cart={cart} subtotal={subtotal} slug={slug} onClose={()=>setCheckout(false)} onSuccess={(o:any)=>{setPlaced(o);setCheckout(false);setCart([]);}}/>}{placed&&<div className="modal-backdrop"><div className="success-modal"><div className="success-icon"><Check size={36}/></div><span className="eyebrow">PEDIDO CONFIRMADO</span><h2>Está quase na sua porta!</h2><p>Seu pedido <b>#{placed.number}</b> foi recebido pela loja.</p><div className="success-total">Total a pagar na entrega <b>{money(placed.totalCents)}</b></div><Link className="btn btn-primary btn-block" to={`/pedido/${slug}/${placed.number}`} onClick={()=>setPlaced(null)}>Acompanhar pedido <ArrowRight size={17}/></Link><button className="btn btn-ghost btn-block" onClick={()=>{setPlaced(null);navigate(`/loja/${slug}`);}}>Voltar para início</button></div></div>}
