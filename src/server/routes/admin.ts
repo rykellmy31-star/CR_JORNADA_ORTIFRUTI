@@ -74,7 +74,7 @@ adminRoutes.post('/products',async(c)=>{
   const price=Number(b.priceCents), stock=Number(b.stockQty), min=Number(b.minQty??(isWeight?100:1)), step=Number(b.stepQty??(isWeight?50:1));
   const unitPrice=isDual?Number(b.unitPriceCents):null, unitWeight=isDual?Number(b.unitWeightGrams):null;
   if(!Number.isInteger(price)||price<0||!Number.isInteger(stock)||stock<0||!Number.isInteger(min)||min<1||!Number.isInteger(step)||step<1)return c.json({error:'Confira preço, estoque, mínimo e incremento do produto.'},400);
-  if(isDual&&(!Number.isInteger(unitPrice)||unitPrice<=0||!Number.isInteger(unitWeight)||unitWeight<=0))return c.json({error:'Para vender por kg e unidade, informe preço por unidade e peso médio em gramas.'},400);
+  if(isDual&&(!Number.isInteger(unitPrice)||(unitPrice??0)<=0||!Number.isInteger(unitWeight)||(unitWeight??0)<=0))return c.json({error:'Para vender por kg e unidade, informe preço por unidade e peso médio em gramas.'},400);
   const id=generateId(),time=new Date().toISOString();
   await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,promo_price_cents,unit_price_cents,unit_weight_grams,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)`)
     .bind(id,tid,b.categoryId||null,b.sku||null,name,b.description||'',b.imageUrl||null,isWeight?'weight':'unit',isWeight?'kg':(b.unitLabel||'un'),1000,min,step,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),unitPrice,unitWeight,b.featured?1:0,b.active===false?0:1,stock,Number(b.lowStockThreshold)||0,time,time).run();
