@@ -724,6 +724,18 @@ export async function dispatchQueuedMessageById(
   if (msg.status === 'sent') return { status: 'sent' };
   if (msg.status === 'skipped_no_optin' || msg.status === 'skipped_disabled')
     return {status:msg.status};
+  // Nunca emitir avisos de pedidos cancelados e removidos da operação.
+  if(msg.order_id){
+    const order=await db.prepare('SELECT deleted_at FROM orders WHERE id=? AND tenant_id=?')
+      .bind(msg.order_id,tenantId).first<{deleted_at:string|null}>();
+    if(!order||order.deleted_at){
+      await db.prepare(`UPDATE whatsapp_message_queue SET status='failed',
+        last_error='Pedido removido da lista do estabelecimento',
+        next_retry_at=NULL,updated_at=? WHERE id=? AND tenant_id=? AND status!='sent'`)
+        .bind(new Date().toISOString(),queueId,tenantId).run();
+      return {status:'skipped_removed'};
+    }
+  }
 
   const inst = await db
     .prepare(`SELECT * FROM whatsapp_instances WHERE tenant_id = ?`)
