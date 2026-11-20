@@ -9,6 +9,7 @@ on:
       - 'migrations/0004_customer_popup.sql'
       - 'migrations/0005_order_adjustments.sql'
       - 'migrations/0006_order_visibility_telegram_alerts.sql'
+      - 'migrations/0007_shared_product_images.sql'
 
 permissions:
   contents: read
