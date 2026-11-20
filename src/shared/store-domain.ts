@@ -14,6 +14,19 @@ export function vanityStoreSlug(hostname:string):string|null {
  const slug=host.slice(0,-suffix.length);
  return isValidStoreSubdomain(slug)?slug:null;
 }
+export const HORTIFRUTI_SUPERADMIN_HOST='hortifruti-admin.crjornada.com';
+export const HORTIFRUTI_ADMIN_HOST='hortifruti.crjornada.com';
+export const HORTIFRUTI_SUPERADMIN_URL='https://'+HORTIFRUTI_SUPERADMIN_HOST;
+export const HORTIFRUTI_ADMIN_URL='https://'+HORTIFRUTI_ADMIN_HOST+'/admin';
+
+/** Páginas iniciais próprias, sem alterar URLs legadas ou a CR Jornada geral. */
+export function hortifrutiHomeRoute(hostname:string):'/superadmin'|'/admin'|null {
+ const host=hostname.toLowerCase().replace(/\.$/,'');
+ if(host===HORTIFRUTI_SUPERADMIN_HOST)return '/superadmin';
+ if(host===HORTIFRUTI_ADMIN_HOST)return '/admin';
+ return null;
+}
+
 export function storeHomeUrl(slug:string):string{
  return isValidStoreSubdomain(slug)
   ? 'https://'+slug+'.crjornada.com/' : '/loja/'+encodeURIComponent(slug);
