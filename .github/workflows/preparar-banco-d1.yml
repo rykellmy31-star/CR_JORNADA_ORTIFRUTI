@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'migrations/0003_dual_sale_mode.sql'
+      - 'migrations/0004_customer_popup.sql'
 
 permissions:
   contents: read
