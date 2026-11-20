@@ -193,3 +193,15 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - Fotos sem correspondência confiável não são inventadas: aparece um ícone neutro em lugar de exibir indevidamente a banana como foto do produto. A foto pode ser corrigida manualmente depois.
 - Migração D1 `0007_shared_product_images.sql`; testes automatizados abrangem correspondência por nome, criação, importação, licenciamento, reuso multiempresa e preservação de fotos escolhidas.
 - A disponibilidade da Wikimedia Commons depende da conexão e da licença do arquivo. A ausência de imagem não impede o cadastro do produto.
+
+
+## Correção definitiva da busca de fotos (20/11/2026)
+
+- Diagnóstico: a integração anterior com a Wikimedia Commons era dependente de busca em tempo real e rejeitava resultados por critérios rígidos. Requisições sem identificação adequada também podem receber bloqueio do provedor.
+- Agora o cadastro consulta um **catálogo curado e verificável** de mais de 55 tipos de frutas/verduras, com dezenas de nomes e sinônimos em português, a partir do dataset Fruits-360 sob licença CC BY-SA 4.0. Cada arquivo usado foi verificado nos diretórios públicos do projeto e tem URL imutável por caminho de repositório, além de identificação da fonte.
+- Produtos como **ABACAXI, ABACAXI PÉROLA, MELANCIA, MANGA, MAMÃO, UVA VERDE, BERINJELA, CEBOLA e PIMENTÃO** podem receber fotos sem depender da API da Wikimedia. O painel mostra as sugestões imediatamente após digitar.
+- Ao criar um item do catálogo, tenta copiar uma foto curada para o R2 global e registra a licença e a autoria no D1 para reutilizar entre estabelecimentos. Em caso de falha temporária de importação, o link de origem verificado é usado para não perder a foto, com crédito no rodapé do produto.
+- O botão **Preencher fotos faltantes** não executa mais pesquisa online desconhecida em série, evitando que a tela fique presa quando o provedor falha.
+- Itens fora do acervo mantêm o mecanismo de pesquisa de fonte aberta como opção secundária, mas o sistema não associa imagens erradas. Fotos próprias continuam disponíveis e não são sobrescritas.
+- Fonte: https://github.com/fruits-360 e https://creativecommons.org/licenses/by-sa/4.0/
+- Testes automatizados cobrem foto de abacaxi, cópia R2, autoria na vitrine, compartilhamento entre lojas, contingência sem rede e nomes alternativos.
