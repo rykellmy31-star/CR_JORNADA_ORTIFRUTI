@@ -3,6 +3,7 @@ import {SqliteD1Adapter} from '../src/server/db/sqlite-local';
 import {seedDatabase} from '../src/server/seed';
 import {validateAndPrepareOrderLines} from '../src/server/services/inventory';
 import {createApp} from '../src/server/app';
+import {signJwt} from '../src/server/security/crypto';
 
 let db:SqliteD1Adapter;
 afterEach(()=>{try{db?.close()}catch{}});
@@ -45,4 +46,26 @@ describe('venda por kg e unidade',()=>{
   await db.prepare('UPDATE products SET unit_price_cents=NULL,unit_weight_grams=NULL WHERE id=?').bind(productId).run();
   await expect(validateAndPrepareOrderLines(db,tenantId,[{product_id:productId,purchase_mode:'unit',quantity:1}])).rejects.toThrow(/forma de venda/);
  });
+ it('permite que o proprietário habilite e desabilite o preço por unidade sem afetar outras lojas',async()=>{
+  const {tenantId}=await setup();
+  const owner=await db.prepare("SELECT id,name,email,role FROM users WHERE tenant_id=? AND role='owner' LIMIT 1").bind(tenantId).first<any>();
+  const token=await signJwt({sub:owner.id,name:owner.name,email:owner.email,role:'owner',tenantId},'test-secret'.repeat(4));
+  const media:any={async putObject(){throw Error('unused')},async getObject(){return null}};
+  const app=createApp({db,media,jwtSecret:'test-secret'.repeat(4),crmApiKey:'test',appEnv:'test',evolution:{}});
+  const url='http://local/api/admin/products';
+  const create=await app.fetch(new Request(url,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify({
+   name:'Tomate especial',saleMode:'dual',priceCents:1090,unitPriceCents:220,unitWeightGrams:180,stockQty:1800,minQty:100,stepQty:50
+  })}));
+  expect(create.status).toBe(201);
+  const {id}=await create.json() as any;
+  const listing:any=await (await app.fetch(new Request('http://local/api/store/verde-vivo'))).json();
+  expect(listing.products.find((x:any)=>x.id===id)).toMatchObject({sale_mode:'weight',unit_price_cents:220,unit_weight_grams:180});
+  const other:any=await (await app.fetch(new Request('http://local/api/store/sabor-da-terra'))).json();
+  expect(other.products.some((x:any)=>x.id===id)).toBe(false);
+  const patch=await app.fetch(new Request(url+'/'+id,{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify({saleMode:'weight',unitPriceCents:null,unitWeightGrams:null})}));
+  expect(patch.status).toBe(200);
+  const changed=await db.prepare('SELECT unit_price_cents,unit_weight_grams FROM products WHERE id=?').bind(id).first<any>();
+  expect(changed).toEqual({unit_price_cents:null,unit_weight_grams:null});
+ });
+
 });
