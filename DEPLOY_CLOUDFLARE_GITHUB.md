@@ -173,3 +173,11 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - O documento e as páginas principais limitam `overflow-x` e `max-width` a 100%, evitando deslocamentos horizontais do conteúdo. A rolagem vertical normal e o gesto horizontal das categorias continuam permitidos.
 - Novos testes automatizados verificam proteção contra pinça, manutenção do scroll por um dedo e ausência de regressões de viewport e CSS.
 - A proteção é específica do navegador móvel; os recursos de ampliação do sistema operacional continuam disponíveis. Confirmação visual final requer testar a página atualizada no próprio Safari do cliente.
+
+
+## Correção das categorias no iPhone (20/11/2026)
+
+- Corrigida a faixa de categorias no mobile que ficava cortada e não podia ser arrastada depois da proteção antizoom.
+- O grid da vitrine e a lista de categorias agora têm `min-width:0` e `max-width:100%`, com área própria `overflow-x:auto`, rolagem com inércia no iOS e chips sem quebra de linha.
+- Adicionadas setas discretas para avançar ou voltar entre categorias, habilitadas apenas quando houver mais conteúdo fora da área visível; o toque nas categorias continua filtrando os produtos.
+- O bloqueio do zoom por gesto é preservado no documento, sem interferir na rolagem horizontal desta lista. Testes de prevenção de regressão foram adicionados.
