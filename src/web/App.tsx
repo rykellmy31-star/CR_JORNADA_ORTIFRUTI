@@ -224,7 +224,73 @@ function CartSummary({cart,subtotal,store,onQty,onRemove,onCheckout}:any){
 }
 function CheckoutModal({store,neighborhoods,cart,subtotal,slug,onClose,onSuccess}:any){const[form,setForm]=useState({customerName:'',phone:'',street:'',number:'',neighborhood:'',complement:'',reference:'',paymentMethod:'cash',needsChange:false,changeFor:'',whatsappOptIn:false});const[loading,setLoading]=useState(false),[error,setError]=useState('');const fee=store.free_delivery_min_cents&&subtotal>=store.free_delivery_min_cents?0:(neighborhoods.find((n:any)=>n.name===form.neighborhood)?.delivery_fee_cents??store.default_delivery_fee_cents);const total=subtotal+fee;const set=(k:string,v:any)=>setForm((f:any)=>({...f,[k]:v}));const enabled=[['cash','Dinheiro na entrega','accepts_cash'],['pix_delivery','Pix na entrega','accepts_pix_delivery'],['debit_card','Cartão de débito na entrega','accepts_debit_delivery'],['credit_card','Cartão de crédito na entrega','accepts_credit_delivery']].filter(([, ,key]:any)=>store[key]);async function submit(e:any){e.preventDefault();setError('');setLoading(true);try{const result=await req(`/store/${slug}/orders`,{method:'POST',body:JSON.stringify({...form,items:cart.map((x:any)=>({productId:x.product.id,variantId:x.variant?.id,purchaseMode:x.purchaseMode==='variants'?undefined:x.purchaseMode,quantity:x.quantity}))})});onSuccess(result.order);}catch(e:any){setError(e.message);}finally{setLoading(false);}}return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><form className="checkout-modal" onSubmit={submit}><div className="modal-heading"><div><span className="eyebrow">QUASE LÁ</span><h2>Finalizar pedido</h2><p>Entrega e pagamento combinados diretamente com a loja.</p></div><button type="button" className="icon-btn" onClick={onClose}><X/></button></div><div className="checkout-scroll"><div className="form-section"><h3><Users size={17}/> Seus dados</h3><div className="form-grid"><label className="full">Nome completo<input required value={form.customerName} onChange={e=>set('customerName',e.target.value)} placeholder="Ex.: Maria Oliveira"/></label><label>WhatsApp<input required value={form.phone} onChange={e=>set('phone',e.target.value)} placeholder="(73) 99999-9999" inputMode="tel"/></label><label>Bairro<select required value={form.neighborhood} onChange={e=>set('neighborhood',e.target.value)}><option value="">Selecione</option>{neighborhoods.map((n:any)=><option key={n.name}>{n.name}</option>)}</select></label><label className="full">Rua / avenida<input required value={form.street} onChange={e=>set('street',e.target.value)}/></label><label>Número<input required value={form.number} onChange={e=>set('number',e.target.value)}/></label><label>Complemento<input value={form.complement} onChange={e=>set('complement',e.target.value)} placeholder="Apto, bloco…"/></label><label className="full">Referência (opcional)<input value={form.reference} onChange={e=>set('reference',e.target.value)} placeholder="Perto da praça…"/></label></div></div><div className="form-section"><h3><WalletIcon/> Pagamento na entrega</h3><div className="payment-options">{enabled.map(([id,label]:any)=><label className={`payment-option ${form.paymentMethod===id?'selected':''}`} key={id}><input type="radio" name="pay" checked={form.paymentMethod===id} onChange={()=>set('paymentMethod',id)}/><span>{id==='cash'?'💵':id==='pix_delivery'?'📱':'💳'}</span>{label}</label>)}</div>{form.paymentMethod==='cash'&&<div className="change-question"><label className="check-row"><input type="checkbox" checked={form.needsChange} onChange={e=>set('needsChange',e.target.checked)}/> Precisa de troco?</label>{form.needsChange&&<label>Troco para quanto? (total {money(total)})<div className="money-input"><span>R$</span><input required value={form.changeFor} onChange={e=>set('changeFor',e.target.value)} placeholder="0,00" inputMode="decimal"/></div>{form.changeFor&&Number(String(form.changeFor).replace(',','.'))*100>=total&&<small className="change-result">Troco: {money(Math.round(Number(String(form.changeFor).replace(',','.'))*100)-total)}</small>}</label>}</div>}<label className="check-row opt-in"><input type="checkbox" checked={form.whatsappOptIn} onChange={e=>set('whatsappOptIn',e.target.checked)}/> Autorizo receber atualizações transacionais do pedido pelo WhatsApp.</label></div><div className="checkout-total"><span>Total a pagar na entrega</span><b>{money(total)}</b></div>{error&&<div className="error-banner">{error}</div>}</div><div className="checkout-foot"><button className="btn btn-primary btn-block" disabled={loading}>{loading?<><span className="spinner small"/> Enviando pedido…</>:<>Confirmar pedido <ArrowRight size={17}/></>}</button><small>Ao confirmar, você concorda com o uso dos dados para processar esta compra.</small></div></form></div>}
 function WalletIcon(){return <span>💳</span>}
-function Tracking(){const [, , slug, orderNumber]=useLocation().pathname.split('/');const[data,setData]=useState<any>(null),[error,setError]=useState(''),[phone,setPhone]=useState(''),[loading,setLoading]=useState(false);async function find(e:any){e.preventDefault();setLoading(true);setError('');try{setData(await req(`/store/${slug}/orders/${orderNumber}?phone=${encodeURIComponent(phone)}`));}catch(e:any){setError(e.message);setData(null);}finally{setLoading(false);}}return <div className="track-page"><Link to={`/loja/${slug}`} className="back-link"><ArrowLeft size={16}/> Voltar à loja</Link>{!data?<form className="track-card track-lookup" onSubmit={find}><div className="success-icon"><ShieldCheck size={28}/></div><span className="eyebrow">CONSULTA PRIVADA</span><h1>Pedido #{orderNumber}</h1><p>Para proteger seus dados, informe o telefone usado na compra.</p><label>Telefone / WhatsApp<input required value={phone} onChange={e=>setPhone(e.target.value)} placeholder="(73) 99999-9999" inputMode="tel"/></label>{error&&<div className="error-banner">{error}</div>}<button className="btn btn-primary btn-block" disabled={loading}>{loading?'Consultando…':'Acompanhar pedido'} <ArrowRight size={16}/></button></form>:<div className="track-card"><div className="success-icon"><Truck size={30}/></div><span className="eyebrow">ACOMPANHAMENTO DO PEDIDO</span><h1>Pedido #{data.order.order_number}</h1><div className="status-chip">{ORDER_STATUS_LABELS[data.order.status as keyof typeof ORDER_STATUS_LABELS]||data.order.status}</div><div className="track-steps">{['received','accepted','preparing','out_for_delivery','delivered'].map((s:string,i:number)=><div className={`track-step ${['received','accepted','preparing','out_for_delivery','delivered'].indexOf(data.order.status)>=i?'done':''}`} key={s}><span>{i+1}</span><small>{ORDER_STATUS_LABELS[s as keyof typeof ORDER_STATUS_LABELS]}</small></div>)}</div><div className="track-items">{data.items.map((i:any)=><div key={i.product_name_snapshot}><span>{i.product_name_snapshot} · {i.quantity_display}</span><b>{money(i.line_total_cents)}</b></div>)}</div><div className="checkout-total"><span>Total a pagar na entrega</span><b>{money(data.order.total_cents)}</b></div><button className="btn btn-ghost" onClick={()=>setData(null)}>Consultar outro pedido</button></div>}</div>}
+function Tracking(){
+ const [, , slug,orderNumber]=useLocation().pathname.split('/');
+ const[data,setData]=useState<any>(null),[error,setError]=useState(''),
+ [phone,setPhone]=useState(''),[loading,setLoading]=useState(false);
+ async function refresh(){
+   try{
+     const latest=await req(`/store/${slug}/orders/${orderNumber}?phone=${encodeURIComponent(phone)}`);
+     setData(latest);setError('');
+   }catch(e:any){setError('Não foi possível atualizar agora. Tentaremos novamente.');}
+ }
+ useEffect(()=>{
+   if(!data?.order?.id)return;
+   const timer=setInterval(refresh,12000);
+   return()=>clearInterval(timer);
+ },[data?.order?.id,slug,orderNumber,phone]);
+ async function find(e:any){
+   e.preventDefault();setLoading(true);setError('');
+   try{setData(await req(`/store/${slug}/orders/${orderNumber}?phone=${encodeURIComponent(phone)}`));}
+   catch(e:any){setError(e.message);setData(null);}
+   finally{setLoading(false);}
+ }
+ return <div className="track-page">
+   <Link to={`/loja/${slug}`} className="back-link"><ArrowLeft size={16}/> Voltar à loja</Link>
+   {!data?<form className="track-card track-lookup" onSubmit={find}>
+     <div className="success-icon"><ShieldCheck size={28}/></div>
+     <span className="eyebrow">CONSULTA PRIVADA</span><h1>Pedido #{orderNumber}</h1>
+     <p>Para proteger seus dados, informe o telefone usado na compra.</p>
+     <label>Telefone / WhatsApp<input required value={phone}
+       onChange={e=>setPhone(e.target.value)} placeholder="(73) 99999-9999" inputMode="tel"/></label>
+     {error&&<div className="error-banner">{error}</div>}
+     <button className="btn btn-primary btn-block" disabled={loading}>
+       {loading?'Consultando…':'Acompanhar pedido'} <ArrowRight size={16}/>
+     </button>
+   </form>:<div className="track-card">
+     <div className="success-icon"><Truck size={30}/></div>
+     <span className="eyebrow">ACOMPANHAMENTO DO PEDIDO</span>
+     <h1>Pedido #{data.order.order_number}</h1>
+     <div className="status-chip">{ORDER_STATUS_LABELS[data.order.status as keyof typeof ORDER_STATUS_LABELS]||data.order.status}</div>
+     <div className="track-steps">
+       {['received','accepted','preparing','out_for_delivery','delivered']
+        .map((st:string,i:number)=><div className={`track-step ${['received','accepted','preparing','out_for_delivery','delivered'].indexOf(data.order.status)>=i?'done':''}`} key={st}>
+         <span>{i+1}</span><small>{ORDER_STATUS_LABELS[st as keyof typeof ORDER_STATUS_LABELS]}</small>
+       </div>)}
+     </div>
+     {!!data.adjustments?.length&&<section className="track-adjustments">
+       <h3>🧺 Seu pedido foi atualizado</h3>
+       <p>O estabelecimento ajustou as quantidades. Confira as alterações e o valor final:</p>
+       {data.adjustments.map((a:any)=><div className="track-adjustment" key={a.id}>
+         <b>{a.reason}</b>
+         <small>{new Date(a.created_at).toLocaleString('pt-BR')}</small>
+         {(a.changes||[]).map((ch:any)=><span key={ch.itemId}>{ch.name}: {ch.from} → {ch.to}</span>)}
+         <span>Antes: {money(a.old_total_cents)} · Depois: <strong>{money(a.new_total_cents)}</strong></span>
+       </div>)}
+     </section>}
+     <div className="track-items">{data.items.map((i:any,idx:number)=><div key={idx}>
+       <span>{i.product_name_snapshot}{i.variant_name_snapshot?` — ${i.variant_name_snapshot}`:''} · {i.quantity_display}</span>
+       <b>{money(i.line_total_cents)}</b>
+     </div>)}</div>
+     <div className="checkout-total">
+       <span>Total atualizado na entrega</span><b>{money(data.order.total_cents)}</b>
+     </div>
+     {error&&<div className="error-banner" role="alert">{error}</div>}
+     <p className="track-refresh-note">Atualização automática a cada 12 segundos.</p>
+     <button className="btn btn-ghost" onClick={()=>setData(null)}>Consultar outro pedido</button>
+   </div>}
+ </div>;
+}
 
 const menuItems:any[]=[['dashboard','Visão geral',LayoutDashboard],['orders','Pedidos',ClipboardList],['products','Produtos',Package],['categories','Categorias',Tags],['stock','Estoque',Box],['customers','Clientes',Users],['reports','Relatórios',BarChart3],['whatsapp','WhatsApp',MessageCircle],['settings','Configurações',Settings]];
 function Admin(){const[auth,setAuth]=useState(localStorage.getItem('crj_token')||''),[user,setUser]=useState<any>(null),[active,setActive]=useState('dashboard'),[mobileOpen,setMobileOpen]=useState(false),[storeOpen,setStoreOpen]=useState(true);const adminNavigate=useNavigate();useEffect(()=>{if(auth){req('/auth/me',{},auth).then(x=>setUser(x.user)).catch(()=>{localStorage.removeItem('crj_token');setAuth('');});req('/admin/settings',{},auth).then(x=>setStoreOpen(!!x.settings.is_open)).catch(()=>{});}},[auth]);useEffect(()=>{if(user?.role==='superadmin')adminNavigate('/superadmin');},[user]);useEffect(()=>{const h=(e:any)=>setStoreOpen(!!e.detail);window.addEventListener('store-status',h);return()=>window.removeEventListener('store-status',h);},[]);if(!auth||!user)return <Login onLogin={(t:string,u:any)=>{localStorage.setItem('crj_token',t);setAuth(t);setUser(u);}}/>;const logout=()=>{localStorage.removeItem('crj_token');setAuth('');setUser(null);};return <div className="admin-shell"><aside className={`sidebar ${mobileOpen?'open':''}`}><Link to="/" className="admin-brand"><span className="brand-mark"><Leaf/></span><span>CR Jornada<small>HORTIFRUTI</small></span></Link><div className="sidebar-tenant"><span className="tenant-avatar">{user.tenantName?.[0]||'C'}</span><span><b>{user.tenantName||'Central CR Jornada'}</b><small>{user.role==='superadmin'?'Super Administrador':'Plano Profissional'}</small></span><ChevronDown size={15}/></div><nav className="admin-menu"><small className="menu-label">MENU PRINCIPAL</small>{menuItems.map(([id,label,Icon])=><button key={id} className={active===id?'active':''} onClick={()=>{setActive(id);setMobileOpen(false);}}><Icon size={18}/><span>{label}</span>{id==='orders'&&<em className="menu-dot"/>}</button>)}</nav><div className="sidebar-bottom"><div className="sidebar-help"><span>🌱</span><b>Precisa de ajuda?</b><small>Fale com o suporte CR Jornada.</small></div><button className="profile-mini" onClick={logout}><span className="profile-avatar">{user.name?.[0]}</span><span><b>{user.name}</b><small>{user.email}</small></span><LogOut size={17}/></button></div></aside><main className="admin-main"><header className="admin-topbar"><button className="icon-btn mobile-menu-btn" onClick={()=>setMobileOpen(!mobileOpen)}><Menu/></button><div className="breadcrumbs"><span>Painel</span><ChevronDown size={14}/><b>{menuItems.find(x=>x[0]===active)?.[1]}</b></div><div className="topbar-right"><span className={`open-indicator ${storeOpen?'':'closed'}`}><i/> {storeOpen?'Loja aberta':'Loja pausada'}</span><Link className="btn btn-sm btn-outline" to={`/loja/${user.tenantSlug||'verde-vivo'}`} target="_blank"><Eye size={15}/> Ver loja</Link><button className="icon-btn notification-btn"><MessageCircle size={18}/></button><span className="profile-avatar top-avatar">{user.name?.[0]}</span></div></header><div className="admin-content">{active==='dashboard'?<Dashboard token={auth} user={user}/>:active==='orders'?<Orders token={auth}/>:active==='products'?<Products token={auth}/>:active==='categories'?<Categories token={auth}/>:active==='stock'?<Stock token={auth}/>:active==='customers'?<Customers token={auth}/>:active==='reports'?<Reports token={auth}/>:active==='whatsapp'?<WhatsApp token={auth}/>:<SettingsPanel token={auth} user={user}/>}</div></main></div>}
@@ -263,7 +329,6 @@ function Orders({token}:any){
  const invalid=changes.some((i:any)=>{
    const q=numberFor(i);
    return !Number.isSafeInteger(q)||q<0||q>i.quantity||
-    (q>0 && !Number.isSafeInteger(i.quantity&&Math.round(i.quantity)&&i.quantity?i.quantity:q))||
     (q>0 && !Number.isInteger((i.stock_deducted_qty||0)*q/i.quantity));
  });
  const previewSubtotal=editing&&selected?
