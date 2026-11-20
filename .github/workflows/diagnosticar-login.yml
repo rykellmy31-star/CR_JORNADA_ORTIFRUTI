@@ -48,3 +48,29 @@ jobs:
           console.log('E-mail da conta corresponde ao segredo do GitHub: '+(emailMatches?'SIM':'NÃO'));
           console.log('Senha armazenada corresponde ao segredo do GitHub: '+(passwordMatches?'SIM':'NÃO'));
           NODE
+
+      - name: Verificar autenticação real da API sem mostrar credenciais
+        shell: bash
+        run: |
+          set -euo pipefail
+          PAYLOAD_FILE="$(mktemp "$RUNNER_TEMP/hortifruti-login.XXXXXX")"
+          RESPONSE_FILE="$(mktemp "$RUNNER_TEMP/hortifruti-response.XXXXXX")"
+          chmod 600 "$PAYLOAD_FILE" "$RESPONSE_FILE"
+          trap 'rm -f "$PAYLOAD_FILE" "$RESPONSE_FILE"' EXIT
+          export PAYLOAD_FILE
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          writeFileSync(process.env.PAYLOAD_FILE,JSON.stringify({
+            email:(process.env.SUPERADMIN_EMAIL||'').trim().toLowerCase(),
+            password:process.env.SUPERADMIN_INITIAL_PASSWORD||''
+          }),{mode:0o600});
+          NODE
+          code="$(curl --silent --show-error --max-time 30 --output "$RESPONSE_FILE" --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' --data-binary "@$PAYLOAD_FILE" \
+            https://cr-jornada-hortifruti.netssh3-0.workers.dev/api/auth/login)"
+          echo "Resultado de login com as credenciais do GitHub: HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::A API não conseguiu autenticar as credenciais válidas do banco."
+            exit 1
+          fi
+          echo "Autenticação com credenciais cadastradas no GitHub: OK"
