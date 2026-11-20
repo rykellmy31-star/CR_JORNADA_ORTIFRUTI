@@ -10,6 +10,7 @@ import {timingSafeEqualStr} from './security/crypto';
 import {normalizePhoneBR} from '../shared/pricing';
 import {generateId,hashPassword} from './security/crypto';
 import {normalizeEvolutionQrImage} from './services/evolution-whatsapp';
+import {recordWhatsAppDisconnection,processPendingTelegramAlerts} from './services/telegram-alerts';
 import {z} from 'zod';
 
 export function createApp(services:AppRuntimeServices){
@@ -54,10 +55,9 @@ export function createApp(services:AppRuntimeServices){
         last_checked_at=?,last_error=NULL,provider_mode='evolution_live',updated_at=?
         WHERE tenant_id=?`)
         .bind(phone?normalizePhoneBR(phone):null,time,time,time,inst.tenant_id).run();
-    }else if(state==='close'||state==='closed'){
-      await services.db.prepare(`UPDATE whatsapp_instances
-        SET status='disconnected',qr_code_base64=NULL,qr_code_text=NULL,last_checked_at=?,updated_at=?
-        WHERE tenant_id=?`).bind(time,time,inst.tenant_id).run();
+    }else if(['close','closed','disconnected'].includes(state)){
+      if(await recordWhatsAppDisconnection(services.db,inst.tenant_id,'webhook'))
+        await processPendingTelegramAlerts(services.db,services.evolution).catch(()=>undefined);
     }
   }
   return c.json({received:true});
