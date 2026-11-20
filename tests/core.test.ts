@@ -1,7 +1,7 @@
 import {afterEach,describe,expect,it} from 'vitest';
 import {SqliteD1Adapter} from '../src/server/db/sqlite-local';
 import {seedDatabase} from '../src/server/seed';
-import {calculateChangeCents,calculateLineTotalCents,formatBRL} from '../src/shared/pricing';
+import {calculateChangeCents,calculateLineTotalCents,formatBRL,getDiscountPercent} from '../src/shared/pricing';
 import {validateAndPrepareOrderLines} from '../src/server/services/inventory';
 import {enqueueAndDispatchOrderWhatsAppNotification} from '../src/server/services/evolution-whatsapp';
 import {createApp} from '../src/server/app';
@@ -16,6 +16,21 @@ afterEach(()=>{try{db?.close()}catch{}});
 describe('matemática de preço e troco',()=>{
  it('calcula preço proporcional por grama em centavos inteiros',()=>{expect(calculateLineTotalCents(699,400,'weight',1000)).toBe(280);expect(calculateLineTotalCents(1690,500,'weight',1000)).toBe(845);expect(formatBRL(280)).toBe('R$ 2,80');});
  it('rejeita troco abaixo do total e calcula troco correto',()=>{expect(()=>calculateChangeCents(14000,true,13999)).toThrow(/inferior/);expect(calculateChangeCents(14000,true,15000)).toEqual({needsChange:true,changeForCents:15000,changeAmountCents:1000});});
+});
+
+describe('selo de desconto na vitrine',()=>{
+ it('calcula o percentual sobre o preço original como no exemplo da imagem',()=>{
+  expect(getDiscountPercent(990,799)).toBe(19);
+  expect(getDiscountPercent(1000,750)).toBe(25);
+  expect(getDiscountPercent(1000,999)).toBe(1);
+ });
+ it('não inventa desconto com preço igual, maior ou inválido',()=>{
+  expect(getDiscountPercent(990,990)).toBeNull();
+  expect(getDiscountPercent(990,1100)).toBeNull();
+  expect(getDiscountPercent(0,0)).toBeNull();
+  expect(getDiscountPercent(990,-1)).toBeNull();
+  expect(getDiscountPercent(Number.NaN,500)).toBeNull();
+ });
 });
 
 describe('dados de seed e isolamento multi-tenant',()=>{
