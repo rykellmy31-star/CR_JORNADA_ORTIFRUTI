@@ -2,6 +2,7 @@ import type { Context, Next } from 'hono';
 import type { DbClient } from './db/adapter';
 import type { MediaStorageAdapter } from './storage/r2-media';
 import type { EvolutionEnvConfig } from './services/evolution-whatsapp';
+import type { CloudflareDomainsConfig } from './services/cloudflare-domains';
 import {
   generateId,
   timingSafeEqualStr,
@@ -19,6 +20,7 @@ export interface AppRuntimeServices {
   crmWebhookSecret?: string;
   appEnv: string;
   evolution: EvolutionEnvConfig;
+  cloudflareDomains?: CloudflareDomainsConfig;
 }
 
 export type AppHonoEnv = {
