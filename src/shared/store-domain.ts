@@ -1,7 +1,8 @@
 /** Identificação de vitrines sem consumir subdomínios de serviços da CR Jornada. */
 export const RESERVED_CRJ_SUBDOMAINS=new Set([
  'admin','api','www','pontos','fidelidade','farmacia','evolution',
- 'site','hortifruti','hortifruti-admin','tigu','mail','ftp'
+ 'site','hortifruti','hortifruti-admin','tigu','mail','ftp',
+ 'agendamentos','crbot','gestor','promoml','bot','painel','suporte'
 ]);
 export function isValidStoreSubdomain(slug:string):boolean{
  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
