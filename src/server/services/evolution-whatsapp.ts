@@ -173,138 +173,109 @@ function sanitizeEvolutionError(message: string, cfg: EvolutionEnvConfig): strin
  * Cria/conecta a instância isolada do estabelecimento na Evolution API e retorna o QR Code interno,
  * NUNCA expondo a URL privada ou Global API Key da Evolution API.
  */
+/** Garante que o QR recebido da Evolution seja uma imagem válida no navegador. */
+export async function normalizeEvolutionQrImage(payload: any): Promise<string | null> {
+  const raw=payload?.qrcode?.base64||payload?.base64||payload?.qrcode?.codeImage||payload?.codeImage||null;
+  if(typeof raw==='string'&&raw.trim()){
+    const code=raw.trim();
+    if(/^data:image\/(png|jpe?g|webp|svg\+xml);base64,/i.test(code))return code;
+    if(/^[A-Za-z0-9+/=\r\n]+$/.test(code)&&code.length>40)
+      return 'data:image/png;base64,'+code.replace(/\s/g,'');
+  }
+  const text=payload?.qrcode?.code||payload?.code||null;
+  return typeof text==='string'&&text.startsWith('2@')?generateSvgQrBase64(text):null;
+}
+const evolutionWebhook = (cfg: EvolutionEnvConfig) => {
+  if(!cfg.evolutionWebhookToken||!cfg.publicWebhookUrl)return null;
+  const base=cfg.publicWebhookUrl.replace(/\/+$/,'');
+  if(!base.startsWith('https://'))return null;
+  return {
+    enabled:true,
+    url:base+'/api/webhooks/evolution',
+    byEvents:false,
+    base64:true,
+    headers:{'x-evolution-token':cfg.evolutionWebhookToken},
+    events:['QRCODE_UPDATED','CONNECTION_UPDATE']
+  };
+};
+async function configureEvolutionWebhook(baseUrl:string,instance:string,headers:Record<string,string>,cfg:EvolutionEnvConfig){
+  const webhook=evolutionWebhook(cfg);
+  if(!webhook)return false;
+  const payload=JSON.stringify({webhook});
+  // APIs v2 usam /webhook/set; versões recentes também expõem /event/webhook/set.
+  for(const segment of ['webhook/set','event/webhook/set']){
+    const response=await fetch(baseUrl+'/'+segment+'/'+encodeURIComponent(instance),{
+      method:'POST',headers,body:payload
+    });
+    if(response.ok)return true;
+    if(response.status!==404&&response.status!==405)
+      throw new Error('Não foi possível configurar o webhook Evolution (HTTP '+response.status+').');
+  }
+  throw new Error('Servidor Evolution não oferece endpoint de configuração do webhook compatível.');
+}
+
+/**
+ * Cria somente a instância pertencente ao tenant autenticado e devolve QR real.
+ * Nenhum acesso externo é feito sem credenciais e nenhuma instância alheia é modificada.
+ */
 export async function connectOrRefreshWhatsAppQr(
-  db: DbClient,
-  tenantId: string,
-  slug: string,
-  envCfg: EvolutionEnvConfig
+  db: DbClient, tenantId: string, slug: string, envCfg: EvolutionEnvConfig
 ) {
-  await ensureTenantWhatsAppSetup(db, tenantId, slug, envCfg);
-  const now = new Date().toISOString();
-
-  const inst = await db
-    .prepare(`SELECT * FROM whatsapp_instances WHERE tenant_id = ?`)
-    .bind(tenantId)
-    .first<Record<string, unknown>>();
-
-  if (!inst) {
-    throw new Error('Instância WhatsApp não encontrada para este estabelecimento.');
-  }
-
-  const instanceName = String(inst.instance_name);
-  const isLive = isLiveEvolutionConfigured(envCfg);
-  if (!isLive) {
-    throw new Error('Evolution API não configurada para este sistema. Solicite a configuração ao administrador CR Jornada.');
-  }
-
-  if (isLive) {
-    const baseUrl = envCfg.evolutionApiUrl!.replace(/\/+$/, '');
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      apikey: envCfg.evolutionApiKey!,
-    };
-
-    try {
-      // 1. Tenta buscar conexão/QR existente ou criar a instância automaticamente
-      let connectResp = await fetch(`${baseUrl}/instance/connect/${encodeURIComponent(instanceName)}`, {
-        method: 'GET',
-        headers,
+  await ensureTenantWhatsAppSetup(db,tenantId,slug,envCfg);
+  if(!isLiveEvolutionConfigured(envCfg))
+    throw new Error('Evolution API ainda não configurada. Peça a configuração ao administrador CR Jornada.');
+  const baseUrl=envCfg.evolutionApiUrl!.replace(/\/+$/,'');
+  if(!baseUrl.startsWith('https://'))throw new Error('A Evolution API precisa usar HTTPS para proteger as credenciais.');
+  const now=new Date().toISOString();
+  const row=await db.prepare('SELECT instance_name FROM whatsapp_instances WHERE tenant_id=?')
+    .bind(tenantId).first<{instance_name:string}>();
+  if(!row)throw new Error('A instância não foi encontrada para esta loja.');
+  const instanceName=row.instance_name;
+  const headers={'Content-Type':'application/json',apikey:envCfg.evolutionApiKey!};
+  const connect=()=>fetch(baseUrl+'/instance/connect/'+encodeURIComponent(instanceName),{headers});
+  let webhookWarning:string|null=null;
+  try {
+    let resp=await connect(),data:any=null;
+    if(resp.status===404){
+      const createBody:any={instanceName,qrcode:true,integration:'WHATSAPP-BAILEYS',
+        rejectCall:true,groupsIgnore:true,readMessages:false,readStatus:false};
+      const webhook=evolutionWebhook(envCfg);
+      if(webhook)createBody.webhook=webhook;
+      const creation=await fetch(baseUrl+'/instance/create',{
+        method:'POST',headers,body:JSON.stringify(createBody)
       });
-
-      if (connectResp.status === 404) {
-        const createBody: Record<string, unknown> = {
-          instanceName,
-          qrcode: true,
-          integration: 'WHATSAPP-BAILEYS',
-        };
-        if (envCfg.publicWebhookUrl && envCfg.evolutionWebhookToken) {
-          createBody.webhook = {
-            url: `${envCfg.publicWebhookUrl.replace(/\/+$/, '')}/api/webhooks/evolution`,
-            byEvents: false,
-            base64: true,
-            headers: envCfg.evolutionWebhookToken
-              ? { 'x-evolution-token': envCfg.evolutionWebhookToken }
-              : undefined,
-            events: ['QRCODE_UPDATED', 'CONNECTION_UPDATE'],
-          };
-        }
-
-        const createResp = await fetch(`${baseUrl}/instance/create`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(createBody),
-        });
-
-        if (!createResp.ok) {
-          const errTxt = await createResp.text();
-          throw new Error(`Falha ao provisionar instância na Evolution API (${createResp.status}): ${errTxt.slice(0, 160)}`);
-        }
-
-        const createdData = (await createResp.json()) as Record<string, any>;
-        const qrBase64 =
-          createdData?.qrcode?.base64 ||
-          (createdData?.qrcode?.code ? await generateSvgQrBase64(createdData.qrcode.code) : null);
-
-        await db
-          .prepare(
-            `UPDATE whatsapp_instances
-             SET status = 'qr_pending', qr_code_base64 = ?, qr_code_text = ?, qr_updated_at = ?,
-                 provider_mode = 'evolution_live', last_error = NULL, updated_at = ?
-             WHERE tenant_id = ?`
-          )
-          .bind(
-            qrBase64,
-            createdData?.qrcode?.code || null,
-            now,
-            now,
-            tenantId
-          )
-          .run();
-      } else if (connectResp.ok) {
-        const data = (await connectResp.json()) as Record<string, any>;
-        if (data?.instance?.state === 'open' || data?.state === 'open') {
-          await db
-            .prepare(
-              `UPDATE whatsapp_instances
-               SET status = 'connected', qr_code_base64 = NULL, qr_code_text = NULL,
-                   connected_at = COALESCE(connected_at, ?), last_checked_at = ?,
-                   provider_mode = 'evolution_live', last_error = NULL, updated_at = ?
-               WHERE tenant_id = ?`
-            )
-            .bind(now, now, now, tenantId)
-            .run();
-        } else {
-          const qrBase64 =
-            data?.base64 ||
-            data?.qrcode?.base64 ||
-            (data?.code ? await generateSvgQrBase64(data.code) : null);
-
-          await db
-            .prepare(
-              `UPDATE whatsapp_instances
-               SET status = 'qr_pending', qr_code_base64 = ?, qr_code_text = ?, qr_updated_at = ?,
-                   provider_mode = 'evolution_live', last_error = NULL, updated_at = ?
-               WHERE tenant_id = ?`
-            )
-            .bind(qrBase64, data?.code || null, now, now, tenantId)
-            .run();
-        }
-      } else {
-        throw new Error(`Evolution API retornou HTTP ${connectResp.status} ao solicitar QR Code.`);
+      if(creation.ok)data=await creation.json();
+      else if(creation.status!==409)
+        throw new Error('Falha ao criar instância do estabelecimento (HTTP '+creation.status+').');
+      if(!data?.qrcode?.base64 && !data?.qrcode?.code && !data?.base64){
+        resp=await connect();
+        if(!resp.ok)throw new Error('Instância criada, mas QR ainda não disponível (HTTP '+resp.status+'). Atualize o QR novamente em alguns segundos.');
+        data=await resp.json();
       }
-    } catch (err: any) {
-      const msg = sanitizeEvolutionError(err?.message || 'Erro de comunicação com o servidor Evolution API.', envCfg);
-      await db
-        .prepare(
-          `UPDATE whatsapp_instances SET last_error = ?, updated_at = ? WHERE tenant_id = ?`
-        )
-        .bind(msg, now, tenantId)
-        .run();
-      throw new Error(msg);
-    }
-  }
+    }else if(resp.ok)data=await resp.json();
+    else throw new Error('Evolution API recusou a conexão da instância (HTTP '+resp.status+').');
 
-  return getSanitizedWhatsAppStatus(db, tenantId, envCfg);
+    // Em caso de instância criada anteriormente, atualiza o webhook apenas dela.
+    try{
+      if(!evolutionWebhook(envCfg))webhookWarning='Configure a chave de webhook para sincronizar o status automaticamente.';
+      else await configureEvolutionWebhook(baseUrl,instanceName,headers,envCfg);
+    }catch(e:any){webhookWarning=sanitizeEvolutionError(String(e?.message||'Falha de webhook'),envCfg);}
+    const state=String(data?.instance?.state||data?.state||'').toLowerCase();
+    const connected=state==='open';
+    const qr=connected?null:await normalizeEvolutionQrImage(data);
+    const qrText=connected?null:String(data?.qrcode?.code||data?.code||'')||null;
+    await db.prepare(`UPDATE whatsapp_instances SET status=?,qr_code_base64=?,
+      qr_code_text=?,qr_updated_at=?,connected_at=CASE WHEN ?='connected' THEN COALESCE(connected_at,?) ELSE connected_at END,
+      last_checked_at=?,provider_mode='evolution_live',last_error=?,updated_at=?
+      WHERE tenant_id=?`).bind(connected?'connected':'qr_pending',qr,qrText,now,
+      connected?'connected':'qr_pending',now,now,webhookWarning,now,tenantId).run();
+    return getSanitizedWhatsAppStatus(db,tenantId,envCfg);
+  }catch(e:any){
+    const msg=sanitizeEvolutionError(String(e?.message||'Falha de comunicação com a Evolution API'),envCfg);
+    await db.prepare('UPDATE whatsapp_instances SET last_error=?,updated_at=? WHERE tenant_id=?')
+      .bind(msg,now,tenantId).run();
+    throw new Error(msg);
+  }
 }
 
 /**
