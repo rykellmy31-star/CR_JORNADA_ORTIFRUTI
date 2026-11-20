@@ -9,6 +9,7 @@ import {superAdminRoutes} from './routes/superadmin';
 import {timingSafeEqualStr} from './security/crypto';
 import {normalizePhoneBR} from '../shared/pricing';
 import {generateId,hashPassword} from './security/crypto';
+import {normalizeEvolutionQrImage} from './services/evolution-whatsapp';
 import {z} from 'zod';
 
 export function createApp(services:AppRuntimeServices){
@@ -23,7 +24,44 @@ export function createApp(services:AppRuntimeServices){
  app.route('/api/admin',adminRoutes);
  app.route('/api/crm/v1',crmRoutes);
  app.route('/api/superadmin',superAdminRoutes);
- app.post('/api/webhooks/evolution',async(c)=>{const secret=services.evolution.evolutionWebhookToken||'';const received=c.req.header('x-evolution-token')||'';if(!secret||!timingSafeEqualStr(received,secret))return c.json({error:'Webhook não autorizado.'},401);const body=await c.req.json().catch(()=>({}));const instanceName=String(body.instance||body.instanceName||body.data?.instance?.instanceName||'');if(!instanceName)return c.json({error:'Instância ausente.'},400);const inst=await services.db.prepare(`SELECT tenant_id FROM whatsapp_instances WHERE instance_name=?`).bind(instanceName).first<{tenant_id:string}>();if(!inst)return c.json({error:'Instância não encontrada.'},404);const event=String(body.event||'').toLowerCase(),data=body.data||{},time=new Date().toISOString();if(event.includes('qrcode')){const qr=data.qrcode?.base64||data.base64||data.qrcode?.code||null;await services.db.prepare(`UPDATE whatsapp_instances SET status='qr_pending',qr_code_base64=?,qr_code_text=?,qr_updated_at=?,updated_at=? WHERE tenant_id=?`).bind(qr,data.qrcode?.code||null,time,time,inst.tenant_id).run();}else if(event.includes('connection')){const state=String(data.state||data.instance?.state||'').toLowerCase();if(state==='open'){const phone=String(data.owner||data.ownerJid||'').split('@')[0];await services.db.prepare(`UPDATE whatsapp_instances SET status='connected',connected_phone=COALESCE(?,connected_phone),qr_code_base64=NULL,qr_code_text=NULL,connected_at=COALESCE(connected_at,?),last_checked_at=?,updated_at=? WHERE tenant_id=?`).bind(phone?normalizePhoneBR(phone):null,time,time,time,inst.tenant_id).run();}else if(state==='close'||state==='closed'){await services.db.prepare(`UPDATE whatsapp_instances SET status='disconnected',last_checked_at=?,updated_at=? WHERE tenant_id=?`).bind(time,time,inst.tenant_id).run();}}return c.json({received:true});});
+ app.post('/api/webhooks/evolution',async(c)=>{
+  const secret=services.evolution.evolutionWebhookToken||'';
+  const received=c.req.header('x-evolution-token')||'';
+  if(!secret||!timingSafeEqualStr(received,secret))
+    return c.json({error:'Webhook não autorizado.'},401);
+  const body=await c.req.json().catch(()=>({}));
+  const instanceName=String(body.instance||body.instanceName||body.data?.instance?.instanceName||'');
+  if(!instanceName)return c.json({error:'Instância ausente.'},400);
+  const inst=await services.db.prepare('SELECT tenant_id FROM whatsapp_instances WHERE instance_name=?')
+    .bind(instanceName).first<{tenant_id:string}>();
+  if(!inst)return c.json({error:'Instância não encontrada.'},404);
+  const event=String(body.event||'').toLowerCase().replace(/[.\s-]/g,'_');
+  const data=body.data||{},time=new Date().toISOString();
+  if(event.includes('qrcode')){
+    const qr=await normalizeEvolutionQrImage(data);
+    const code=String(data.qrcode?.code||data.code||'')||null;
+    await services.db.prepare(`UPDATE whatsapp_instances
+      SET status='qr_pending',qr_code_base64=?,qr_code_text=?,qr_updated_at=?,
+      updated_at=?,provider_mode='evolution_live' WHERE tenant_id=?`)
+      .bind(qr,code,time,time,inst.tenant_id).run();
+  }else if(event.includes('connection')){
+    const state=String(data.state||data.instance?.state||data.connection||'').toLowerCase();
+    if(state==='open'){
+      const phone=String(data.owner||data.ownerJid||data.instance?.ownerJid||'').split('@')[0];
+      await services.db.prepare(`UPDATE whatsapp_instances
+        SET status='connected',connected_phone=COALESCE(?,connected_phone),
+        qr_code_base64=NULL,qr_code_text=NULL,connected_at=COALESCE(connected_at,?),
+        last_checked_at=?,last_error=NULL,provider_mode='evolution_live',updated_at=?
+        WHERE tenant_id=?`)
+        .bind(phone?normalizePhoneBR(phone):null,time,time,time,inst.tenant_id).run();
+    }else if(state==='close'||state==='closed'){
+      await services.db.prepare(`UPDATE whatsapp_instances
+        SET status='disconnected',qr_code_base64=NULL,qr_code_text=NULL,last_checked_at=?,updated_at=?
+        WHERE tenant_id=?`).bind(time,time,inst.tenant_id).run();
+    }
+  }
+  return c.json({received:true});
+});
  app.get('/media/*',async(c)=>{const key=c.req.path.replace(/^\/media\//,'');if(key.includes('..'))return c.text('Invalid key',400);const obj=await services.media.getObject(key);if(!obj)return c.notFound();return new Response(obj.bytes.buffer as ArrayBuffer,{headers:{'Content-Type':obj.contentType,'Cache-Control':'public, max-age=86400'}});});
  app.onError((err,c)=>{console.error('Unhandled API error',err);return c.json({error:services.appEnv==='production'?'Erro interno do servidor.':err.message},500);});
  return app;
