@@ -216,7 +216,7 @@ export async function importCommonsProductImage(
  return {...found,imageUrl:uploaded.publicUrl,source:'library'};
 }
 export async function autoProductImage(
- db:DbClient,media:MediaStorageAdapter,name:string
+ db:DbClient,media:MediaStorageAdapter,name:string,allowExternal=true
 ):Promise<{imageUrl:string|null;source:string}>{
  const shared=await cachedProductImage(db,name);
  if(shared)return {imageUrl:shared.imageUrl,source:'shared'};
@@ -233,6 +233,7 @@ export async function autoProductImage(
    return {imageUrl:curated.imageUrl,source:'curated_direct'};
   }
  }
+ if(!allowExternal)return {imageUrl:null,source:'not_found'};
  try{
   const options=await findCommonsPhotoCandidates(name);
   const strong=options.filter(o=>(o.confidence||0)>=80);
