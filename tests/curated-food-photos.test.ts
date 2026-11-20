@@ -47,6 +47,8 @@ describe('catálogo fotográfico confiável, sem depender da busca externa',()=>
    expect(photo?.licenseName).toBe('CC BY-SA 4.0');
   }
   expect(Object.keys(CURATED_FOOD_PHOTOS).length).toBeGreaterThanOrEqual(70);
+  expect(curatedProductImage('ABACAXI PÉROLA')?.imageUrl).toBe(curatedProductImage('abacaxi')?.imageUrl);
+  expect(curatedProductImage('UVA VERDE SEM SEMENTES')?.imageUrl).toBe(curatedProductImage('uva verde')?.imageUrl);
   expect(curatedProductImage('produto de fantasia')).toBeNull();
  });
  it('sugere abacaxi sem fazer chamada Wikimedia e sem aviso de imagem não encontrada',async()=>{
