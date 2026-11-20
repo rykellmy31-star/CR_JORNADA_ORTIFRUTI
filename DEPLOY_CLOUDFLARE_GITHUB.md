@@ -100,3 +100,12 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - A contagem dos itens, o subtotal e o valor total são recalculados automaticamente.
 - Comprar o mesmo produto por kg e por unidade continua permitindo remover uma modalidade sem apagar a outra.
 - O recurso também está disponível no carrinho do celular e não modifica estoque ou pedidos antes da finalização.
+
+## Atualização — Cadastro voluntário no pop-up (20/11/2026)
+- Pop-up hortifruti sem cupons, com nome completo, e-mail, celular e consentimento expresso para cadastro. Autorização para receber novidades é separada e opcional.
+- Convite configurável por loja em Configurações: ativação, título, descrição e texto do botão. Texto inicial: "🍓 Fresquinho de verdade, novidades em primeira mão!".
+- Dados armazenados na tabela de clientes por tenant; e-mail, origem do cadastro e consentimento de marketing visíveis na aba Clientes.
+- Duplicatas de telefone da mesma loja atualizam o cadastro sem criar um segundo cliente; mesmo telefone em outro estabelecimento não compartilha dados.
+- O pop-up pode ser fechado; reaparece após 7 dias no navegador se não houver cadastro. Após cadastro, deixa de aparecer naquele navegador.
+- Nenhum cupom é criado, nenhuma campanha ou WhatsApp promocional é enviado automaticamente.
+- Migração aditiva D1 0004_customer_popup.sql e testes automáticos concluídos antes da publicação.
