@@ -193,6 +193,9 @@ export async function connectOrRefreshWhatsAppQr(
 
   const instanceName = String(inst.instance_name);
   const isLive = isLiveEvolutionConfigured(envCfg);
+  if (!isLive) {
+    throw new Error('Evolution API não configurada para este sistema. Solicite a configuração ao administrador CR Jornada.');
+  }
 
   if (isLive) {
     const baseUrl = envCfg.evolutionApiUrl!.replace(/\/+$/, '');
@@ -299,26 +302,6 @@ export async function connectOrRefreshWhatsAppQr(
         .run();
       throw new Error(msg);
     }
-  } else {
-    // Modo Homologação Integrado (quando EVOLUTION_API_URL ainda não foi configurada)
-    const tokenNonce = crypto.randomUUID().slice(0, 12);
-    const pairingPayload = `2@CRJORNADA_EVOLUTION:${instanceName}:${tokenNonce}:${Date.now()}`;
-    const qrSvgDataUri = await generateSvgQrBase64(pairingPayload);
-
-    await db
-      .prepare(
-        `UPDATE whatsapp_instances
-         SET status = 'qr_pending',
-             qr_code_base64 = ?,
-             qr_code_text = ?,
-             qr_updated_at = ?,
-             provider_mode = 'homologation',
-             last_error = NULL,
-             updated_at = ?
-         WHERE tenant_id = ?`
-      )
-      .bind(qrSvgDataUri, pairingPayload, now, now, tenantId)
-      .run();
   }
 
   return getSanitizedWhatsAppStatus(db, tenantId, envCfg);
@@ -528,15 +511,17 @@ export async function getSanitizedWhatsAppStatus(
 
   return {
     instance_name: inst?.instance_name || null,
-    status: (inst?.status as 'disconnected' | 'qr_pending' | 'connected') || 'disconnected',
+    status: isLive ? ((inst?.status as 'disconnected' | 'qr_pending' | 'connected') || 'disconnected') : 'disconnected',
     connected_phone: inst?.connected_phone ? formatPhoneBR(inst.connected_phone) : null,
     connected_phone_raw: inst?.connected_phone || null,
     profile_name: inst?.profile_name || null,
-    qr_code_base64: inst?.qr_code_base64 || null,
+    qr_code_base64: isLive ? (inst?.qr_code_base64 || null) : null,
     qr_updated_at: inst?.qr_updated_at || null,
     connected_at: inst?.connected_at || null,
     last_checked_at: inst?.last_checked_at || null,
-    provider_mode: isLive ? 'evolution_live' : 'homologation',
+    provider_mode: isLive ? 'evolution_live' : 'not_configured',
+    configured: isLive,
+    webhook_configured: Boolean(envCfg.publicWebhookUrl && envCfg.evolutionWebhookToken),
     last_error: inst?.last_error ? sanitizeEvolutionError(inst.last_error, envCfg) : null,
   };
 }
@@ -782,23 +767,20 @@ export async function dispatchQueuedMessageById(
   const attemptNum = Number(msg.attempts || 0) + 1;
   const maxAttempts = Number(msg.max_attempts || 3);
 
-  if (!inst || inst.status !== 'connected') {
-    const backoffSeconds = Math.min(300, Math.pow(2, attemptNum) * 30);
-    const nextRetry = new Date(Date.now() + backoffSeconds * 1000).toISOString();
-    const newStatus = attemptNum >= maxAttempts ? 'failed' : 'pending';
-    const errText =
-      'Instância WhatsApp desconectada no estabelecimento. Conecte o WhatsApp para disparar mensagens pendentes.';
-
-    await db
-      .prepare(
-        `UPDATE whatsapp_message_queue
-         SET status = ?, attempts = ?, next_retry_at = ?, last_error = ?, updated_at = ?
-         WHERE id = ? AND tenant_id = ?`
-      )
-      .bind(newStatus, attemptNum, nextRetry, errText, now, queueId, tenantId)
-      .run();
-
-    return { status: newStatus, error: errText };
+  // Manter mensagens na fila enquanto não houver conexão real, sem consumir
+  // tentativas nem informar envio bem-sucedido. Evitar disparos de eventos antigos.
+  if (!isLiveEvolutionConfigured(envCfg) || !inst || inst.status !== 'connected') {
+    const stale = Date.now() - Date.parse(String(msg.created_at)) > 24*60*60*1000;
+    const status = stale ? 'failed' : 'pending';
+    const errText = !isLiveEvolutionConfigured(envCfg)
+      ? 'Evolution API não configurada. Aguardando conexão real.'
+      : 'WhatsApp desconectado. Aguardando a conexão do estabelecimento.';
+    const retryAt = new Date(Date.now() + 120000).toISOString();
+    await db.prepare(`UPDATE whatsapp_message_queue
+      SET status=?,next_retry_at=?,last_error=?,updated_at=?
+      WHERE id=? AND tenant_id=? AND status='pending'`)
+      .bind(status,stale?null:retryAt,errText,now,queueId,tenantId).run();
+    return {status,error:errText};
   }
 
   const isLive = isLiveEvolutionConfigured(envCfg);
@@ -858,21 +840,9 @@ export async function dispatchQueuedMessageById(
 
       return { status: newStatus, error: errMsg };
     }
-  } else {
-    // Homologation Gateway: instância conectada -> registra envio homologado auditável
-    const simMsgId = `homolog_${generateId().slice(0, 12)}`;
-    await db
-      .prepare(
-        `UPDATE whatsapp_message_queue
-         SET status = 'sent', attempts = ?, sent_at = ?, provider_message_id = ?,
-             last_error = NULL, updated_at = ?
-         WHERE id = ? AND tenant_id = ?`
-      )
-      .bind(attemptNum, now, simMsgId, now, queueId, tenantId)
-      .run();
-
-    return { status: 'sent' };
   }
+  // Em produção, nunca registrar envio simulado como 'sent'.
+  return { status:'pending', error:'Evolution API ainda não configurada.' };
 }
 
 /**
