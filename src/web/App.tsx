@@ -31,8 +31,25 @@ const cartLinePrice=(line:CartLine):number=>{
 const cartLineTotal=(line:CartLine)=>calculateLineTotalCents(cartLinePrice(line),line.quantity,line.purchaseMode,line.product.pricing_unit_grams||1000);
 const cartLineKey=(line:CartLine)=>[line.product.id,line.variant?.id||'',line.purchaseMode].join(':');
 
-function Storefront(){const slug=useLocation().pathname.split('/')[2]||'';const[storeData,setStoreData]=useState<any>(null),[error,setError]=useState(''),[search,setSearch]=useState(''),[cat,setCat]=useState('all'),[cart,setCart]=useState<CartLine[]>([]),[checkout,setCheckout]=useState(false),[placed,setPlaced]=useState<any>(null),[loading,setLoading]=useState(true),[mobileCart,setMobileCart]=useState(false);const navigate=useNavigate();
+function Storefront(){const slug=useLocation().pathname.split('/')[2]||'';const[storeData,setStoreData]=useState<any>(null),[showSignup,setShowSignup]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState(''),[cat,setCat]=useState('all'),[cart,setCart]=useState<CartLine[]>([]),[checkout,setCheckout]=useState(false),[placed,setPlaced]=useState<any>(null),[loading,setLoading]=useState(true),[mobileCart,setMobileCart]=useState(false);const navigate=useNavigate();
  useEffect(()=>{setLoading(true);req(`/store/${slug}`).then((x:any)=>setStoreData({...x,store:{...x.store,neighborhoods:x.neighborhoods}})).catch(e=>setError(e.message)).finally(()=>setLoading(false));},[slug]);
+ useEffect(()=>{
+   if(!storeData?.store?.signup_popup_enabled)return;
+   let visible=true;
+   try{
+     const registered=localStorage.getItem(`crj_signup_registered_${slug}`)==='1';
+     const dismissed=Number(localStorage.getItem(`crj_signup_dismissed_${slug}`)||0);
+     visible=!registered&&(!dismissed||Date.now()-dismissed>7*24*60*60*1000);
+   }catch{}
+   setShowSignup(visible);
+ },[storeData?.store?.id,slug]);
+ function closeSignup(registered:boolean){
+   setShowSignup(false);
+   try{
+     if(registered)localStorage.setItem(`crj_signup_registered_${slug}`,'1');
+     else localStorage.setItem(`crj_signup_dismissed_${slug}`,String(Date.now()));
+   }catch{}
+ }
  const store=storeData?.store,products=storeData?.products||[],categories=storeData?.categories||[],neighborhoods=storeData?.neighborhoods||[];
  const shown=products.filter((p:any)=>(cat==='all'||p.category_id===cat)&&p.name.toLowerCase().includes(search.toLowerCase()));
  const subtotal=cart.reduce((sum,line)=>sum+cartLineTotal(line),0);
@@ -48,10 +65,65 @@ function Storefront(){const slug=useLocation().pathname.split('/')[2]||'';const[
  if(loading)return <div className="loading"><span className="spinner"/>Carregando a loja…</div>;if(error||!store)return <div className="center-page"><h2>Não foi possível carregar esta loja</h2><p>{error}</p><button type="button" className="btn btn-primary" onClick={()=>window.location.reload()}>Tentar novamente</button></div>;
  return <div className="storefront" style={{'--store-color':store.primary_color||'#16834b'} as any}><div className="announcement"><Leaf size={14}/> Produtos fresquinhos selecionados todos os dias <span>•</span> Entrega no seu bairro</div><header className="store-header"><div className="store-logo"><span className="store-logo-icon">{store.logo_url?<img src={store.logo_url}/>:<Leaf size={24}/>}</span><span><b>{store.name}</b><small>Fresquinho todo dia</small></span></div><div className="store-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="O que você procura hoje?"/><kbd>⌘ K</kbd></div><div className="store-head-actions"><a className="contact-link" href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank"><MessageCircle size={17}/><span>Fale conosco</span></a><button className="cart-head" onClick={()=>setMobileCart(true)}><ShoppingCart size={19}/><span className="cart-count" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'} na cesta`}>{cartItemCount}</span></button></div></header>
  <main className="store-body"><section className="store-hero" style={{backgroundImage:`linear-gradient(90deg, rgba(7,48,31,.90),rgba(7,48,31,.12)),url(${store.banner_url||'/images/banners/hero-hortifruti.jpg'})`}}><div><span className="hero-badge">🌿 DIRETO DO FRESCOR</span><h1>{store.banner_title||'Fresquinho todo dia'}</h1><p>{store.banner_subtitle||'Frutas, verduras e legumes selecionados com carinho.'}</p><a href="#catalogo" className="btn btn-white">Ver produtos <ArrowRight size={16}/></a></div><div className="hero-leaf">✦</div></section><div className="store-benefits"><span><Truck/> Entrega no mesmo dia</span><span><Check/> Pagamento na entrega</span><span><Clock/> {store.business_hours}</span></div><div className="catalog-layout" id="catalogo"><section className="catalog-main"><div className="catalog-heading"><div><span className="eyebrow">DA NOSSA BANCA PARA SUA CASA</span><h2>Escolha seus fresquinhos</h2></div><span className="result-count">{shown.length} produtos disponíveis</span></div><div className="category-chips"><button className={cat==='all'?'active':''} onClick={()=>setCat('all')}>Todos</button>{categories.map((c:any)=><button key={c.id} className={cat===c.id?'active':''} onClick={()=>setCat(c.id)}><span>{c.icon}</span>{c.name}</button>)}</div>{shown.length===0?<div className="empty-state"><Search size={28}/><b>Nenhum produto encontrado</b><p>Tente outra busca ou categoria.</p></div>:<div className="product-grid">{shown.map((p:any)=><ProductCard key={p.id} p={p} getLine={getLine} setLine={setLine}/>)}</div>}</section><aside className="cart-panel"><CartSummary cart={cart} subtotal={subtotal} store={store} onQty={setLine} onRemove={removeLine} onCheckout={()=>cart.length&&setCheckout(true)}/></aside></div></main><footer className="store-footer"><div><b>{store.name}</b><span>{store.address_text}</span><span>{store.business_hours}</span></div><div><a href={store.instagram_url} target="_blank">Instagram</a><a href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank">WhatsApp</a></div></footer>
+ {showSignup&&<SignupPopup slug={slug} store={store} onDone={()=>closeSignup(true)} onClose={()=>closeSignup(false)}/>}
  {mobileCart&&<div className="modal-backdrop" onClick={()=>setMobileCart(false)}><div className="mobile-cart-drawer" onClick={e=>e.stopPropagation()}><button className="icon-btn drawer-close" onClick={()=>setMobileCart(false)}><X/></button><CartSummary cart={cart} subtotal={subtotal} store={store} onQty={setLine} onRemove={removeLine} onCheckout={()=>{setMobileCart(false);cart.length&&setCheckout(true)}}/></div></div>}
  {checkout&&<CheckoutModal store={store} neighborhoods={neighborhoods} cart={cart} subtotal={subtotal} slug={slug} onClose={()=>setCheckout(false)} onSuccess={(o:any)=>{setPlaced(o);setCheckout(false);setCart([]);}}/>}{placed&&<div className="modal-backdrop"><div className="success-modal"><div className="success-icon"><Check size={36}/></div><span className="eyebrow">PEDIDO CONFIRMADO</span><h2>Está quase na sua porta!</h2><p>Seu pedido <b>#{placed.number}</b> foi recebido pela loja.</p><div className="success-total">Total a pagar na entrega <b>{money(placed.totalCents)}</b></div><Link className="btn btn-primary btn-block" to={`/pedido/${slug}/${placed.number}`} onClick={()=>setPlaced(null)}>Acompanhar pedido <ArrowRight size={17}/></Link><button className="btn btn-ghost btn-block" onClick={()=>{setPlaced(null);navigate(`/loja/${slug}`);}}>Voltar para início</button></div></div>}
  </div>;
 }
+function SignupPopup({slug,store,onClose,onDone}:any){
+ const [form,setForm]=useState({name:'',email:'',phone:'',privacyAccepted:false,marketingOptIn:false,website:''});
+ const [sending,setSending]=useState(false),[error,setError]=useState('');
+ const set=(key:string,value:any)=>setForm(previous=>({...previous,[key]:value}));
+ async function submit(e:any){
+   e.preventDefault();setError('');
+   if(!form.privacyAccepted){setError('É necessário autorizar o cadastro dos seus dados.');return;}
+   setSending(true);
+   try{
+     await req(`/store/${encodeURIComponent(slug)}/signup`,{method:'POST',body:JSON.stringify(form)});
+     onDone();
+   }catch(err:any){setError(err.message||'Não foi possível concluir o cadastro.');}
+   finally{setSending(false);}
+ }
+ return <div className="signup-overlay" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
+   <section className="signup-dialog" role="dialog" aria-modal="true" aria-labelledby="signup-title">
+     <button type="button" className="signup-close" aria-label="Fechar cadastro" onClick={onClose}><X size={22}/></button>
+     <div className="signup-brand-graphic" aria-hidden="true">🥬 🍓 🥕</div>
+     <span className="signup-eyebrow"><Leaf size={13}/> NOVIDADES DA SUA FEIRA</span>
+     <h2 id="signup-title">{store.signup_popup_title||'🍓 Fresquinho de verdade, novidades em primeira mão!'}</h2>
+     <p className="signup-description">{store.signup_popup_description||'Cadastre-se para conhecer os produtos fresquinhos, as novidades e as ofertas da nossa loja!'}</p>
+     <form onSubmit={submit} className="signup-form">
+       <label>Nome completo
+         <input required autoComplete="name" minLength={3} maxLength={140} placeholder="Seu nome e sobrenome"
+           value={form.name} onChange={e=>set('name',e.target.value)}/>
+       </label>
+       <label>E-mail
+         <input type="email" required autoComplete="email" maxLength={200} placeholder="seuemail@exemplo.com"
+           value={form.email} onChange={e=>set('email',e.target.value)}/>
+       </label>
+       <label>Celular com WhatsApp e DDD
+         <input type="tel" required autoComplete="tel" inputMode="tel" placeholder="(73) 99999-9999"
+           value={form.phone} onChange={e=>set('phone',e.target.value)}/>
+       </label>
+       <input className="signup-honeypot" aria-hidden="true" tabIndex={-1} autoComplete="off"
+         value={form.website} onChange={e=>set('website',e.target.value)} name="website"/>
+       <label className="signup-consent">
+         <input type="checkbox" checked={form.privacyAccepted} onChange={e=>set('privacyAccepted',e.target.checked)} required/>
+         <span>Autorizo o cadastro de meus dados nesta loja para identificação e contato relacionado ao meu cadastro.</span>
+       </label>
+       <label className="signup-consent">
+         <input type="checkbox" checked={form.marketingOptIn} onChange={e=>set('marketingOptIn',e.target.checked)}/>
+         <span>Quero receber novidades e ofertas por WhatsApp e e-mail (opcional).</span>
+       </label>
+       {error&&<div className="error-banner" role="alert">{error}</div>}
+       <button className="btn btn-primary signup-submit" type="submit" disabled={sending}>
+         {sending?'Cadastrando...':store.signup_popup_button||'Quero ficar por dentro!'} <ArrowRight size={17}/>
+       </button>
+       <p className="signup-privacy-note">Sem cupons ou mensagens automáticas. Seus dados ficam vinculados somente a {store.name}. Você pode solicitar atualização ou exclusão dos dados à loja.</p>
+     </form>
+   </section>
+ </div>;
+}
+
 function ProductCard({p,getLine,setLine}:any){
  const dual=productIsDual(p);
  const [variant,setVariant]=useState<any>(p.variants?.[0]);
