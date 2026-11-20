@@ -48,6 +48,20 @@ describe('cadastro voluntário na vitrine',()=>{
   await db.prepare("UPDATE tenants SET signup_popup_enabled=0 WHERE slug='verde-vivo'").run();
   expect((await signup(app,'verde-vivo')).status).toBe(403);
  });
+ it('permite editar os textos do pop-up só no estabelecimento autenticado',async()=>{
+  const app=await setup();
+  const login=await app.fetch(new Request('http://local/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'dono@verdevivo.local',password:'CRJornada!Local2026'})}));
+  const {token}=await login.json() as any;
+  const patch=await app.fetch(new Request('http://local/api/admin/settings',{
+    method:'PATCH',headers:{authorization:'Bearer '+token,'content-type':'application/json'},
+    body:JSON.stringify({signupPopupEnabled:true,signupPopupTitle:'🍍 Novidades fresquinhas!',signupPopupDescription:'Cadastre-se e acompanhe nossa feira.',signupPopupButton:'Quero me cadastrar'})
+  }));
+  expect(patch.status).toBe(200);
+  const first:any=await (await app.fetch(new Request('http://local/api/store/verde-vivo'))).json();
+  expect(first.store.signup_popup_title).toBe('🍍 Novidades fresquinhas!');
+  const second:any=await (await app.fetch(new Request('http://local/api/store/sabor-da-terra'))).json();
+  expect(second.store.signup_popup_title).not.toBe(first.store.signup_popup_title);
+ });
  it('exige conta do estabelecimento para visualizar lista de clientes cadastrados',async()=>{
   const app=await setup();
   await signup(app,'verde-vivo');
