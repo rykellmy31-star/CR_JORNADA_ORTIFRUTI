@@ -90,10 +90,32 @@ export async function findCommonsPhotoCandidates(name:string):Promise<PhotoSugge
  return pages.map(p=>parsePage(p,name)).filter((v):v is PhotoSuggestion=>!!v&&!!v.confidence)
   .sort((a,b)=>(b.confidence||0)-(a.confidence||0)).slice(0,8);
 }
+/** Reconhece apresentação e tamanho do mesmo produto sem trocar sua espécie. */
+export function resolveCuratedPhotoName(name:string):string|null{
+ const raw=normalizeProductName(name)
+  .replace(/\b(?:kg|kilo|quilo|quilo grama|g|gramas|un|unidade|unidades)\b/g,' ')
+  .replace(/\s+/g,' ').trim();
+ if(CURATED_FOOD_PHOTOS[raw])return raw;
+ const candidates=Object.keys(CURATED_FOOD_PHOTOS).sort((a,b)=>b.length-a.length);
+ const allowed=new Set([
+  'perola','graudo','grauda','extra','tipo','1','2','pequeno','pequena',
+  'grande','medio','media','fresco','fresca','selecionado','selecionada',
+  'organico','organica','nacional','importado','importada','doce',
+  'sem','sementes','maduro','madura','aproximado','aproximada',
+  'bandeja','pacote','caixa'
+ ]);
+ for(const key of candidates){
+  if(!raw.startsWith(key+' '))continue;
+  const tail=raw.slice(key.length).trim().split(' ');
+  if(tail.length<=4&&tail.every(word=>allowed.has(word)))return key;
+ }
+ return null;
+}
+
 /** Fotos reais verificadas no repositório Fruits-360, sem chamada de busca. */
 export function curatedProductImage(name:string):PhotoSuggestion|null{
- const key=normalizeProductName(name);
- const item=CURATED_FOOD_PHOTOS[key];
+ const key=resolveCuratedPhotoName(name);
+ const item=key?CURATED_FOOD_PHOTOS[key]:null;
  if(!item)return null;
  return {imageUrl:item.imageUrl,source:'curated',title:name,
   sourcePageUrl:item.sourcePageUrl,licenseName:item.licenseName,
@@ -101,7 +123,8 @@ export function curatedProductImage(name:string):PhotoSuggestion|null{
 }
 /** Importação segura de URL previamente aprovada ao R2 e compartilhamento no D1. */
 export async function importCuratedProductImage(db:DbClient,media:MediaStorageAdapter,name:string):Promise<PhotoSuggestion>{
- const key=normalizeProductName(name),item=CURATED_FOOD_PHOTOS[key];
+ const resolved=resolveCuratedPhotoName(name);
+ const key=normalizeProductName(name),item=resolved?CURATED_FOOD_PHOTOS[resolved]:null;
  if(!item)throw new Error('Produto não está no catálogo de imagens verificadas.');
  const existing=await cachedProductImage(db,name);
  if(existing)return existing;
