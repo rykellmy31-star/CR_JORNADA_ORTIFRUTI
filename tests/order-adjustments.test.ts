@@ -135,7 +135,7 @@ describe('ajuste dos pedidos antes da entrega',()=>{
    expect(moves[0].delta_physical).toBeLessThan(0);
    const catalog:any=await (await (await setupCatalog()).json());
    // A disponibilidade do produto deve ser zero na API da vitrine, sem excluir seu histórico.
-   expect(catalog.products.find((p:any)=>p.id===items[0].product_id)?.available_internal).toBe(0);
+   expect(catalog.products.some((p:any)=>p.id===items[0].product_id)).toBe(false);
    async function setupCatalog(){
      const media:any={async putObject(){throw Error('unused')},async getObject(){return null}};
      const app=createApp({db,media,jwtSecret:'test-secret'.repeat(4),crmApiKey:'test',appEnv:'test',evolution:{}});
