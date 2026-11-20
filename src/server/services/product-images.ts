@@ -2,6 +2,7 @@ import type {DbClient} from '../db/adapter';
 import type {MediaStorageAdapter} from '../storage/r2-media';
 import {hasImageSignature} from '../storage/r2-media';
 import {generateId} from '../security/crypto';
+import {CURATED_FOOD_PHOTOS} from './curated-food-photos';
 
 // Acervo estático existente, sem rede. Variantes conhecidas apontam para foto da espécie.
 const builtin:Record<string,string>={
@@ -30,7 +31,7 @@ export function builtInProductImage(name:string):string|null{
  return key?'/images/products/'+key+'.jpg':null;
 }
 export type PhotoSuggestion={
- imageUrl:string;source:'builtin'|'library'|'wikimedia';title:string;
+ imageUrl:string;source:'builtin'|'library'|'wikimedia'|'curated';title:string;
  sourcePageUrl:string|null;licenseName:string|null;licenseUrl:string|null;
  author:string|null;pageId?:number;confidence?:number;
 };
@@ -72,7 +73,8 @@ async function searchCommons(parameters:URLSearchParams):Promise<Page[]>{
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),4000);
  try{
   const resp=await fetch('https://commons.wikimedia.org/w/api.php?'+parameters.toString(),
-   {signal:controller.signal,headers:{Accept:'application/json'}});
+   {signal:controller.signal,headers:{Accept:'application/json',
+    'Api-User-Agent':'CRJornadaHortifruti/2.0 (https://github.com/rykellmy31-star/CR_JORNADA_ORTIFRUTI; pesquisa de fotos de frutas)'}});
   if(!resp.ok)return [];
   const body=await resp.json() as {query?:{pages?:Page[]}};
   return Array.isArray(body.query?.pages)?body.query.pages:[];
@@ -88,6 +90,46 @@ export async function findCommonsPhotoCandidates(name:string):Promise<PhotoSugge
  return pages.map(p=>parsePage(p,name)).filter((v):v is PhotoSuggestion=>!!v&&!!v.confidence)
   .sort((a,b)=>(b.confidence||0)-(a.confidence||0)).slice(0,8);
 }
+/** Fotos reais verificadas no repositório Fruits-360, sem chamada de busca. */
+export function curatedProductImage(name:string):PhotoSuggestion|null{
+ const key=normalizeProductName(name);
+ const item=CURATED_FOOD_PHOTOS[key];
+ if(!item)return null;
+ return {imageUrl:item.imageUrl,source:'curated',title:name,
+  sourcePageUrl:item.sourcePageUrl,licenseName:item.licenseName,
+  licenseUrl:item.licenseUrl,author:item.author,confidence:100};
+}
+/** Importação segura de URL previamente aprovada ao R2 e compartilhamento no D1. */
+export async function importCuratedProductImage(db:DbClient,media:MediaStorageAdapter,name:string):Promise<PhotoSuggestion>{
+ const key=normalizeProductName(name),item=CURATED_FOOD_PHOTOS[key];
+ if(!item)throw new Error('Produto não está no catálogo de imagens verificadas.');
+ const existing=await cachedProductImage(db,name);
+ if(existing)return existing;
+ const url=new URL(item.imageUrl);
+ if(url.protocol!=='https:'||url.hostname!=='raw.githubusercontent.com'||
+   !url.pathname.startsWith('/fruits-360/'))throw new Error('Origem da foto não autorizada.');
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);
+ let bytes:Uint8Array;
+ try{
+  const resp=await fetch(url.toString(),{signal:controller.signal,headers:{Accept:'image/jpeg'}});
+  if(!resp.ok||Number(resp.headers.get('content-length')||0)>3*1024*1024)
+   throw new Error('Foto temporariamente indisponível.');
+  bytes=new Uint8Array(await resp.arrayBuffer());
+  if(bytes.length<100||bytes.length>3*1024*1024||!hasImageSignature('image/jpeg',bytes))
+   throw new Error('Arquivo de foto inválido.');
+ }finally{clearTimeout(timer);}
+ const stored=await media.putObject('shared/products/'+generateId()+'.jpg',bytes,'image/jpeg');
+ const now=new Date().toISOString();
+ await db.prepare(`INSERT INTO product_image_library
+ (normalized_name,display_name,image_url,source,source_page_url,license_name,license_url,author,created_at,updated_at)
+ VALUES(?,?,?,'builtin',?,?,?,?,?,?)
+ ON CONFLICT(normalized_name) DO NOTHING`)
+ .bind(key,name,stored.publicUrl,item.sourcePageUrl,item.licenseName,item.licenseUrl,item.author,now,now).run();
+ return await cachedProductImage(db,name)||{imageUrl:stored.publicUrl,source:'library',
+  title:name,sourcePageUrl:item.sourcePageUrl,licenseName:item.licenseName,
+  licenseUrl:item.licenseUrl,author:item.author};
+}
+
 export async function cachedProductImage(db:DbClient,name:string):Promise<PhotoSuggestion|null>{
  const key=normalizeProductName(name);if(!key)return null;
  const row=await db.prepare('SELECT * FROM product_image_library WHERE normalized_name=?')
@@ -105,7 +147,9 @@ export async function suggestProductImages(db:DbClient,name:string,external=true
  if(builtin&&!found.some(s=>s.imageUrl===builtin))
   found.push({imageUrl:builtin,source:'builtin',title:name,
    sourcePageUrl:null,licenseName:null,licenseUrl:null,author:null});
- if(external){
+ const curated=curatedProductImage(name);
+ if(curated&&!found.some(s=>s.imageUrl===curated.imageUrl))found.push(curated);
+ if(external&&!curated&&!builtin&&!cached){
   const candidates=await findCommonsPhotoCandidates(name);
   found.push(...candidates.filter(c=>!found.some(s=>s.imageUrl===c.imageUrl)));
  }
@@ -155,6 +199,17 @@ export async function autoProductImage(
  if(shared)return {imageUrl:shared.imageUrl,source:'shared'};
  const builtin=builtInProductImage(name);
  if(builtin)return {imageUrl:builtin,source:'builtin'};
+ const curated=curatedProductImage(name);
+ if(curated){
+  try{
+   const photo=await importCuratedProductImage(db,media,name);
+   return {imageUrl:photo.imageUrl,source:'curated'};
+  }catch{
+   // URL estática de um arquivo que verificamos existir; não depender do Wikimedia.
+   // Ainda pode ser apresentada quando a importação para R2 estiver temporariamente fora.
+   return {imageUrl:curated.imageUrl,source:'curated_direct'};
+  }
+ }
  try{
   const options=await findCommonsPhotoCandidates(name);
   const strong=options.filter(o=>(o.confidence||0)>=80);
