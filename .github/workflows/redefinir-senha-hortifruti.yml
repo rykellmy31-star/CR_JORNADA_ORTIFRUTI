@@ -1,0 +1,84 @@
+name: Redefinir senha do Super Admin do Hortifruti
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crj-hortifruti-reset-superadmin
+  cancel-in-progress: false
+
+jobs:
+  redefinir:
+    if: contains(github.event.head_commit.message, '[reset:hortifruti-admin]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SUPERADMIN_EMAIL: ${{ secrets.SUPERADMIN_EMAIL }}
+      SUPERADMIN_INITIAL_PASSWORD: ${{ secrets.SUPERADMIN_INITIAL_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Preparar redefinição sem mostrar a senha
+        shell: bash
+        env:
+          RESET_SQL_FILE: ${{ runner.temp }}/crj-reset-superadmin.sql
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$SUPERADMIN_EMAIL" && test -n "$SUPERADMIN_INITIAL_PASSWORD"
+          node --input-type=module <<'NODE'
+          import {pbkdf2Sync,randomBytes} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const email = (process.env.SUPERADMIN_EMAIL || '').trim().toLowerCase();
+          const password = process.env.SUPERADMIN_INITIAL_PASSWORD || '';
+          if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('E-mail de administrador inválido.');
+          if(password.length < 16 || password.length > 200) throw new Error('Senha deve ter de 16 a 200 caracteres.');
+          const salt = randomBytes(16).toString('hex');
+          const digest = pbkdf2Sync(password,Buffer.from(salt,'hex'),100000,32,'sha256').toString('hex');
+          const hash = 'pbkdf2$100000$' + salt + '$' + digest;
+          const lit = x => "'" + x.replaceAll("'","''") + "'";
+          const sql = 'UPDATE users SET password_hash='+lit(hash)+', updated_at='+lit(new Date().toISOString())+
+            ' WHERE role='+lit('superadmin')+' AND lower(email)='+lit(email)+';\n';
+          writeFileSync(process.env.RESET_SQL_FILE,sql,{mode:0o600});
+          console.log('Atualização restrita ao Super Admin previamente cadastrado.');
+          NODE
+      - name: Atualizar somente a senha da conta existente
+        shell: bash
+        env:
+          RESET_SQL_FILE: ${{ runner.temp }}/crj-reset-superadmin.sql
+        run: |
+          set -euo pipefail
+          trap 'rm -f "$RESET_SQL_FILE"' EXIT
+          npx wrangler d1 execute cr-jornada-hortifruti-db --remote --file="$RESET_SQL_FILE" > /dev/null
+          echo "Atualização executada no D1."
+      - name: Verificar login pela API sem expor credenciais
+        shell: bash
+        run: |
+          set -euo pipefail
+          request_file="$(mktemp "$RUNNER_TEMP/crj-login.XXXXXX")"
+          response_file="$(mktemp "$RUNNER_TEMP/crj-response.XXXXXX")"
+          chmod 600 "$request_file" "$response_file"
+          trap 'rm -f "$request_file" "$response_file"' EXIT
+          export request_file
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          writeFileSync(process.env.request_file,JSON.stringify({
+            email:process.env.SUPERADMIN_EMAIL.trim().toLowerCase(),
+            password:process.env.SUPERADMIN_INITIAL_PASSWORD
+          }),{mode:0o600});
+          NODE
+          status="$(curl --silent --show-error --max-time 30 --output "$response_file" --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' --data-binary "@$request_file" \
+            'https://cr-jornada-hortifruti.netssh3-0.workers.dev/api/auth/login')"
+          test "$status" = "200" || { echo "::error::A autenticação ainda não foi confirmada. HTTP $status"; exit 1; }
+          echo "Login do Super Admin com a senha atualizada: FUNCIONANDO"
