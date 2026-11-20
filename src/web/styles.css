@@ -57,3 +57,32 @@
   .cart-line-qty{gap:3px;}
   .cart-line-remove{min-height:32px;}
 }
+
+
+/* Modal de inscrição de clientes da vitrine (sem cupons). */
+.signup-overlay{position:fixed;inset:0;z-index:1000;background:rgba(17,38,25,.66);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px}
+.signup-dialog{position:relative;background:#fff;width:min(560px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;border-radius:23px;padding:34px clamp(19px,4vw,42px) 24px;color:#24452e;box-shadow:0 22px 80px #08241340;text-align:center}
+.signup-close{position:absolute;top:16px;right:16px;border:none;background:transparent;color:#537561;border-radius:9px;padding:7px;display:grid;place-items:center;cursor:pointer}
+.signup-close:hover,.signup-close:focus-visible{background:#eaf5e9}
+.signup-brand-graphic{font-size:39px;letter-spacing:-5px;white-space:nowrap;line-height:1.5;margin-top:6px}
+.signup-eyebrow{display:inline-flex;align-items:center;gap:5px;margin:9px 0 10px;font-size:10px;letter-spacing:1.4px;font-weight:850;color:#168449}
+.signup-dialog h2{font-size:clamp(24px,4vw,32px);letter-spacing:-.6px;line-height:1.16;color:#194e31;margin:2px auto 11px;max-width:450px;font-weight:850}
+.signup-description{color:#5f7768;line-height:1.55;font-size:14px;margin:0 auto 22px;max-width:470px}
+.signup-form{text-align:left;display:flex;flex-direction:column;gap:14px}
+.signup-form>label:not(.signup-consent){display:block;color:#32543d;font-weight:700;font-size:12px}
+.signup-form>label:not(.signup-consent) input{display:block;width:100%;border:1px solid #cfddd2;border-radius:11px;padding:0 14px;margin-top:7px;height:47px;font-size:14px;color:#274333;background:#fff;outline-color:#208746}
+.signup-form input::placeholder{color:#95a59a}
+.signup-consent{display:flex;align-items:flex-start;gap:9px;font-size:11px;line-height:1.5;color:#557463;cursor:pointer}
+.signup-consent input{width:15px;height:15px;margin:2px 0 0;flex-shrink:0;accent-color:#188449}
+.signup-form .signup-submit{width:100%;min-height:48px;justify-content:center;font-size:14px;font-weight:800;display:flex;align-items:center;gap:9px}
+.signup-privacy-note{font-size:10px;line-height:1.6;text-align:center;color:#7e9284;margin:0}
+.signup-honeypot{position:absolute;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+@media(max-width:600px){
+ .signup-overlay{padding:9px;align-items:center}
+ .signup-dialog{border-radius:17px;padding:29px 21px 20px;max-height:calc(100dvh - 18px)}
+ .signup-brand-graphic{font-size:32px}
+ .signup-dialog h2{font-size:25px}
+ .signup-description{font-size:12px;margin-bottom:16px}
+ .signup-form{gap:11px}
+ .signup-form>label:not(.signup-consent) input{height:43px}
+}
