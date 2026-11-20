@@ -728,6 +728,8 @@ export async function dispatchQueuedMessageById(
 
   if (!msg) return { status: 'not_found' };
   if (msg.status === 'sent') return { status: 'sent' };
+  if (msg.status === 'skipped_no_optin' || msg.status === 'skipped_disabled')
+    return {status:msg.status};
 
   const inst = await db
     .prepare(`SELECT * FROM whatsapp_instances WHERE tenant_id = ?`)
@@ -749,7 +751,7 @@ export async function dispatchQueuedMessageById(
     const retryAt = new Date(Date.now() + 120000).toISOString();
     await db.prepare(`UPDATE whatsapp_message_queue
       SET status=?,next_retry_at=?,last_error=?,updated_at=?
-      WHERE id=? AND tenant_id=? AND status='pending'`)
+      WHERE id=? AND tenant_id=? AND status IN ('pending','failed')`)
       .bind(status,stale?null:retryAt,errText,now,queueId,tenantId).run();
     return {status,error:errText};
   }
@@ -776,8 +778,7 @@ export async function dispatchQueuedMessageById(
       );
 
       if (!resp.ok) {
-        const bodyTxt = await resp.text();
-        throw new Error(`Evolution HTTP ${resp.status}: ${bodyTxt.slice(0, 180)}`);
+        throw new Error(`Evolution API não aceitou a mensagem (HTTP ${resp.status}).`);
       }
 
       const data = (await resp.json()) as Record<string, any>;
