@@ -6,6 +6,7 @@ import { calculateChangeCents, normalizePhoneBR, parseBRLToCents } from '../../s
 import { buildAtomicStockReservationSteps, validateAndPrepareOrderLines } from '../services/inventory';
 import { enqueueAndDispatchOrderWhatsAppNotification } from '../services/evolution-whatsapp';
 import { runConditionalTransaction } from '../db/adapter';
+import {curatedProductImage} from '../services/product-images';
 
 export const publicStoreRoutes = new Hono<AppHonoEnv>();
 
@@ -29,6 +30,17 @@ publicStoreRoutes.get('/:slug', async (c) => {
     WHERE p.tenant_id = ? AND p.is_active = 1 AND p.is_deleted = 0
       AND CASE WHEN p.sale_mode = 'variants' THEN EXISTS (SELECT 1 FROM product_variants av LEFT JOIN stock_pools asp ON asp.id=av.stock_pool_id WHERE av.tenant_id=p.tenant_id AND av.product_id=p.id AND av.is_active=1 AND CASE WHEN av.stock_pool_id IS NOT NULL THEN (asp.physical_qty-asp.reserved_qty)>=av.pool_deduction_qty ELSE (av.physical_qty-av.reserved_qty)>0 END) WHEN p.stock_pool_id IS NOT NULL THEN (sp.physical_qty - sp.reserved_qty) > 0 ELSE (p.physical_qty - p.reserved_qty) > 0 END = 1
     ORDER BY p.is_featured DESC, p.name`).bind(tenant.id).all<Record<string, any>>();
+  // Crédito de imagem licenciada mesmo quando o arquivo está servido pelo
+  // repositório original enquanto aguarda a importação ao R2.
+  for(const product of products){
+   if(product.photo_source_url||!product.image_url)continue;
+   const curated=curatedProductImage(String(product.name));
+   if(curated&&curated.imageUrl===product.image_url){
+    product.photo_source_url=curated.sourcePageUrl;
+    product.photo_license=curated.licenseName;
+    product.photo_author=curated.author;
+   }
+  }
   const variantsResult = await db.prepare(`SELECT v.id, v.product_id, v.name, v.sku, v.price_cents, v.promo_price_cents, v.sort_order,
     CASE WHEN v.stock_pool_id IS NOT NULL THEN (sp.physical_qty - sp.reserved_qty) >= v.pool_deduction_qty ELSE (v.physical_qty - v.reserved_qty) > 0 END AS available
     FROM product_variants v LEFT JOIN stock_pools sp ON sp.id = v.stock_pool_id
