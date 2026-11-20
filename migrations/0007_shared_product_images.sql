@@ -14,3 +14,5 @@ CREATE TABLE IF NOT EXISTS product_image_library (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_product_image_library_url ON product_image_library(image_url);
+
+-- Migracao ativada no pipeline D1 remoto.
