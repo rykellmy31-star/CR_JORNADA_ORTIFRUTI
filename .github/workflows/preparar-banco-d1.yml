@@ -7,6 +7,7 @@ on:
     paths:
       - 'migrations/0003_dual_sale_mode.sql'
       - 'migrations/0004_customer_popup.sql'
+      - 'migrations/0005_order_adjustments.sql'
 
 permissions:
   contents: read
