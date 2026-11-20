@@ -9,7 +9,7 @@ import { checkWhatsAppConnectionStatus, connectOrRefreshWhatsAppQr, confirmHomol
 import { parseDataUriImage } from '../storage/r2-media';
 import {runConditionalTransaction} from '../db/adapter';
 import {adjustOrderItems} from '../services/order-adjustments';
-import {autoProductImage,cachedProductImage,builtInProductImage,suggestProductImages,importCommonsProductImage,normalizeProductName} from '../services/product-images';
+import {autoProductImage,suggestProductImages,importCommonsProductImage,importCuratedProductImage} from '../services/product-images';
 
 export const adminRoutes = new Hono<AppHonoEnv>();
 adminRoutes.use('*', requireTenantAdmin());
@@ -158,6 +158,17 @@ adminRoutes.post('/products/images/autofill',async(c)=>{
  }
  return c.json({success:true,checked:results.length,updated,notFound,
   message:updated?updated+' fotos encontradas e associadas.':'Nenhuma nova correspondência segura foi encontrada.'});
+});
+adminRoutes.post('/products/image-curated',async(c)=>{
+ const body=await c.req.json().catch(()=>({}));
+ const name=String(body.name||'').trim();
+ if(name.length<2||name.length>140)return c.json({error:'Informe o nome correto do produto.'},400);
+ try{
+  const svc=c.get('services'),photo=await importCuratedProductImage(svc.db,svc.media,name);
+  return c.json({imageUrl:photo.imageUrl,photo},201);
+ }catch(e:any){
+  return c.json({error:e.message||'Não foi possível importar esta foto agora.'},400);
+ }
 });
 adminRoutes.post('/products/image-import',async(c)=>{
  const body=await c.req.json().catch(()=>({}));
