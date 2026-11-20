@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import {recordWhatsAppDisconnection,processPendingTelegramAlerts,telegramAlertsConfigured} from './telegram-alerts';
 import type { DbClient } from '../db/adapter';
 import { generateId } from '../security/crypto';
 import {
@@ -25,6 +26,8 @@ export interface EvolutionEnvConfig {
   evolutionApiKey?: string;
   publicWebhookUrl?: string;
   evolutionWebhookToken?: string;
+  telegramBotToken?: string;
+  telegramChatId?: string;
 }
 
 export const DEFAULT_WHATSAPP_TEMPLATES: Array<{
@@ -356,15 +359,10 @@ export async function checkWhatsAppConnectionStatus(
             .prepare(`UPDATE whatsapp_instances SET last_checked_at = ? WHERE tenant_id = ?`)
             .bind(now, tenantId)
             .run();
-        } else {
-          await db
-            .prepare(
-              `UPDATE whatsapp_instances
-               SET status = 'disconnected', last_checked_at = ?, provider_mode = 'evolution_live', updated_at = ?
-               WHERE tenant_id = ?`
-            )
-            .bind(now, now, tenantId)
-            .run();
+        } else if (['close','closed','disconnected'].includes(String(rawState).toLowerCase())) {
+          if(await recordWhatsAppDisconnection(db,tenantId,'monitor')){
+            await processPendingTelegramAlerts(db,envCfg).catch(()=>undefined);
+          }
         }
       }
     } catch (err: any) {
@@ -395,34 +393,29 @@ export async function disconnectWhatsAppInstance(
     .first<Record<string, any>>();
 
   if (inst && isLiveEvolutionConfigured(envCfg)) {
-    const baseUrl = envCfg.evolutionApiUrl!.replace(/\/+$/, '');
+    const baseUrl=envCfg.evolutionApiUrl!.replace(/\/+$/,'');
     try {
-      await fetch(`${baseUrl}/instance/logout/${encodeURIComponent(inst.instance_name)}`, {
-        method: 'DELETE',
-        headers: { apikey: envCfg.evolutionApiKey! },
+      const response=await fetch(baseUrl+'/instance/logout/'+encodeURIComponent(inst.instance_name),{
+        method:'DELETE',headers:{apikey:envCfg.evolutionApiKey!}
       });
-    } catch {
-      // prossegue com limpeza local do status
+      if(!response.ok && ![404,410].includes(response.status))
+        throw new Error('Evolution recusou a desconexão (HTTP '+response.status+').');
+    }catch(err:any){
+      throw new Error('Não foi possível confirmar a desconexão na Evolution. '+(
+        String(err?.message||'').startsWith('Evolution recusou')?err.message:'Verifique a conexão com o servidor.'));
     }
   }
 
-  await db
-    .prepare(
-      `UPDATE whatsapp_instances
-       SET status = 'disconnected',
-           connected_phone = NULL,
-           profile_name = NULL,
-           qr_code_base64 = NULL,
-           qr_code_text = NULL,
-           connected_at = NULL,
-           last_error = NULL,
-           updated_at = ?
-       WHERE tenant_id = ?`
-    )
-    .bind(now, tenantId)
-    .run();
-
-  return getSanitizedWhatsAppStatus(db, tenantId, envCfg);
+  const changed=await recordWhatsAppDisconnection(db,tenantId,'panel');
+  if(!changed){
+    await db.prepare(`UPDATE whatsapp_instances SET status='disconnected',
+      connected_phone=NULL,profile_name=NULL,qr_code_base64=NULL,
+      qr_code_text=NULL,connected_at=NULL,updated_at=?
+      WHERE tenant_id=? AND status!='connected'`).bind(now,tenantId).run();
+  }else {
+    await processPendingTelegramAlerts(db,envCfg).catch(()=>undefined);
+  }
+  return getSanitizedWhatsAppStatus(db,tenantId,envCfg);
 }
 
 /**
@@ -493,6 +486,7 @@ export async function getSanitizedWhatsAppStatus(
     provider_mode: isLive ? 'evolution_live' : 'not_configured',
     configured: isLive,
     webhook_configured: Boolean(envCfg.publicWebhookUrl && envCfg.evolutionWebhookToken),
+    telegram_alerts_configured: telegramAlertsConfigured(envCfg),
     last_error: inst?.last_error ? sanitizeEvolutionError(inst.last_error, envCfg) : null,
   };
 }
