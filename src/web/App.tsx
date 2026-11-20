@@ -788,6 +788,7 @@ function SettingsPanel({token}:any){const[data,setData]=useState<any>(null),[sav
 type NewHortifrutiAccess={
  tenantId:string; slug:string; name:string; ownerEmail:string;
  temporaryPassword:string; adminUrl:string; storeUrl:string;
+ domainStatus:'registered'|'pending'|'manual'; domainMessage:string;
 };
 function SuperAdmin(){
  const [token,setToken]=useState(localStorage.getItem('crj_token')||'');
@@ -797,6 +798,8 @@ function SuperAdmin(){
  const [error,setError]=useState('');
  const [modal,setModal]=useState(false);
  const [creating,setCreating]=useState(false);
+ const [domainRetryId,setDomainRetryId]=useState<string|null>(null);
+ const [notice,setNotice]=useState('');
  const [access,setAccess]=useState<NewHortifrutiAccess|null>(null);
  const [showAccessPassword,setShowAccessPassword]=useState(false);
  const [copied,setCopied]=useState('');
@@ -827,6 +830,7 @@ function SuperAdmin(){
     method:'POST',body:JSON.stringify({...form,status:'active'})
    },token) as NewHortifrutiAccess;
    setAccess(created);
+   setNotice(created.domainStatus==='registered'?'Domínio registrado na Cloudflare. Confira o certificado HTTPS antes de divulgar.': 'Cadastro criado, mas a vitrine ainda não está pronta. Verifique o estado do domínio.');
    setShowAccessPassword(false);
    setCopied('');
    setForm({name:'',slug:'',ownerName:'',ownerEmail:'',temporaryPassword:''});
@@ -834,6 +838,16 @@ function SuperAdmin(){
    void load().catch(err=>setError(err.message));
   }catch(err:any){setError(err.message);}
   finally{setCreating(false);}
+ }
+ async function retryDomain(t:any){
+  if(domainRetryId)return;
+  setDomainRetryId(t.id);setError('');setNotice('');
+  try{
+   const response=await req(`/superadmin/tenants/${t.id}/domain/retry`,{method:'POST',body:'{}'},token);
+   setNotice(response.message||'Domínio registrado. Confirme HTTPS antes de divulgar.');
+   await load();
+  }catch(err:any){setError(err.message);await load().catch(()=>undefined);}
+  finally{setDomainRetryId(null);}
  }
  async function copyValue(label:string,value:string){
   try{await navigator.clipboard.writeText(value);setCopied(label+' copiado com sucesso.');}
@@ -863,19 +877,26 @@ function SuperAdmin(){
     desc="Gerencie exclusivamente as lojas do CR Jornada Hortifruti."
     action={<button className="btn btn-primary" onClick={()=>{setError('');setModal(true);}}><Plus/> Novo estabelecimento</button>}/>
    {error&&<div className="error-banner" role="alert">{error}</div>}
+   {notice&&<div className="success-banner" role="status">{notice}</div>}
    <div className="super-stats">
     <div><Store/><b>{data.length}</b><span>Estabelecimentos</span></div>
     <div><Check/><b>{data.filter(x=>x.status==='active').length}</b><span>Ativos</span></div>
     <div><DoorOpen/><b>{data.filter(x=>x.status!=='active').length}</b><span>Inativos ou bloqueados</span></div>
    </div>
    <div className="panel-card"><div className="table-wrap"><table>
-    <thead><tr><th>Estabelecimento</th><th>Vitrine</th><th>Plano</th><th>Status</th><th>Criado</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Estabelecimento</th><th>Vitrine</th><th>Domínio</th><th>Status</th><th>Criado</th><th>Ações</th></tr></thead>
     <tbody>{data.map(t=><tr key={t.id}>
      <td><b>{t.name}</b><small className="cell-sub">{t.crm_external_id||t.id.slice(0,8)}</small></td>
      <td><b>{t.slug}</b><small className="cell-sub">
       <a href={storeHomeUrl(t.slug)} target="_blank" rel="noopener noreferrer">{storeHomeUrl(t.slug)}</a>
      </small></td>
-     <td>{t.plan}</td>
+     <td><span className="cell-sub">{t.domainStatus==='registered'
+        ?'Registrado na Cloudflare':t.domainStatus==='conflict'?'Nome em conflito':
+        t.domainStatus==='pending'?'Pendente de configuração':'Sem domínio automático'}</span>
+      {t.domainStatus!=='registered'&&<button type="button" className="btn btn-xs btn-outline"
+       disabled={domainRetryId===t.id} onClick={()=>void retryDomain(t)}>
+       {domainRetryId===t.id?'Verificando…':'Tentar configurar domínio'}
+      </button>}</td>
      <td><StatusBadge status={t.status==='active'?'accepted':'cancelled'}/></td>
      <td>{new Date(t.created_at).toLocaleDateString('pt-BR')}</td>
      <td><button className="btn btn-xs btn-outline" onClick={async()=>{
@@ -905,10 +926,11 @@ function SuperAdmin(){
       value={form.temporaryPassword} onChange={e=>setForm({...form,temporaryPassword:e.target.value})}
       placeholder="Deixar vazio para gerar automaticamente"/></label>
     </div>
-    <p className="integration-note">Ao criar, o estabelecimento será ativado. Os dados serão
-     mostrados uma única vez para copiar. A troca de senha depois é opcional.</p>
-    <p className="integration-note">A vitrine será {form.slug||'nomedaloja'}.crjornada.com
-     assim que o roteamento Cloudflare estiver configurado.</p>
+    <p className="integration-note">O sistema tentará registrar a vitrine na Cloudflare.
+     Se houver erro, ela ficará pendente para nova tentativa. Os dados de acesso serão
+     mostrados apenas uma vez. A troca de senha é opcional.</p>
+    <p className="integration-note">Endereço desejado: {form.slug||'nomedaloja'}.crjornada.com.
+     O cadastro automático precisa estar habilitado na configuração do Worker.</p>
     {error&&<div className="error-banner">{error}</div>}
     <div className="modal-footer">
      <button type="button" className="btn btn-outline" onClick={()=>setModal(false)}>Cancelar</button>
@@ -922,6 +944,8 @@ function SuperAdmin(){
      <button className="icon-btn" aria-label="Fechar dados de acesso" onClick={clearAccess}><X/></button></div>
     <p className="integration-note">Copie os dados agora: a senha inicial não poderá ser consultada
      novamente. Ela não precisa ser alterada no primeiro acesso.</p>
+    <p className={access.domainStatus==='registered'?'success-banner':'integration-note'} role="status">
+     {access.domainMessage}</p>
     {([
      ['E-mail',access.ownerEmail],
      ['Senha inicial',showAccessPassword?access.temporaryPassword:'••••••••••••'],
