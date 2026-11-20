@@ -7,7 +7,7 @@ import {prepareBrandImage,IMAGE_ACCEPT} from './image-upload';
 
 const API='/api';
 async function req(path:string,options:RequestInit={},token?:string):Promise<any>{const headers=new Headers(options.headers||{});if(options.body&&!(options.body instanceof FormData))headers.set('Content-Type','application/json');if(token)headers.set('Authorization',`Bearer ${token}`);const r=await fetch(`${API}${path}`,{...options,headers});const data:any=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||`Erro ${r.status}`);return data;}
-const img=(url?:string)=>url||'/images/products/banana.jpg';
+const img=(url?:string)=>url||'/images/products/placeholder.svg';
 const money=(c:number)=>formatBRL(Number(c||0));
 
 const DEVELOPER_CREDIT='Desenvolvido por Carlos Rykellmy Santos Correia';
