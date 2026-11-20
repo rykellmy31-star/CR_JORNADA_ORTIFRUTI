@@ -3,13 +3,14 @@ import { z } from 'zod';
 import { requireCrmIntegrationAuth, type AppHonoEnv, logAudit } from '../context';
 import { generateId, hashPassword } from '../security/crypto';
 import { ensureTenantWhatsAppSetup } from '../services/evolution-whatsapp';
+import {isValidStoreSubdomain} from '../../shared/store-domain';
 
 export const crmRoutes=new Hono<AppHonoEnv>();
 crmRoutes.use('*',requireCrmIntegrationAuth);
 crmRoutes.get('/health',async(c)=>c.json({service:'cr-jornada-hortifruti-crm-api',version:'v1',status:'ready',timestamp:new Date().toISOString()}));
 crmRoutes.get('/establishments',async(c)=>{const {results}=await c.get('services').db.prepare(`SELECT id,crm_external_id,slug,name,status,plan,created_at,updated_at FROM tenants ORDER BY created_at DESC`).all();return c.json({data:results});});
 crmRoutes.post('/establishments',async(c)=>{
- const services=c.get('services'),db=services.db;const schema=z.object({externalId:z.string().min(1).max(180),name:z.string().min(2).max(160),slug:z.string().min(2).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),ownerName:z.string().min(2),ownerEmail:z.string().email(),ownerPhone:z.string().optional(),ownerTemporaryPassword:z.string().min(12).optional(),status:z.enum(['active','onboarding','blocked','suspended']).optional(),plan:z.string().optional()});const parsed=schema.safeParse(await c.req.json().catch(()=>null));if(!parsed.success)return c.json({error:parsed.error.issues[0]?.message||'Dados inválidos.'},400);const b=parsed.data;
+ const services=c.get('services'),db=services.db;const schema=z.object({externalId:z.string().min(1).max(180),name:z.string().min(2).max(160),slug:z.string().min(2).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).refine(isValidStoreSubdomain,'Subdomínio reservado ou inválido'),ownerName:z.string().min(2),ownerEmail:z.string().email(),ownerPhone:z.string().optional(),ownerTemporaryPassword:z.string().min(12).optional(),status:z.enum(['active','onboarding','blocked','suspended']).optional(),plan:z.string().optional()});const parsed=schema.safeParse(await c.req.json().catch(()=>null));if(!parsed.success)return c.json({error:parsed.error.issues[0]?.message||'Dados inválidos.'},400);const b=parsed.data;
  const existing=await db.prepare(`SELECT id FROM tenants WHERE crm_external_id=? OR slug=?`).bind(b.externalId,b.slug).first<{id:string}>();if(existing)return c.json({error:'Já existe estabelecimento com este ID externo ou slug.'},409);
  const owner=await db.prepare(`SELECT id FROM users WHERE lower(email)=lower(?)`).bind(b.ownerEmail).first();if(owner)return c.json({error:'O e-mail do proprietário já está vinculado.'},409);
  const id=generateId(),userId=generateId(),time=new Date().toISOString();
