@@ -142,3 +142,15 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - Se o WhatsApp estiver desconectado, o aviso fica pendente no Histórico de Envios; se o cliente não autorizou o canal, nenhuma mensagem é enviada, mas o acompanhamento exibe o novo valor.
 - Só é possível editar pedidos nas etapas **Recebido**, **Aceito** e **Em preparação**, com estoque ainda reservado. Pedidos já em entrega, entregues e cancelados não podem ser modificados por esse fluxo.
 - Os testes automatizados usam banco SQLite em memória e não modificam o pedido real #1001 nem disparam mensagens externas. Migração D1 incremental `0005_order_adjustments.sql` aplicada com êxito.
+
+
+## Atualização — Alertas Telegram e remoção de pedidos de teste (20/11/2026)
+
+- Cada loja recebe alerta administrativo no Telegram quando uma instância Evolution **conectada** desconecta no painel, em webhook Evolution ou no monitor de estado a cada 2 minutos. O aviso informa o estabelecimento, a instância e a hora. A transição é deduplicada e a fila de alertas permite tentativas posteriores, sem bloquear pedidos nem WhatsApp.
+- Para ativar o envio REAL ao Telegram, configure dois **GitHub Actions Secrets do ambiente `production` ou do repositório**: `TELEGRAM_BOT_TOKEN` (token do bot Telegram que enviará avisos) e `TELEGRAM_CHAT_ID` (ID do chat privado ou grupo onde o bot tem permissão para escrever). Não divulgue esses valores em prints ou conversas. O bot precisa ter recebido `/start` no chat privado ou ser membro do grupo.
+- Após configurar ambos, publique a branch `main` novamente para que o Worker receba os segredos. O painel WhatsApp indica se os alertas estão configurados; se ainda não há segredos, as desconexões novas ficam na fila sem envio e serão processadas após a configuração.
+- O monitor considera desconexão apenas estado confirmado `close/closed/disconnected`; erro temporário de HTTP não é tratado como queda. Não envia alertas quando nunca houve conexão, nem um aviso a cada atualização do mesmo estado.
+- Em **Pedidos**, proprietário/gerente pode clicar no ícone de lixeira para **remover da operação** somente pedidos que já estejam `cancelled` e com estoque `released`. A ação exige confirmação e preserva a linha do pedido no banco para fins de auditoria, mas com `deleted_at` preenchido.
+- Pedidos ocultos não aparecem na listagem, nos indicadores do proprietário, em relatórios, no Super Admin nem na consulta pública de pedidos. O cadastro do cliente e seus dados são preservados; o contador de pedidos do cliente é recalculado para desconsiderar o teste oculto.
+- A exclusão nunca estorna estoque uma segunda vez, não cancela pedidos ativos automaticamente e impede envio posterior de mensagens pendentes do pedido ocultado.
+- Migração aditiva: `0006_order_visibility_telegram_alerts.sql`. Testes automatizados realizados em banco isolado, sem desconectar números reais nem apagar pedidos de produção.
