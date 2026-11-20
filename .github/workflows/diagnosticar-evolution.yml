@@ -1,0 +1,44 @@
+name: Verificar configuração Evolution Hortifruti
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnosticar-evolution.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Conferir credenciais sem revelar valores
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      EVOLUTION_API_URL: ${{ secrets.EVOLUTION_API_URL }}
+      EVOLUTION_API_KEY: ${{ secrets.EVOLUTION_API_KEY }}
+      EVOLUTION_WEBHOOK_TOKEN: ${{ secrets.EVOLUTION_WEBHOOK_TOKEN }}
+      PUBLIC_APP_URL: ${{ secrets.PUBLIC_APP_URL }}
+    steps:
+      - name: Verificar variáveis necessárias ao QR e notificações
+        shell: bash
+        run: |
+          set -euo pipefail
+          for item in EVOLUTION_API_URL EVOLUTION_API_KEY EVOLUTION_WEBHOOK_TOKEN; do
+            if [ -n "${!item}" ]; then
+              echo "$item: configurado"
+            else
+              echo "$item: ausente"
+            fi
+          done
+          if [ -n "$PUBLIC_APP_URL" ]; then
+            echo "PUBLIC_APP_URL: configurado"
+          else
+            echo "PUBLIC_APP_URL: não informado (o Worker utilizará seu endereço público)"
+          fi
+          if [ -z "$EVOLUTION_API_URL" ] || [ -z "$EVOLUTION_API_KEY" ]; then
+            echo "::notice::Conexão Evolution aguardando configurações protegidas. Nenhum servidor externo foi acessado."
+          else
+            echo "::notice::Credenciais presentes. Conexão real só será iniciada pelo botão do estabelecimento."
+          fi
