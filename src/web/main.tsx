@@ -3,5 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './styles.css';
+import {installMobileViewportGuards} from './mobile-viewport';
+
+installMobileViewportGuards();
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode><BrowserRouter><App /></BrowserRouter></React.StrictMode>);
