@@ -181,3 +181,15 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - O grid da vitrine e a lista de categorias agora têm `min-width:0` e `max-width:100%`, com área própria `overflow-x:auto`, rolagem com inércia no iOS e chips sem quebra de linha.
 - Adicionadas setas discretas para avançar ou voltar entre categorias, habilitadas apenas quando houver mais conteúdo fora da área visível; o toque nas categorias continua filtrando os produtos.
 - O bloqueio do zoom por gesto é preservado no documento, sem interferir na rolagem horizontal desta lista. Testes de prevenção de regressão foram adicionados.
+
+
+## Atualização — Fotos automáticas e catálogo compartilhado (20/11/2026)
+
+- O cadastro de produto por **peso, unidade, peso/unidade ou embalagens** agora procura foto automaticamente ao salvar, sem exigir o upload manual.
+- Ordem: associação por nome normalizado do catálogo compartilhado D1, fotos do acervo interno (12 espécies com sinônimos), depois busca por título correspondente na Wikimedia Commons com licença aberta e importação da miniatura para R2.
+- O D1 mantém metadados `normalized_name`, `image_url`, `source_page_url`, `license_name`, `license_url` e `author`, para que qualquer estabelecimento reutilize a mesma foto do produto sem repetir importações. Clientes, preços, produtos, estoque e fotos privadas permanecem isolados por proprietário.
+- O painel **Produtos** tem prévia da foto encontrada, **Pesquisar mais imagens**, escolha manual entre imagens disponíveis, upload de foto própria e **Preencher fotos faltantes** para itens já cadastrados. O botão não substitui imagem manual.
+- Somente miniaturas Wikimedia HTTPS de host autorizado e licença CC0 / domínio público / CC BY / CC BY-SA são importadas; arquivos são validados por assinatura e tamanho. A vitrine mostra autoria e licença das fotos abertas.
+- Fotos sem correspondência confiável não são inventadas: aparece um ícone neutro em lugar de exibir indevidamente a banana como foto do produto. A foto pode ser corrigida manualmente depois.
+- Migração D1 `0007_shared_product_images.sql`; testes automatizados abrangem correspondência por nome, criação, importação, licenciamento, reuso multiempresa e preservação de fotos escolhidas.
+- A disponibilidade da Wikimedia Commons depende da conexão e da licença do arquivo. A ausência de imagem não impede o cadastro do produto.
