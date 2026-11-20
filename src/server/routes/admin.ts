@@ -7,6 +7,7 @@ import { ORDER_NEXT_STATUS } from '../../shared/pricing';
 import { cancelOrderAndRestoreStock, commitOrderStockOnDelivery } from '../services/inventory';
 import { checkWhatsAppConnectionStatus, connectOrRefreshWhatsAppQr, confirmHomologationQrScan, disconnectWhatsAppInstance, dispatchQueuedMessageById, enqueueAndDispatchOrderWhatsAppNotification, DEFAULT_WHATSAPP_TEMPLATES } from '../services/evolution-whatsapp';
 import { parseDataUriImage } from '../storage/r2-media';
+import {adjustOrderItems} from '../services/order-adjustments';
 
 export const adminRoutes = new Hono<AppHonoEnv>();
 adminRoutes.use('*', requireTenantAdmin());
@@ -24,8 +25,36 @@ adminRoutes.get('/dashboard', async (c) => {
 adminRoutes.get('/orders', async(c)=>{
  const db=c.get('services').db,tid=c.get('tenantId'); const status=c.req.query('status'); const search=c.req.query('q')||'';
  const {results}=await db.prepare(`SELECT * FROM orders WHERE tenant_id=? AND (?='' OR status=?) AND (?='' OR CAST(order_number AS TEXT) LIKE '%'||?||'%' OR customer_name LIKE '%'||?||'%' OR customer_phone LIKE '%'||?||'%') ORDER BY created_at DESC LIMIT 200`).bind(tid,status||'',status||'',search,search,search,search).all<Record<string,any>>();
- const orders=[]; for(const o of results){const {results:items}=await db.prepare(`SELECT product_name_snapshot,variant_name_snapshot,quantity_display,unit_price_cents,line_total_cents FROM order_items WHERE tenant_id=? AND order_id=?`).bind(tid,o.id).all(); orders.push({...o,items});}
+ const orders=[]; for(const o of results){const {results:items}=await db.prepare(`SELECT id,product_name_snapshot,variant_name_snapshot,sale_mode,quantity,quantity_display,unit_price_cents,line_total_cents FROM order_items WHERE tenant_id=? AND order_id=? ORDER BY rowid`).bind(tid,o.id).all(); const {results:adjustments}=await db.prepare(`SELECT id,version,reason,old_total_cents,new_total_cents,changes_json,created_at
+    FROM order_adjustments WHERE tenant_id=? AND order_id=? ORDER BY version DESC LIMIT 25`)
+  .bind(tid,o.id).all<Record<string,any>>();
+  orders.push({...o,items,adjustments:adjustments.map(x=>({...x,changes:JSON.parse(x.changes_json||'[]')}))});}
  return c.json({orders});
+});
+
+// Atualizar pedido recebido/aceito/em preparação sem alterar pedidos de outras lojas.
+adminRoutes.patch('/orders/:id/items',async(c)=>{
+ const services=c.get('services'),db=services.db,tid=c.get('tenantId'),uid=c.get('authUser').sub;
+ const schema=z.object({
+   expectedVersion:z.number().int().nonnegative(),
+   reason:z.string().trim().min(5).max(240),
+   updates:z.array(z.object({itemId:z.string().min(1),quantity:z.number().int().nonnegative()}))
+     .min(1).max(100)
+ });
+ const parsed=schema.safeParse(await c.req.json().catch(()=>null));
+ if(!parsed.success)return c.json({error:parsed.error.issues[0]?.message||'Confira as quantidades e o motivo.'},400);
+ try{
+   const result=await adjustOrderItems({db,tenantId:tid,orderId:c.req.param('id'),
+     actorId:uid,expectedVersion:parsed.data.expectedVersion,
+     reason:parsed.data.reason,updates:parsed.data.updates,evolution:services.evolution});
+   await logAudit(db,{tenantId:tid,actorUserId:uid,actorRole:c.get('authUser').role,
+     action:'order.items_adjusted',entityType:'order',entityId:c.req.param('id'),
+     details:{version:result.version,changes:result.changes,
+       oldTotalCents:result.oldTotalCents,newTotalCents:result.newTotalCents}});
+   return c.json({success:true,...result});
+ }catch(err:any){
+   return c.json({error:err.message||'Não foi possível ajustar o pedido.'},err.statusCode||400);
+ }
 });
 
 adminRoutes.patch('/orders/:id/status',async(c)=>{
