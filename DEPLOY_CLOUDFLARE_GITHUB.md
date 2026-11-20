@@ -91,3 +91,12 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - Exemplo: banana 400 g, abacaxi 300 g, beterraba 2 un e melancia 1 un resultam em 4 itens.
 - Produtos com duas modalidades de venda não são duplicados no contador de itens; no carrinho, permanecem linhas separadas com seus pesos e valores.
 - Correção testada automaticamente, sem modificar estoque, preços ou pedidos.
+
+
+## Atualização — Botão Remover da cesta (20/11/2026)
+
+- Cada linha de produto na cesta exibe uma ação "Remover" com ícone de lixeira.
+- A remoção é imediata e retira a quantidade inteira daquela opção, sem exigir repetidos cliques no sinal de menos.
+- A contagem dos itens, o subtotal e o valor total são recalculados automaticamente.
+- Comprar o mesmo produto por kg e por unidade continua permitindo remover uma modalidade sem apagar a outra.
+- O recurso também está disponível no carrinho do celular e não modifica estoque ou pedidos antes da finalização.
