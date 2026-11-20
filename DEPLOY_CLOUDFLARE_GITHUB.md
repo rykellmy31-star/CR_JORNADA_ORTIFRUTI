@@ -1,6 +1,6 @@
 # Publicar na Cloudflare e conectar GitHub privado
 
-> Este repositório ainda não está em GitHub e nenhuma conta Cloudflare foi conectada nesta sessão. O workflow e os comandos abaixo preparam a publicação, mas não criam recursos/contas nem publicam por conta própria. Faltam acesso às contas, ID do D1, domínio e segredos definidos pelo proprietário.
+> Projeto já versionado na branch `main` do GitHub, com ID do D1 configurado e migrações remotas aplicadas. O repositório deve ser tornado privado antes de usar dados reais. A publicação na Cloudflare utiliza GitHub Actions e permanece condicionada aos testes e às credenciais cadastradas em GitHub Secrets. O domínio, o primeiro Super Admin de produção e a integração real Evolution/CRM ainda exigem homologação.
 
 ## 1. Criar recursos Cloudflare
 
