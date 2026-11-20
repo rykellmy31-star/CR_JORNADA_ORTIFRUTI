@@ -158,9 +158,13 @@ export async function autoProductImage(
  try{
   const options=await findCommonsPhotoCandidates(name);
   const strong=options.filter(o=>(o.confidence||0)>=80);
-  if(strong.length===1){
-   const imported=await importCommonsProductImage(db,media,name,strong[0].pageId!);
-   return {imageUrl:imported.imageUrl,source:'wikimedia'};
+  // Várias fotos válidas da mesma fruta podem existir. Escolher a melhor
+  // correspondência verificada pelo título, sem confundir produtos diferentes.
+  for(const candidate of strong.slice(0,2)){
+   try{
+    const imported=await importCommonsProductImage(db,media,name,candidate.pageId!);
+    return {imageUrl:imported.imageUrl,source:'wikimedia'};
+   }catch{/* Tentar a próxima foto compatível. */}
   }
  }catch{/* Não impede cadastro quando a fonte pública está indisponível. */}
  return {imageUrl:null,source:'not_found'};
