@@ -1,6 +1,6 @@
 # Publicar na Cloudflare e conectar GitHub privado
 
-> Projeto já versionado na branch `main` do GitHub, com ID do D1 configurado e migrações remotas aplicadas. O repositório deve ser tornado privado antes de usar dados reais. A publicação na Cloudflare utiliza GitHub Actions e permanece condicionada aos testes e às credenciais cadastradas em GitHub Secrets. O domínio, o primeiro Super Admin de produção e a integração real Evolution/CRM ainda exigem homologação.
+> Projeto já versionado na branch `main` do GitHub, com ID do D1 configurado e migrações remotas aplicadas. O repositório deve ser tornado privado antes de usar dados reais. A publicação na Cloudflare utiliza GitHub Actions e permanece condicionada aos testes e às credenciais cadastradas em GitHub Secrets. O Super Admin inicial já foi criado no D1; o login administrativo está em validação. O domínio próprio e a integração real Evolution/CRM ainda exigem homologação.
 
 ## 1. Criar recursos Cloudflare
 
