@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS tenant_store_domains (
  status TEXT NOT NULL DEFAULT 'pending'
    CHECK(status IN ('pending','registered','conflict','manual')),
  domain_id TEXT,
+ activate_on_success INTEGER NOT NULL DEFAULT 0 CHECK(activate_on_success IN (0,1)),
  last_error TEXT,
  updated_at TEXT NOT NULL
 );
