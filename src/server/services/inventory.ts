@@ -14,6 +14,7 @@ import {
 export interface CheckoutItemInput {
   product_id: string;
   variant_id?: string | null;
+  purchase_mode?: 'weight' | 'unit';
   quantity: number;
 }
 
@@ -50,6 +51,8 @@ interface ProductRow {
   step_qty: number;
   price_cents: number;
   promo_price_cents: number | null;
+  unit_price_cents: number | null;
+  unit_weight_grams: number | null;
   is_active: number;
   is_deleted: number;
   stock_pool_id: string | null;
@@ -106,7 +109,7 @@ export async function validateAndPrepareOrderLines(
     const product = await db
       .prepare(
         `SELECT id, tenant_id, name, sku, sale_mode, unit_label, pricing_unit_grams,
-                min_qty, step_qty, price_cents, promo_price_cents, is_active, is_deleted,
+                min_qty, step_qty, price_cents, promo_price_cents, unit_price_cents, unit_weight_grams, is_active, is_deleted,
                 stock_pool_id, pool_deduction_qty, physical_qty, reserved_qty
          FROM products
          WHERE id = ? AND tenant_id = ? AND is_deleted = 0`
@@ -197,58 +200,56 @@ export async function validateAndPrepareOrderLines(
 
       subtotalCents += lineTotal;
     } else {
-      // 'weight' ou 'unit'
-      if (rawItem.quantity < product.min_qty) {
-        throw new Error(
-          `A quantidade mínima para "${product.name}" é ${formatQuantityDisplay(
-            product.min_qty,
-            product.sale_mode,
-            product.unit_label
-          )}.`
-        );
+      // Produto comum ou venda mista por peso/unidade com o mesmo estoque físico.
+      const isDual = product.sale_mode === 'weight' &&
+        product.unit_price_cents !== null && product.unit_weight_grams !== null;
+      const purchaseMode = rawItem.purchase_mode || product.sale_mode;
+      if (purchaseMode !== product.sale_mode && !(isDual && purchaseMode === 'unit')) {
+        throw new Error(`A forma de venda selecionada não está disponível para "${product.name}".`);
       }
-
-      if (product.step_qty > 1 && rawItem.quantity % product.step_qty !== 0) {
-        throw new Error(
-          `A quantidade de "${product.name}" deve respeitar incrementos de ${formatQuantityDisplay(
-            product.step_qty,
-            product.sale_mode,
-            product.unit_label
-          )}.`
-        );
+      const isUnitFromWeight = isDual && purchaseMode === 'unit';
+      const minimum = isUnitFromWeight ? 1 : product.min_qty;
+      const increment = isUnitFromWeight ? 1 : product.step_qty;
+      const label = isUnitFromWeight ? 'un' : product.unit_label;
+      if (rawItem.quantity < minimum) {
+        throw new Error(`A quantidade mínima para "${product.name}" é ${formatQuantityDisplay(minimum, purchaseMode, label)}.`);
       }
-
-      const effectivePrice =
-        product.promo_price_cents !== null && product.promo_price_cents < product.price_cents
-          ? product.promo_price_cents
-          : product.price_cents;
-
+      if (increment > 1 && rawItem.quantity % increment !== 0) {
+        throw new Error(`A quantidade de "${product.name}" deve respeitar incrementos de ${formatQuantityDisplay(increment, purchaseMode, label)}.`);
+      }
+      const effectivePrice = isUnitFromWeight
+        ? product.unit_price_cents!
+        : product.promo_price_cents !== null && product.promo_price_cents < product.price_cents
+          ? product.promo_price_cents : product.price_cents;
       const lineTotal = calculateLineTotalCents(
-        effectivePrice,
-        rawItem.quantity,
-        product.sale_mode,
-        product.pricing_unit_grams
+        effectivePrice, rawItem.quantity, purchaseMode, product.pricing_unit_grams
       );
 
       let targetType: 'product' | 'pool' = 'product';
       let targetId = product.id;
       let targetName = product.name;
       let unit: 'g' | 'un' = product.sale_mode === 'weight' ? 'g' : 'un';
-      let deductedQty = rawItem.quantity;
+      // Cada unidade escolhida consome seu peso médio configurado em gramas.
+      let deductedQty = isUnitFromWeight
+        ? rawItem.quantity * product.unit_weight_grams! : rawItem.quantity;
+      if (!Number.isSafeInteger(deductedQty) || deductedQty <= 0) {
+        throw new Error('Quantidade não suportada para esta forma de venda.');
+      }
 
       if (product.stock_pool_id) {
         const pool = await db
           .prepare(`SELECT id, tenant_id, name, base_unit, physical_qty, reserved_qty FROM stock_pools WHERE id = ? AND tenant_id = ?`)
           .bind(product.stock_pool_id, tenantId)
           .first<StockPoolRow>();
-        if (!pool) {
-          throw new Error(`Origem de estoque compartilhado inválida para "${product.name}".`);
+        if (!pool) throw new Error(`Origem de estoque compartilhado inválida para "${product.name}".`);
+        if (isUnitFromWeight && pool.base_unit !== 'g') {
+          throw new Error('Estoque compartilhado incompatível com venda por unidade e kg.');
         }
         targetType = 'pool';
         targetId = pool.id;
         targetName = pool.name;
         unit = pool.base_unit;
-        deductedQty = rawItem.quantity * product.pool_deduction_qty;
+        deductedQty *= product.pool_deduction_qty;
       }
 
       lines.push({
@@ -263,16 +264,12 @@ export async function validateAndPrepareOrderLines(
         product_name_snapshot: product.name,
         variant_name_snapshot: null,
         sku_snapshot: product.sku,
-        sale_mode: product.sale_mode,
+        sale_mode: purchaseMode,
         quantity: rawItem.quantity,
-        quantity_display: formatQuantityDisplay(
-          rawItem.quantity,
-          product.sale_mode,
-          product.unit_label
-        ),
+        quantity_display: formatQuantityDisplay(rawItem.quantity, purchaseMode, label),
         stock_deducted_qty: deductedQty,
         unit_price_cents: effectivePrice,
-        pricing_unit_label: product.unit_label,
+        pricing_unit_label: label,
         line_total_cents: lineTotal,
       });
 
