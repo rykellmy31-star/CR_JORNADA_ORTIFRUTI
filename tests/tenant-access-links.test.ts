@@ -47,6 +47,23 @@ describe('Super Admin original do Hortifruti com credenciais e links por loja',(
   const dbUser=await db.prepare('SELECT password_hash FROM users WHERE tenant_id=?').bind(account.tenantId).first<{password_hash:string}>();
   expect(dbUser?.password_hash).not.toContain(account.temporaryPassword);
  });
+ it('gera senha inicial quando não foi informada, sem exigir troca no login',async()=>{
+  const {app,token}=await setup();
+  const response=await app.fetch(new Request('http://local/api/superadmin/tenants',{
+   method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},
+   body:JSON.stringify({name:'Hortifruti Exemplo',slug:'hortifruti-exemplo',
+    ownerName:'Proprietário Exemplo',ownerEmail:'owner@exemplo.test',
+    temporaryPassword:'',status:'active'})
+  }));
+  expect(response.status).toBe(201);
+  const created=await response.json() as any;
+  expect(created.temporaryPassword.length).toBeGreaterThanOrEqual(12);
+  const login=await app.fetch(new Request('http://local/api/auth/login',{
+   method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({email:created.ownerEmail,password:created.temporaryPassword})
+  }));
+  expect(login.status).toBe(200);
+ });
  it('não aceita utilizar subdomínio de outro serviço da CR Jornada',async()=>{
   const {app,token}=await setup();
   const res=await app.fetch(new Request('http://local/api/superadmin/tenants',{
