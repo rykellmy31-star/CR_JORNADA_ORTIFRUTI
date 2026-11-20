@@ -14,7 +14,8 @@ publicStoreRoutes.get('/:slug', async (c) => {
   const tenant = await db.prepare(`SELECT id, slug, name, logo_url, banner_url, banner_title, banner_subtitle,
     primary_color, accent_color, whatsapp_public, instagram_url, address_text, business_hours, delivery_info,
     default_delivery_fee_cents, free_delivery_min_cents, min_order_cents, is_open,
-    accepts_cash, accepts_pix_delivery, accepts_debit_delivery, accepts_credit_delivery
+    accepts_cash, accepts_pix_delivery, accepts_debit_delivery, accepts_credit_delivery,
+    signup_popup_enabled, signup_popup_title, signup_popup_description, signup_popup_button
     FROM tenants WHERE slug = ? AND status = 'active'`).bind(c.req.param('slug')).first<Record<string, any>>();
   if (!tenant) return c.json({ error: 'Loja não encontrada ou temporariamente indisponível.' }, 404);
   const { results: categories } = await db.prepare(`SELECT id, name, slug, icon, sort_order FROM categories WHERE tenant_id = ? AND is_active = 1 ORDER BY sort_order, name`).bind(tenant.id).all();
@@ -41,6 +42,50 @@ publicStoreRoutes.get('/:slug', async (c) => {
     .map(({ available, ...p }: any) => ({ ...p, variants: (variantMap.get(p.id) || []).map(({ available: _variantAvailable, ...v }: any) => v) }));
   const { results: neighborhoods } = await db.prepare(`SELECT name, delivery_fee_cents, estimated_time FROM neighborhoods WHERE tenant_id = ? AND is_active = 1 ORDER BY name`).bind(tenant.id).all();
   return c.json({ store: tenant, categories, products: publicProducts, neighborhoods });
+});
+
+// Cadastro voluntário — não cria pedidos, cupons ou envios automáticos.
+// A loja é resolvida pelo slug e o telefone é único apenas dentro desse tenant.
+const signupSchema = z.object({
+  name: z.string().trim().min(3, 'Informe seu nome completo.').max(140)
+    .refine(v => v.split(/\s+/).length >= 2, 'Informe nome e sobrenome.'),
+  email: z.email('Informe um e-mail válido.').max(200),
+  phone: z.string().trim().min(10).max(32),
+  privacyAccepted: z.literal(true),
+  marketingOptIn: z.boolean().default(false),
+  website: z.string().max(200).optional().default(''),
+});
+publicStoreRoutes.post('/:slug/signup', async(c) => {
+  const parsed=signupSchema.safeParse(await c.req.json().catch(()=>null));
+  if(!parsed.success) return c.json({error:parsed.error.issues[0]?.message||'Dados inválidos.'},400);
+  const input=parsed.data;
+  if(input.website) return c.json({ok:true}); // honeypot de formulário
+  const db=c.get('services').db;
+  const tenant=await db.prepare("SELECT id, signup_popup_enabled FROM tenants WHERE slug=? AND status='active'")
+    .bind(c.req.param('slug')).first<{id:string;signup_popup_enabled:number}>();
+  if(!tenant) return c.json({error:'Estabelecimento não encontrado.'},404);
+  if(!tenant.signup_popup_enabled) return c.json({error:'Cadastro indisponível nesta loja.'},403);
+  const phone=normalizePhoneBR(input.phone);
+  if(!/^55\d{10,11}$/.test(phone)) return c.json({error:'Informe um celular com DDD válido.'},400);
+  const name=input.name.replace(/\s+/g,' ').trim();
+  const email=input.email.trim().toLowerCase();
+  const now=new Date().toISOString();
+  try {
+    await db.prepare(`INSERT INTO customers(
+      id,tenant_id,name,phone,email,whatsapp_opt_in,marketing_opt_in,
+      marketing_consented_at,signup_consented_at,signup_source,
+      orders_count,total_spent_cents,created_at,updated_at
+    ) VALUES(?,?,?,?,?,0,?,?,?,?,0,0,?,?)
+    ON CONFLICT(tenant_id,phone) DO UPDATE SET
+      name=excluded.name,email=excluded.email,marketing_opt_in=excluded.marketing_opt_in,
+      marketing_consented_at=excluded.marketing_consented_at,
+      signup_consented_at=excluded.signup_consented_at,updated_at=excluded.updated_at`)
+      .bind(generateId(),tenant.id,name,phone,email,input.marketingOptIn?1:0,
+        input.marketingOptIn?now:null,now,'popup',now,now).run();
+    return c.json({ok:true,message:'Cadastro realizado com sucesso!'});
+  }catch{
+    return c.json({error:'Não conseguimos concluir seu cadastro. Tente novamente.'},500);
+  }
 });
 
 const checkoutSchema = z.object({
