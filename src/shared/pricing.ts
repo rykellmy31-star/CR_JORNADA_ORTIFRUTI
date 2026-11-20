@@ -217,3 +217,14 @@ export function extractFirstName(fullName: string): string {
   if (!trimmed) return 'Cliente';
   return trimmed.split(/\s+/)[0];
 }
+
+/**
+ * Percentual inteiro de desconto calculado sobre o preço original.
+ * Só indica promoção quando o preço atual é realmente menor.
+ * Arredondamento convencional (ex.: R$ 9,90 -> R$ 7,99 = -19%).
+ */
+export function getDiscountPercent(originalCents: number, currentCents: number): number | null {
+  if (!Number.isSafeInteger(originalCents) || !Number.isSafeInteger(currentCents)
+      || originalCents <= 0 || currentCents < 0 || currentCents >= originalCents) return null;
+  return Math.max(1, Math.round((100 * (originalCents - currentCents)) / originalCents));
+}
