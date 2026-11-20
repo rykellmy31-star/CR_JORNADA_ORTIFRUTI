@@ -84,3 +84,10 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - Em produtos por kg/unidade ou com embalagens, selo e valores seguem a opção selecionada, sem anunciar desconto em modalidade sem promoção.
 - Produtos sem promoção continuam com preço normal, sem selo de desconto.
 - Testes automatizados de preço e compilação devem passar antes da publicação.
+
+## Atualização — Quantidade de itens na cesta (20/11/2026)
+
+- A cesta e o indicador do carrinho mostram a quantidade de produtos distintos, sem somar gramas ou unidades compradas.
+- Exemplo: banana 400 g, abacaxi 300 g, beterraba 2 un e melancia 1 un resultam em 4 itens.
+- Produtos com duas modalidades de venda não são duplicados no contador de itens; no carrinho, permanecem linhas separadas com seus pesos e valores.
+- Correção testada automaticamente, sem modificar estoque, preços ou pedidos.
