@@ -211,6 +211,11 @@ function ProductCard({p,getLine,setLine}:any){
   <div className="product-info">
     <small className="product-category">{dual?'POR KG OU UNIDADE':mode==='weight'?'VENDIDO POR PESO':mode==='variants'?'EMBALAGENS':'UNIDADE'}</small>
     <h3>{p.name}</h3>{p.description&&<p className="product-desc">{p.description}</p>}
+    {p.photo_source_url&&<small className="product-photo-credit">
+     Foto: <a href={p.photo_source_url} target="_blank" rel="noopener noreferrer">
+      {p.photo_author||'Wikimedia Commons'} · {p.photo_license||'Licença aberta'}
+     </a>
+    </small>}
     {dual&&<div className="purchase-mode-choices"><span>Como deseja comprar?</span><div className="purchase-mode-buttons">
       <button type="button" className={purchaseMode==='weight'?'selected':''} onClick={()=>setPurchaseMode('weight')}>Por kg</button>
       <button type="button" disabled={unitDisabled} className={purchaseMode==='unit'?'selected':''} onClick={()=>setPurchaseMode('unit')}>Por unidade</button>
