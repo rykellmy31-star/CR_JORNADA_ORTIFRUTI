@@ -145,11 +145,11 @@ adminRoutes.get('/products/image-suggestions',async(c)=>{
 adminRoutes.post('/products/images/autofill',async(c)=>{
  const services=c.get('services'),db=services.db,tid=c.get('tenantId');
  const {results}=await db.prepare(`SELECT id,name FROM products WHERE tenant_id=? AND
-  is_deleted=0 AND (image_url IS NULL OR trim(image_url)='') ORDER BY created_at LIMIT 15`)
+  is_deleted=0 AND (image_url IS NULL OR trim(image_url)='') ORDER BY created_at LIMIT 8`)
   .bind(tid).all<{id:string;name:string}>();
  let updated=0,notFound=0;
  for(const item of results){
-  const photo=await autoProductImage(db,services.media,item.name);
+  const photo=await autoProductImage(db,services.media,item.name,false);
   if(!photo.imageUrl){notFound++;continue;}
   const changed=await db.prepare(`UPDATE products SET image_url=?,updated_at=?
    WHERE id=? AND tenant_id=? AND (image_url IS NULL OR trim(image_url)='')`)
