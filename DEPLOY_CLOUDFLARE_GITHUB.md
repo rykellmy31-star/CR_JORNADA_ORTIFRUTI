@@ -165,3 +165,11 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - Arquivos sem assinatura válida de imagem ou SVG ativo direto são rejeitados no servidor, protegendo o domínio público.
 - Para evitar o zoom **automático** do Safari iOS ao focar um campo, todos os campos editáveis no celular usam fonte de pelo menos 16px. O zoom manual de acessibilidade não é desativado.
 - As alterações foram revisadas pelos testes automáticos e compilação TypeScript/React antes do deploy.
+
+## Correção de zoom e deslocamento lateral no Safari iPhone (20/11/2026)
+
+- Reproduzido a partir da gravação fornecida pelo proprietário: o cliente conseguia ampliar a vitrine por gesto de pinça, deixando-a maior que o visor e permitindo arrastar a página para espaços brancos nas laterais.
+- O ajuste anterior de tamanho dos inputs (16px) foi mantido; agora o viewport também usa `maximum-scale=1`, `user-scalable=no` e `viewport-fit=cover` e os eventos do Safari para pinch-zoom são prevenidos somente em dispositivos móveis.
+- O documento e as páginas principais limitam `overflow-x` e `max-width` a 100%, evitando deslocamentos horizontais do conteúdo. A rolagem vertical normal e o gesto horizontal das categorias continuam permitidos.
+- Novos testes automatizados verificam proteção contra pinça, manutenção do scroll por um dedo e ausência de regressões de viewport e CSS.
+- A proteção é específica do navegador móvel; os recursos de ampliação do sistema operacional continuam disponíveis. Confirmação visual final requer testar a página atualizada no próprio Safari do cliente.
