@@ -1,0 +1,42 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "cr-jornada-hortifruti"
+main = "src/worker-entry.ts"
+compatibility_date = "2025-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Serve built React SPA assets directly from Cloudflare Workers Static Assets
+[assets]
+directory = "./dist/public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Cloudflare D1 Relational Database (Multi-tenant logically isolated schema)
+[[d1_databases]]
+binding = "DB"
+database_name = "cr-jornada-hortifruti-db"
+database_id = "REPLACE_WITH_YOUR_CLOUDFLARE_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# Cloudflare R2 Object Storage for Product Photos, Store Logos & Banners
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "cr-jornada-hortifruti-media"
+
+# Scheduled Cron Trigger for Transactional WhatsApp Outbox Retries & Cleanup
+[triggers]
+crons = ["*/2 * * * *"]
+
+# Non-sensitive public defaults (Secrets MUST be configured via `wrangler secret put`)
+[vars]
+APP_NAME = "CR Jornada Hortifruti"
+APP_ENV = "production"
+# Secrets configured via `wrangler secret put` (NEVER commit real values here):
+# - JWT_SECRET
+# - CRM_API_KEY
+# - CRM_WEBHOOK_SECRET
+# - CRM_WEBHOOK_URL
+# - EVOLUTION_API_URL
+# - EVOLUTION_API_KEY
+# - EVOLUTION_WEBHOOK_TOKEN
+# - SUPERADMIN_EMAIL
+# - SUPERADMIN_INITIAL_PASSWORD
