@@ -30,8 +30,8 @@ crons = ["*/2 * * * *"]
 [vars]
 APP_NAME = "CR Jornada Hortifruti"
 APP_ENV = "production"
-# Disabled until dedicated Cloudflare API token and zone identifiers are configured.
-CF_AUTO_DOMAINS_ENABLED = "false"
+# Cloudflare auto-domains is disabled by default.
+# Enable only after migration and secrets are configured (see docs).
 # Secrets configured via `wrangler secret put` (NEVER commit real values here):
 # - JWT_SECRET
 # - CRM_API_KEY
@@ -45,3 +45,4 @@ CF_AUTO_DOMAINS_ENABLED = "false"
 # - CF_ACCOUNT_ID (can be non-secret but is environment-specific)
 # - CF_ZONE_ID (can be non-secret but is environment-specific)
 # - CF_DOMAINS_API_TOKEN (SECRET: never put into repo)
+# - CF_AUTO_DOMAINS_ENABLED (value "true", saved as Worker secret to survive deploy)
