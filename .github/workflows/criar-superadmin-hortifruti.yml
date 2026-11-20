@@ -1,0 +1,97 @@
+name: Criar primeiro Super Admin do Hortifruti
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: primeiro-superadmin-hortifruti
+  cancel-in-progress: false
+
+jobs:
+  cadastrar:
+    name: Cadastrar administrador inicial
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SUPERADMIN_EMAIL: ${{ secrets.SUPERADMIN_EMAIL }}
+      SUPERADMIN_INITIAL_PASSWORD: ${{ secrets.SUPERADMIN_INITIAL_PASSWORD }}
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validar presença das credenciais
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Falta CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Falta CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+          test -n "$SUPERADMIN_EMAIL" || { echo "::error::Falta SUPERADMIN_EMAIL"; exit 1; }
+          test -n "$SUPERADMIN_INITIAL_PASSWORD" || { echo "::error::Falta SUPERADMIN_INITIAL_PASSWORD"; exit 1; }
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Preparar SQL seguro de criação única
+        shell: bash
+        env:
+          ADMIN_SQL_PATH: ${{ runner.temp }}/hortifruti-primeiro-admin.sql
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { pbkdf2Sync, randomBytes, randomUUID } from 'node:crypto';
+          import { writeFileSync } from 'node:fs';
+          const email = (process.env.SUPERADMIN_EMAIL ?? '').trim().toLowerCase();
+          const password = process.env.SUPERADMIN_INITIAL_PASSWORD ?? '';
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('SUPERADMIN_EMAIL não é um e-mail válido.');
+          if (password.length < 16 || password.length > 200) throw new Error('SUPERADMIN_INITIAL_PASSWORD deve ter 16 a 200 caracteres.');
+          const salt = randomBytes(16).toString('hex');
+          const hash = pbkdf2Sync(password, Buffer.from(salt, 'hex'), 100000, 32, 'sha256').toString('hex');
+          const passwordHash = 'pbkdf2$100000$' + salt + '$' + hash;
+          const sqlText = (v) => "'" + v.replaceAll("'", "''") + "'";
+          const timestamp = new Date().toISOString();
+          const sql = [
+            'INSERT INTO users (id,tenant_id,name,email,password_hash,role,is_active,created_at,updated_at)',
+            'SELECT ' + [
+              sqlText(randomUUID()), 'NULL', sqlText('Administrador CR Jornada'), sqlText(email),
+              sqlText(passwordHash), sqlText('superadmin'), '1', sqlText(timestamp), sqlText(timestamp)
+            ].join(', ') + ' WHERE NOT EXISTS (SELECT 1 FROM users WHERE role = ' + sqlText('superadmin') + ');'
+          ].join(' ') + '\n';
+          writeFileSync(process.env.ADMIN_SQL_PATH, sql, { mode: 0o600 });
+          console.log('Credenciais validadas; SQL temporário preparado sem mostrar dados pessoais.');
+          NODE
+
+      - name: Criar conta no D1 remoto sem afetar usuários existentes
+        shell: bash
+        env:
+          ADMIN_SQL_PATH: ${{ runner.temp }}/hortifruti-primeiro-admin.sql
+        run: |
+          set -euo pipefail
+          trap 'rm -f "$ADMIN_SQL_PATH"' EXIT
+          npx wrangler d1 execute cr-jornada-hortifruti-db --remote --file="$ADMIN_SQL_PATH" > /dev/null
+          echo "Operação SQL de criação única concluída."
+
+      - name: Verificar conta do Super Admin (sem imprimir e-mail)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute cr-jornada-hortifruti-db --remote --json \
+            --command="SELECT COUNT(*) AS total FROM users WHERE role='superadmin';" \
+            > "$RUNNER_TEMP/hortifruti-admin-check.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const result = JSON.parse(readFileSync(process.env.RUNNER_TEMP + '/hortifruti-admin-check.json','utf8'));
+          const count = result?.[0]?.results?.[0]?.total;
+          if (count !== 1) throw new Error('Não foi possível verificar a existência de um único Super Admin.');
+          console.log('Super Admin: 1 conta existente no D1.');
+          NODE
