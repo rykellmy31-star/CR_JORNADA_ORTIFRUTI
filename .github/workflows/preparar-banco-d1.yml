@@ -1,0 +1,42 @@
+name: Preparar banco D1 do Hortifruti
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cr-jornada-hortifruti-migracoes-d1
+  cancel-in-progress: false
+
+jobs:
+  preparar-d1:
+    name: Criar e verificar tabelas do Hortifruti
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CI: "true"
+    steps:
+      - name: Baixar o projeto
+        uses: actions/checkout@v4
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Conferir credenciais (sem exibir valores)
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || (echo "::error::Falta CLOUDFLARE_API_TOKEN nos segredos do repositório" && exit 1)
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || (echo "::error::Falta CLOUDFLARE_ACCOUNT_ID nos segredos do repositório" && exit 1)
+      - name: Instalar dependências
+        run: npm ci
+      - name: Aplicar migrações no D1 remoto
+        run: npx wrangler d1 migrations apply cr-jornada-hortifruti-db --remote
+      - name: Verificar as principais tabelas
+        run: >
+          npx wrangler d1 execute cr-jornada-hortifruti-db --remote
+          --command="SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('tenants','users','products','orders','whatsapp_message_queue') ORDER BY name"
