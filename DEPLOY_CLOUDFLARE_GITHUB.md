@@ -76,3 +76,11 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - Checkout preserva o modo escolhido e registra preço e quantidade específicos de cada item.
 - Clientes, pedidos, produtos e estoques continuam isolados por identificador de estabelecimento.
 - Migração D1 `0003_dual_sale_mode.sql` aplicada antes do deploy; nenhum dado anterior removido.
+
+## Atualização — Selo e preço promocional (20/11/2026)
+
+- Cada produto com preço promocional menor que o preço original exibe um selo verde com percentual arredondado sobre a imagem, como `-19%`.
+- O preço atual permanece destacado e o antigo aparece riscado, lado a lado.
+- Em produtos por kg/unidade ou com embalagens, selo e valores seguem a opção selecionada, sem anunciar desconto em modalidade sem promoção.
+- Produtos sem promoção continuam com preço normal, sem selo de desconto.
+- Testes automatizados de preço e compilação devem passar antes da publicação.
