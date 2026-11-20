@@ -123,3 +123,9 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - Após configurar os **GitHub Secrets** `EVOLUTION_API_URL` (URL HTTPS da API Evolution acessível a partir da Cloudflare), `EVOLUTION_API_KEY` (chave do provedor) e `EVOLUTION_WEBHOOK_TOKEN` (chave aleatória forte própria para autenticar os callbacks), execute novamente **Publicar CR Jornada Hortifruti** em Actions > Run workflow na branch main.
 - Depois da nova publicação, no painel de proprietário vá a **WhatsApp → Conexão → Conectar WhatsApp**, leia o QR com o aparelho empresarial e confirme o estado **Conectado**. Faça pedido de teste com número próprio autorizado e valide em **Histórico de envios**, sem enviar campanhas a clientes reais durante os testes.
 - Revisado e validado com testes automatizados de QR, webhook, fila, envio e isolamento multiempresa. Integração com servidor Evolution externo ainda depende das credenciais e da conexão do número pelo responsável.
+
+### Validação de credenciais Evolution — 20/11/2026
+
+- Depois de o administrador cadastrar os três GitHub Secrets `EVOLUTION_API_URL`, `EVOLUTION_API_KEY` e `EVOLUTION_WEBHOOK_TOKEN`, foi feita uma consulta autenticada somente de leitura à API Evolution.
+- Os três segredos foram encontrados no ambiente de produção e a consulta HTTPS a `/instance/fetchInstances` retornou HTTP 200.
+- Nenhuma instância foi criada ou conectada durante essa conferência. O próximo passo é republicar o Worker para carregar as credenciais e, no painel, conectar o WhatsApp da loja com QR Code.
