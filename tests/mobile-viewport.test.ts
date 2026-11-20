@@ -31,4 +31,17 @@ describe('Correção de zoom involuntário e tela deslocada no iPhone',()=>{
    expect(css).toContain('.category-chips,.filter-scroll,.table-wrap{touch-action:pan-x pan-y}');
    expect(css).toContain('font-size:16px!important');
  });
+
+ it('permite rolar as categorias horizontalmente mesmo com a página sem zoom',()=>{
+   const css=readFileSync('src/web/styles.css','utf8');
+   const component=readFileSync('src/web/App.tsx','utf8');
+   expect(css).toMatch(/\.catalog-main\s*\{[^}]*min-width:0/s);
+   expect(css).toMatch(/\.category-nav \.category-chips\s*\{[^}]*overflow-x:auto/s);
+   expect(css).toMatch(/\.category-nav \.category-chips\s*\{[^}]*-webkit-overflow-scrolling:touch/s);
+   expect(css).toMatch(/\.category-nav \.category-chips button\s*\{[^}]*flex:0 0 auto/s);
+   expect(component).toContain('ref={categoryListRef}');
+   expect(component).toContain('onScroll={updateCategoryArrows}');
+   expect(component).toContain('aria-label="Ver próximas categorias"');
+   expect(component).toContain('aria-label="Ver categorias anteriores"');
+ });
 });
