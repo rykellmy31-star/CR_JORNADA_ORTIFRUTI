@@ -141,6 +141,24 @@ adminRoutes.get('/products/image-suggestions',async(c)=>{
  const suggestions=await suggestProductImages(c.get('services').db,name,full);
  return c.json({suggestions,matched:!!suggestions.length});
 });
+/** Busca automática para produtos antigos sem foto, sem alterar imagens já escolhidas. */
+adminRoutes.post('/products/images/autofill',async(c)=>{
+ const services=c.get('services'),db=services.db,tid=c.get('tenantId');
+ const {results}=await db.prepare(`SELECT id,name FROM products WHERE tenant_id=? AND
+  is_deleted=0 AND (image_url IS NULL OR trim(image_url)='') ORDER BY created_at LIMIT 15`)
+  .bind(tid).all<{id:string;name:string}>();
+ let updated=0,notFound=0;
+ for(const item of results){
+  const photo=await autoProductImage(db,services.media,item.name);
+  if(!photo.imageUrl){notFound++;continue;}
+  const changed=await db.prepare(`UPDATE products SET image_url=?,updated_at=?
+   WHERE id=? AND tenant_id=? AND (image_url IS NULL OR trim(image_url)='')`)
+   .bind(photo.imageUrl,new Date().toISOString(),item.id,tid).run();
+  updated+=changed.meta.changes;
+ }
+ return c.json({success:true,checked:results.length,updated,notFound,
+  message:updated?updated+' fotos encontradas e associadas.':'Nenhuma nova correspondência segura foi encontrada.'});
+});
 adminRoutes.post('/products/image-import',async(c)=>{
  const body=await c.req.json().catch(()=>({}));
  const name=String(body.name||'').trim(),pageId=Number(body.pageId);
