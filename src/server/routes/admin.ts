@@ -38,7 +38,7 @@ adminRoutes.patch('/orders/:id/items',async(c)=>{
  const schema=z.object({
    expectedVersion:z.number().int().nonnegative(),
    reason:z.string().trim().min(5).max(240),
-   updates:z.array(z.object({itemId:z.string().min(1),quantity:z.number().int().nonnegative()}))
+   updates:z.array(z.object({itemId:z.string().min(1),quantity:z.number().int().nonnegative(),markOutOfStock:z.boolean().optional()}))
      .min(1).max(100)
  });
  const parsed=schema.safeParse(await c.req.json().catch(()=>null));
