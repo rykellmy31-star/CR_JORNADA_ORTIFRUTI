@@ -167,5 +167,13 @@ publicStoreRoutes.get('/:slug/orders/:orderNumber', async (c) => {
   const order = await db.prepare(`SELECT id, order_number, status, subtotal_cents, delivery_fee_cents, total_cents, created_at, updated_at FROM orders WHERE tenant_id = ? AND order_number = ? AND customer_phone = ?`).bind(t.id, Number(c.req.param('orderNumber')), phone).first();
   if (!order) return c.json({ error: 'Pedido não encontrado para este telefone.' }, 404);
   const { results: items } = await db.prepare(`SELECT product_name_snapshot, variant_name_snapshot, quantity_display, line_total_cents FROM order_items WHERE tenant_id = ? AND order_id = ?`).bind(t.id, (order as any).id).all();
-  return c.json({ order, items });
+  const {results:adjustments}=await db.prepare(`SELECT id,version,reason,old_total_cents,new_total_cents,
+    changes_json,created_at FROM order_adjustments
+    WHERE tenant_id=? AND order_id=? ORDER BY version DESC LIMIT 25`)
+    .bind(t.id,(order as any).id).all<Record<string,any>>();
+  return c.json({ order, items, adjustments:adjustments.map(x=>({
+    id:x.id,version:x.version,reason:x.reason,old_total_cents:x.old_total_cents,
+    new_total_cents:x.new_total_cents,created_at:x.created_at,
+    changes:JSON.parse(x.changes_json||'[]')
+  })) });
 });
