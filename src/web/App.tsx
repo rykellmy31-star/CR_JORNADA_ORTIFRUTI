@@ -1,7 +1,7 @@
 import {useEffect,useMemo,useState} from 'react';
 import {Link,useLocation,useNavigate} from 'react-router-dom';
 import {Apple,ArrowLeft,ArrowRight,BarChart3,Box,Check,ChevronDown,Clock,DoorOpen,Eye,EyeOff,Leaf,LogOut,Menu,MessageCircle,Package,Plus,RefreshCw,Search,Settings,ShoppingBasket,ShoppingCart,Store,Truck,Users,X,LayoutDashboard,Tags,History,ClipboardList,ShieldCheck,Send,Image as ImageIcon,Phone,MapPin} from 'lucide-react';
-import {calculateLineTotalCents,formatBRL,formatWeightGrams,formatQuantityDisplay,parseBRLToCents,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
+import {calculateLineTotalCents,formatBRL,formatWeightGrams,formatQuantityDisplay,parseBRLToCents,getDiscountPercent,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
 
 const API='/api';
 async function req(path:string,options:RequestInit={},token?:string):Promise<any>{const headers=new Headers(options.headers||{});if(options.body&&!(options.body instanceof FormData))headers.set('Content-Type','application/json');if(token)headers.set('Authorization',`Bearer ${token}`);const r=await fetch(`${API}${path}`,{...options,headers});const data:any=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||`Erro ${r.status}`);return data;}
@@ -15,10 +15,17 @@ function Landing(){return <div className="landing"><header className="landing-na
 type PurchaseMode='weight'|'unit'|'variants';
 type CartLine={product:any;variant?:any;purchaseMode:PurchaseMode;quantity:number};
 const productIsDual=(p:any)=>p.sale_mode==='weight'&&Number.isInteger(p.unit_price_cents)&&p.unit_price_cents>0&&Number.isInteger(p.unit_weight_grams)&&p.unit_weight_grams>0;
-const cartLinePrice=(line:CartLine):number=>{
- if(line.variant){const v=line.variant;return v.promo_price_cents!=null&&v.promo_price_cents<v.price_cents?v.promo_price_cents:v.price_cents;}
+const cartLineOriginalPrice=(line:CartLine):number=>{
+ if(line.variant)return line.variant.price_cents;
  if(line.purchaseMode==='unit'&&productIsDual(line.product))return line.product.unit_price_cents;
- const p=line.product;return p.promo_price_cents!=null&&p.promo_price_cents<p.price_cents?p.promo_price_cents:p.price_cents;
+ return line.product.price_cents;
+};
+const cartLinePrice=(line:CartLine):number=>{
+ const original=cartLineOriginalPrice(line);
+ // Não mostrar desconto quando preço promocional é maior ou igual ao original.
+ const promo=line.variant?line.variant.promo_price_cents:
+   (line.purchaseMode==='unit'&&productIsDual(line.product)?null:line.product.promo_price_cents);
+ return Number.isInteger(promo)&&promo>=0&&promo<original?promo:original;
 };
 const cartLineTotal=(line:CartLine)=>calculateLineTotalCents(cartLinePrice(line),line.quantity,line.purchaseMode,line.product.pricing_unit_grams||1000);
 const cartLineKey=(line:CartLine)=>[line.product.id,line.variant?.id||'',line.purchaseMode].join(':');
@@ -51,7 +58,10 @@ function ProductCard({p,getLine,setLine}:any){
  const [unitInput,setUnitInput]=useState('1');
  const mode:PurchaseMode=p.sale_mode==='variants'?'variants':dual?purchaseMode:p.sale_mode;
  const current=mode==='variants'?variant||null:null;
- const price=cartLinePrice({product:p,variant:current,purchaseMode:mode,quantity:1});
+ const selectedLine:CartLine={product:p,variant:current,purchaseMode:mode,quantity:1};
+ const originalPrice=cartLineOriginalPrice(selectedLine);
+ const price=cartLinePrice(selectedLine);
+ const discountPercent=getDiscountPercent(originalPrice,price);
  const weightStep=Math.max(1,Number(p.step_qty)||50);
  const weightMin=Math.max(1,Number(p.min_qty)||100);
  const isWeight=mode==='weight';
@@ -71,7 +81,10 @@ function ProductCard({p,getLine,setLine}:any){
    if(!isWeight&&unitInput.trim()==='')setUnitInput('1');
  };
  return <article className="product-card">
-  <div className="product-photo"><img src={img(p.image_url)} loading="lazy"/><div className="fresh-pill"><span/> Fresco</div>{p.is_featured?<span className="featured-tag">⭐ Destaque</span>:null}</div>
+  <div className="product-photo"><img src={img(p.image_url)} loading="lazy"/>
+    {discountPercent!==null?<span className="product-discount-badge" aria-label={`Desconto de ${discountPercent} por cento`}>-{discountPercent}%</span>:<div className="fresh-pill"><span/> Fresco</div>}
+    {p.is_featured?<span className="featured-tag">⭐ Destaque</span>:null}
+  </div>
   <div className="product-info">
     <small className="product-category">{dual?'POR KG OU UNIDADE':mode==='weight'?'VENDIDO POR PESO':mode==='variants'?'EMBALAGENS':'UNIDADE'}</small>
     <h3>{p.name}</h3>{p.description&&<p className="product-desc">{p.description}</p>}
@@ -79,8 +92,12 @@ function ProductCard({p,getLine,setLine}:any){
       <button type="button" className={purchaseMode==='weight'?'selected':''} onClick={()=>setPurchaseMode('weight')}>Por kg</button>
       <button type="button" disabled={unitDisabled} className={purchaseMode==='unit'?'selected':''} onClick={()=>setPurchaseMode('unit')}>Por unidade</button>
     </div>{unitDisabled&&<small>Unidades temporariamente indisponíveis; venda por kg disponível.</small>}</div>}
-    {mode==='variants'?<select className="variant-select" value={variant?.id||''} onChange={e=>setVariant(p.variants.find((v:any)=>v.id===e.target.value))}>{p.variants.map((v:any)=><option key={v.id} value={v.id}>{v.name} — {money(v.promo_price_cents!=null&&v.promo_price_cents<v.price_cents?v.promo_price_cents:v.price_cents)}</option>)}</select>
-    :<div className="product-price">{money(price)} <small>/ {isWeight?'kg':'unidade'}</small></div>}
+    {mode==='variants'&&<select className="variant-select" value={variant?.id||''} onChange={e=>setVariant(p.variants.find((v:any)=>v.id===e.target.value))}>{p.variants.map((v:any)=><option key={v.id} value={v.id}>{v.name} — {money(v.promo_price_cents!=null&&v.promo_price_cents<v.price_cents?v.promo_price_cents:v.price_cents)}</option>)}</select>}
+    <div className="product-price">
+      <span className="current-price">{money(price)}</span>
+      {discountPercent!==null&&<del className="previous-price" aria-label="Preço original">{money(originalPrice)}</del>}
+      <small>/ {mode==='variants'?'embalagem':isWeight?'kg':'unidade'}</small>
+    </div>
     <div className="weight-controls">
       <button type="button" aria-label="Diminuir quantidade" onClick={()=>changeBy(-1)}>−</button>
       <input
