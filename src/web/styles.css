@@ -39,3 +39,21 @@
   text-decoration:line-through;text-decoration-thickness:1px;
 }
 .product-price small{white-space:nowrap;}
+
+/* Ação explícita para remover um item inteiro da cesta, inclusive no celular. */
+.cart-line-remove{
+  display:inline-flex;align-items:center;justify-content:flex-start;gap:4px;
+  min-height:29px;padding:4px 7px;margin:4px 0 0 -7px;
+  border:0;border-radius:7px;background:transparent;color:#a33c36;
+  font-size:10px;font-weight:700;line-height:1.1;cursor:pointer;
+}
+.cart-line-remove:hover,.cart-line-remove:focus-visible{background:#fff1ef;color:#852b25;}
+.cart-line-remove:focus-visible{outline:2px solid #b34a43;outline-offset:1px;}
+.cart-line-remove svg{flex-shrink:0;}
+.cart-line-meta{min-width:0;}
+.cart-line-qty{flex-shrink:0;}
+@media(max-width:430px){
+  .cart-line{gap:7px;}
+  .cart-line-qty{gap:3px;}
+  .cart-line-remove{min-height:32px;}
+}
