@@ -30,6 +30,8 @@ crons = ["*/2 * * * *"]
 [vars]
 APP_NAME = "CR Jornada Hortifruti"
 APP_ENV = "production"
+# Cloudflare auto-domains is disabled by default.
+# Enable only after migration and secrets are configured (see docs).
 # Secrets configured via `wrangler secret put` (NEVER commit real values here):
 # - JWT_SECRET
 # - CRM_API_KEY
@@ -40,3 +42,7 @@ APP_ENV = "production"
 # - EVOLUTION_WEBHOOK_TOKEN
 # - SUPERADMIN_EMAIL
 # - SUPERADMIN_INITIAL_PASSWORD
+# - CF_ACCOUNT_ID (can be non-secret but is environment-specific)
+# - CF_ZONE_ID (can be non-secret but is environment-specific)
+# - CF_DOMAINS_API_TOKEN (SECRET: never put into repo)
+# - CF_AUTO_DOMAINS_ENABLED (value "true", saved as Worker secret to survive deploy)

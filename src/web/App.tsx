@@ -1,8 +1,9 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Link,useLocation,useNavigate} from 'react-router-dom';
+import {Link,Navigate,useLocation,useNavigate} from 'react-router-dom';
 import {Apple,ArrowLeft,ArrowRight,BarChart3,Box,Check,ChevronDown,Clock,DoorOpen,Eye,EyeOff,Leaf,LogOut,Menu,MessageCircle,Package,Plus,RefreshCw,Search,Settings,ShoppingBasket,ShoppingCart,Store,Truck,Users,Trash2,X,LayoutDashboard,Tags,History,ClipboardList,ShieldCheck,Send,Image as ImageIcon,Phone,MapPin} from 'lucide-react';
 import {calculateLineTotalCents,formatBRL,formatWeightGrams,formatQuantityDisplay,parseBRLToCents,getDiscountPercent,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
 import {countCartItems,removeCartSelection} from '../shared/cart';
+import {vanityStoreSlug,storeHomeUrl,hortifrutiHomeRoute,HORTIFRUTI_ADMIN_URL} from '../shared/store-domain';
 import {prepareBrandImage,IMAGE_ACCEPT} from './image-upload';
 
 const API='/api';
@@ -16,7 +17,11 @@ function DeveloperCredit(){return <footer className="developer-credit" aria-labe
 </footer>}
 export default function App(){
  const loc=useLocation();
- const page=loc.pathname.startsWith('/loja/')?<Storefront/>:
+ const vanity=vanityStoreSlug(window.location.hostname);
+ const homeRoute=hortifrutiHomeRoute(window.location.hostname);
+ const page=loc.pathname==='/'&&homeRoute?<Navigate to={homeRoute} replace/>:
+   loc.pathname==='/'&&vanity?<Storefront slugOverride={vanity}/>:
+   loc.pathname.startsWith('/loja/')?<Storefront/>:
    loc.pathname.startsWith('/admin')?<Admin/>:
    loc.pathname.startsWith('/superadmin')?<SuperAdmin/>:
    loc.pathname.startsWith('/pedido/')?<Tracking/>:<Landing/>;
@@ -43,7 +48,7 @@ const cartLinePrice=(line:CartLine):number=>{
 const cartLineTotal=(line:CartLine)=>calculateLineTotalCents(cartLinePrice(line),line.quantity,line.purchaseMode,line.product.pricing_unit_grams||1000);
 const cartLineKey=(line:CartLine)=>[line.product.id,line.variant?.id||'',line.purchaseMode].join(':');
 
-function Storefront(){const slug=useLocation().pathname.split('/')[2]||'';const[storeData,setStoreData]=useState<any>(null),[showSignup,setShowSignup]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState(''),[cat,setCat]=useState('all'),[cart,setCart]=useState<CartLine[]>([]),[checkout,setCheckout]=useState(false),[placed,setPlaced]=useState<any>(null),[loading,setLoading]=useState(true),[mobileCart,setMobileCart]=useState(false);const navigate=useNavigate();
+function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOverride||useLocation().pathname.split('/')[2]||'';const[storeData,setStoreData]=useState<any>(null),[showSignup,setShowSignup]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState(''),[cat,setCat]=useState('all'),[cart,setCart]=useState<CartLine[]>([]),[checkout,setCheckout]=useState(false),[placed,setPlaced]=useState<any>(null),[loading,setLoading]=useState(true),[mobileCart,setMobileCart]=useState(false);const navigate=useNavigate();
  const categoryListRef=useRef<HTMLDivElement>(null);
  const [canScrollCategoriesBack,setCanScrollCategoriesBack]=useState(false);
  const [canScrollCategoriesForward,setCanScrollCategoriesForward]=useState(false);
@@ -299,7 +304,7 @@ function Tracking(){
    finally{setLoading(false);}
  }
  return <div className="track-page">
-   <Link to={`/loja/${slug}`} className="back-link"><ArrowLeft size={16}/> Voltar à loja</Link>
+   <Link to={vanityStoreSlug(window.location.hostname)===slug?'/':`/loja/${slug}`} className="back-link"><ArrowLeft size={16}/> Voltar à loja</Link>
    {!data?<form className="track-card track-lookup" onSubmit={find}>
      <div className="success-icon"><ShieldCheck size={28}/></div>
      <span className="eyebrow">CONSULTA PRIVADA</span><h1>Pedido #{orderNumber}</h1>
@@ -360,7 +365,7 @@ if(!auth||!user)return <Login onLogin={(t:string,u:any)=>{localStorage.setItem('
    onClick={()=>setMobileOpen(false)} aria-label="Fechar o menu lateral"/>}
  <aside className={`sidebar ${mobileOpen?'open':''}`}>
  <button type="button" className="sidebar-close" aria-label="Fechar menu" title="Fechar menu"
-   onClick={()=>setMobileOpen(false)}><X size={21}/></button><Link to="/" className="admin-brand"><span className="brand-mark"><Leaf/></span><span>CR Jornada<small>HORTIFRUTI</small></span></Link><div className="sidebar-tenant"><span className="tenant-avatar">{user.tenantName?.[0]||'C'}</span><span><b>{user.tenantName||'Central CR Jornada'}</b><small>{user.role==='superadmin'?'Super Administrador':'Plano Profissional'}</small></span><ChevronDown size={15}/></div><nav className="admin-menu"><small className="menu-label">MENU PRINCIPAL</small>{menuItems.map(([id,label,Icon])=><button key={id} className={active===id?'active':''} onClick={()=>{setActive(id);setMobileOpen(false);}}><Icon size={18}/><span>{label}</span>{id==='orders'&&<em className="menu-dot"/>}</button>)}</nav><div className="sidebar-bottom"><div className="sidebar-help"><span>🌱</span><b>Precisa de ajuda?</b><small>Fale com o suporte CR Jornada.</small></div><button className="profile-mini" onClick={logout}><span className="profile-avatar">{user.name?.[0]}</span><span><b>{user.name}</b><small>{user.email}</small></span><LogOut size={17}/></button></div></aside><main className="admin-main"><header className="admin-topbar"><button type="button" className="icon-btn mobile-menu-btn" aria-label={mobileOpen?"Fechar menu":"Abrir menu"} aria-expanded={mobileOpen} onClick={()=>setMobileOpen(!mobileOpen)}>{mobileOpen?<X/>:<Menu/>}</button><div className="breadcrumbs"><span>Painel</span><ChevronDown size={14}/><b>{menuItems.find(x=>x[0]===active)?.[1]}</b></div><div className="topbar-right"><span className={`open-indicator ${storeOpen?'':'closed'}`}><i/> {storeOpen?'Loja aberta':'Loja pausada'}</span><Link className="btn btn-sm btn-outline" to={`/loja/${user.tenantSlug||'verde-vivo'}`} target="_blank"><Eye size={15}/> Ver loja</Link><button className="icon-btn notification-btn"><MessageCircle size={18}/></button><span className="profile-avatar top-avatar">{user.name?.[0]}</span></div></header><div className="admin-content">{active==='dashboard'?<Dashboard token={auth} user={user}/>:active==='orders'?<Orders token={auth}/>:active==='products'?<Products token={auth}/>:active==='categories'?<Categories token={auth}/>:active==='stock'?<Stock token={auth}/>:active==='customers'?<Customers token={auth}/>:active==='reports'?<Reports token={auth}/>:active==='whatsapp'?<WhatsApp token={auth}/>:<SettingsPanel token={auth} user={user}/>}</div></main></div>}
+   onClick={()=>setMobileOpen(false)}><X size={21}/></button><Link to="/" className="admin-brand"><span className="brand-mark"><Leaf/></span><span>CR Jornada<small>HORTIFRUTI</small></span></Link><div className="sidebar-tenant"><span className="tenant-avatar">{user.tenantName?.[0]||'C'}</span><span><b>{user.tenantName||'Central CR Jornada'}</b><small>{user.role==='superadmin'?'Super Administrador':'Plano Profissional'}</small></span><ChevronDown size={15}/></div><nav className="admin-menu"><small className="menu-label">MENU PRINCIPAL</small>{menuItems.map(([id,label,Icon])=><button key={id} className={active===id?'active':''} onClick={()=>{setActive(id);setMobileOpen(false);}}><Icon size={18}/><span>{label}</span>{id==='orders'&&<em className="menu-dot"/>}</button>)}</nav><div className="sidebar-bottom"><div className="sidebar-help"><span>🌱</span><b>Precisa de ajuda?</b><small>Fale com o suporte CR Jornada.</small></div><button className="profile-mini" onClick={logout}><span className="profile-avatar">{user.name?.[0]}</span><span><b>{user.name}</b><small>{user.email}</small></span><LogOut size={17}/></button></div></aside><main className="admin-main"><header className="admin-topbar"><button type="button" className="icon-btn mobile-menu-btn" aria-label={mobileOpen?"Fechar menu":"Abrir menu"} aria-expanded={mobileOpen} onClick={()=>setMobileOpen(!mobileOpen)}>{mobileOpen?<X/>:<Menu/>}</button><div className="breadcrumbs"><span>Painel</span><ChevronDown size={14}/><b>{menuItems.find(x=>x[0]===active)?.[1]}</b></div><div className="topbar-right"><span className={`open-indicator ${storeOpen?'':'closed'}`}><i/> {storeOpen?'Loja aberta':'Loja pausada'}</span><a className="btn btn-sm btn-outline" href={storeHomeUrl(user.tenantSlug||'verde-vivo')} target="_blank" rel="noopener noreferrer"><Eye size={15}/> Ver loja</a><button className="icon-btn notification-btn"><MessageCircle size={18}/></button><span className="profile-avatar top-avatar">{user.name?.[0]}</span></div></header><div className="admin-content">{active==='dashboard'?<Dashboard token={auth} user={user}/>:active==='orders'?<Orders token={auth}/>:active==='products'?<Products token={auth}/>:active==='categories'?<Categories token={auth}/>:active==='stock'?<Stock token={auth}/>:active==='customers'?<Customers token={auth}/>:active==='reports'?<Reports token={auth}/>:active==='whatsapp'?<WhatsApp token={auth}/>:<SettingsPanel token={auth} user={user}/>}</div></main></div>}
 function Login({onLogin}:any){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(false),[show,setShow]=useState(false);async function submit(e:any){e.preventDefault();setLoading(true);setError('');try{const x=await req('/auth/login',{method:'POST',body:JSON.stringify({email,password})});onLogin(x.token,x.user);}catch(e:any){setError(e.message);}finally{setLoading(false);}}return <div className="login-screen"><Link to="/" className="login-back"><ArrowLeft size={16}/> Página inicial</Link><div className="login-visual"><div className="login-illustration"><img src="/images/banners/hero-hortifruti.jpg"/><div className="login-quote"><Leaf/><b>Seu negócio merece<br/>crescer fresquinho.</b><small>CR Jornada Hortifruti</small></div></div></div><div className="login-form-side"><form className="login-card" onSubmit={submit}><div className="login-logo"><span className="brand-mark"><Leaf/></span><span>CR Jornada<small> HORTIFRUTI</small></span></div><span className="eyebrow">BEM-VINDO DE VOLTA</span><h1>Acesse seu painel</h1><p>Gerencie sua loja com praticidade.</p><label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Senha<div className="password-input"><input type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} required/><button type="button" onClick={()=>setShow(!show)}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></label>{error&&<div className="error-banner">{error}</div>}<button className="btn btn-primary btn-block login-submit" disabled={loading}>{loading?'Entrando…':'Entrar no painel'} <ArrowRight size={17}/></button><div className="demo-login"><ShieldCheck size={15}/><span>Ambiente local demonstrativo · altere as senhas antes da produção.</span></div></form></div></div>}
 function PageHead({eyebrow,title,desc,action}:any){return <div className="page-head"><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1>{desc&&<p>{desc}</p>}</div>{action}</div>}
 function Dashboard({token,user}:any){const[data,setData]=useState<any>(null),[error,setError]=useState('');useEffect(()=>{req('/admin/dashboard',{},token).then(setData).catch(e=>setError(e.message));},[]);return <><PageHead eyebrow={`OLÁ, ${user.name?.split(' ')[0]?.toUpperCase()||'LOJISTA'} 👋`} title="Sua loja em um olhar" desc="Acompanhe os pedidos e o movimento de hoje." action={<button className="btn btn-outline" onClick={()=>location.reload()}><RefreshCw size={16}/> Atualizar</button>}/>{error&&<div className="error-banner">{error}</div>}<div className="stats-grid">{[[ClipboardList,'Pedidos hoje',data?.today?.orders||0,'primary'],[BarChart3,'Vendas hoje',money(data?.today?.sales||0),'orange'],[Clock,'Aguardando aceite',data?.counts?.received||0,'blue'],[Truck,'Em entrega',data?.counts?.out_for_delivery||0,'purple']].map(([Icon,label,value,color]:any)=><div className="stat-card" key={label}><div className={`stat-icon ${color}`}><Icon size={20}/></div><div><small>{label}</small><b>{value}</b></div><span className="stat-spark">↗</span></div>)}</div><div className="dashboard-grid"><section className="panel-card recent-panel"><div className="panel-heading"><div><h2>Pedidos recentes</h2><p>Os últimos pedidos da sua loja</p></div><button className="text-link-btn" onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'orders'}))}>Ver todos <ArrowRight size={14}/></button></div><div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Data</th><th>Status</th><th>Total</th></tr></thead><tbody>{(data?.recentOrders||[]).map((o:any)=><tr key={o.id}><td><b>#{o.order_number}</b></td><td>{o.customer_name}</td><td>{new Date(o.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td><td><StatusBadge status={o.status}/></td><td><b>{money(o.total_cents)}</b></td></tr>)}</tbody></table>{!data?.recentOrders?.length&&<div className="empty-table">Nenhum pedido por enquanto.</div>}</div></section><section className="panel-card lowstock-panel"><div className="panel-heading"><div><h2>Estoque baixo</h2><p>Produtos que precisam de atenção</p></div><Box size={18}/></div>{(data?.lowStock||[]).map((p:any)=><div className="lowstock-row" key={p.id}><span className="lowstock-img">🥬</span><span><b>{p.name}</b><small>{p.physical_qty-p.reserved_qty} {p.unit_label} disponíveis</small></span><span className="lowstock-alert">Baixo</span></div>)}{!data?.lowStock?.length&&<div className="positive-state"><Check/> Estoque em dia. Bom trabalho!</div>}</section></div><div className="quick-actions"><span>Acesso rápido</span><button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'products'}))}><Plus/> Novo produto</button><button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'orders'}))}><ClipboardList/> Ver pedidos</button><button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'whatsapp'}))}><MessageCircle/> Conectar WhatsApp</button></div><NavEvents/></>}
@@ -780,4 +785,193 @@ function SettingsPanel({token}:any){const[data,setData]=useState<any>(null),[sav
     <small>O cliente poderá fechar o convite. O consentimento para receber ofertas será opcional e ficará registrado na lista Clientes.</small>
   </section>
   <section className="panel-card settings-card"><div className="panel-heading"><div><h2>Entrega</h2><p>Taxa padrão e pedido mínimo</p></div><Truck size={19}/></div><label>Taxa padrão de entrega (R$)<input inputMode="decimal" value={data.defaultFeeDisplay} onChange={e=>set('defaultFeeDisplay',e.target.value)}/></label><label>Frete grátis a partir de (R$)<input inputMode="decimal" value={data.freeFeeDisplay} onChange={e=>set('freeFeeDisplay',e.target.value)}/></label><label>Pedido mínimo (R$)<input inputMode="decimal" value={data.minOrderDisplay} onChange={e=>set('minOrderDisplay',e.target.value)}/></label></section><section className="panel-card settings-card"><div className="panel-heading"><div><h2>Pagamentos aceitos na entrega</h2><p>Nenhum pagamento online.</p></div></div>{[['accepts_cash','Dinheiro'],['accepts_pix_delivery','Pix na entrega'],['accepts_debit_delivery','Cartão de débito'],['accepts_credit_delivery','Cartão de crédito']].map(([k,l])=><label className="settings-toggle" key={k}><span>{l}</span><label className="switch"><input type="checkbox" checked={!!data[k]} onChange={e=>set(k,e.target.checked?1:0)}/><span/></label></label>)}</section><section className="panel-card settings-card"><div className="settings-toggle"><span><b>Loja aberta</b><small>Receber pedidos pela vitrine</small></span><label className="switch"><input type="checkbox" checked={!!data.is_open} onChange={e=>set('is_open',e.target.checked?1:0)}/><span/></label></div></section><section className="panel-card settings-card"><div className="panel-heading"><div><h2>Bairros atendidos</h2><p>Configure regiões e taxas de entrega.</p></div><MapPin size={17}/></div>{(data.neighborhoods||[]).map((n:any)=><div className="neighborhood-row" key={n.id}><span><b>{n.name}</b><small>{money(n.delivery_fee_cents)} · {n.estimated_time}</small></span><div className="neighborhood-actions"><button className="icon-btn" title="Editar bairro e taxa" onClick={async()=>{const name=window.prompt('Nome do bairro:',n.name);if(name===null)return;const fee=window.prompt('Taxa de entrega em reais (ex.: 6,00):',(Number(n.delivery_fee_cents)/100).toFixed(2).replace('.',','));if(fee===null)return;try{await req(`/admin/settings/neighborhoods/${n.id}`,{method:'PATCH',body:JSON.stringify({name,deliveryFeeCents:parseBRLToCents(fee)})},token);const x=await req('/admin/settings',{},token);set('neighborhoods',x.neighborhoods);}catch(e:any){setError(e.message);}}}><Settings size={14}/></button><button className="icon-btn" title="Remover bairro" onClick={async()=>{await req(`/admin/settings/neighborhoods/${n.id}`,{method:'DELETE'},token);set('neighborhoods',data.neighborhoods.filter((x:any)=>x.id!==n.id));}}><X size={15}/></button></div></div>)}<div className="neighborhood-add"><input placeholder="Novo bairro" value={data.newNeighborhoodName||''} onChange={e=>set('newNeighborhoodName',e.target.value)}/><input placeholder="Taxa (R$)" inputMode="decimal" value={data.newNeighborhoodFee||''} onChange={e=>set('newNeighborhoodFee',e.target.value)}/><button className="btn btn-xs btn-outline" onClick={async()=>{if(!data.newNeighborhoodName)return;try{await req('/admin/settings/neighborhoods',{method:'POST',body:JSON.stringify({name:data.newNeighborhoodName,deliveryFeeCents:parseBRLToCents(data.newNeighborhoodFee||'0')})},token);const x=await req('/admin/settings',{},token);setData({...data,neighborhoods:x.neighborhoods,newNeighborhoodName:'',newNeighborhoodFee:0});}catch(e:any){setError(e.message);}}}><Plus size={13}/></button></div></section></div></div></>}
-function SuperAdmin(){const[token,setToken]=useState(localStorage.getItem('crj_token')||''),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[data,setData]=useState<any[]>([]),[error,setError]=useState(''),[modal,setModal]=useState(false),[form,setForm]=useState<any>({name:'',slug:'',ownerName:'',ownerEmail:''});async function login(e:any){e.preventDefault();try{const x=await req('/auth/login',{method:'POST',body:JSON.stringify({email,password})});if(x.user.role!=='superadmin')throw Error('Este usuário não é Super-Admin.');localStorage.setItem('crj_token',x.token);setToken(x.token);}catch(e:any){setError(e.message);}}async function load(){const x=await req('/superadmin/tenants',{},token);setData(x.tenants||[]);}useEffect(()=>{if(token)load().catch(e=>setError(e.message));},[token]);if(!token)return <div className="login-screen"><div className="login-form-side"><form className="login-card" onSubmit={login}><Link to="/" className="login-back"><ArrowLeft size={16}/> Início</Link><div className="login-logo"><span className="brand-mark"><ShieldCheck/></span><span>CR Jornada<small> CONSOLE CENTRAL</small></span></div><span className="eyebrow">GESTÃO MULTIEMPRESAS</span><h1>Console central</h1><label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Senha<input type="password" value={password} onChange={e=>setPassword(e.target.value)}/></label>{error&&<div className="error-banner">{error}</div>}<button className="btn btn-primary btn-block">Entrar no console</button><small className="demo-login">Credenciais locais demonstrativas. Configure senhas seguras antes da produção.</small></form></div></div>;async function create(e:any){e.preventDefault();try{await req('/superadmin/tenants',{method:'POST',body:JSON.stringify(form)},token);setModal(false);load();}catch(e:any){setError(e.message);}}return <div className="super-page"><header className="super-top"><Link to="/" className="brand"><span className="brand-mark"><ShieldCheck/></span>CR Jornada <b>Central</b></Link><button className="btn btn-outline" onClick={()=>{localStorage.removeItem('crj_token');setToken('');}}>Sair</button></header><main className="super-content"><PageHead eyebrow="SUPER ADMINISTRADOR" title="Estabelecimentos" desc="Administre os clientes SaaS da CR Jornada." action={<button className="btn btn-primary" onClick={()=>setModal(true)}><Plus/> Novo estabelecimento</button>}/>{error&&<div className="error-banner">{error}</div>}<div className="super-stats"><div><Store/><b>{data.length}</b><span>Estabelecimentos</span></div><div><Check/><b>{data.filter(x=>x.status==='active').length}</b><span>Ativos</span></div><div><DoorOpen/><b>{data.filter(x=>x.status!=='active').length}</b><span>Inativos ou bloqueados</span></div></div><div className="panel-card"><div className="table-wrap"><table><thead><tr><th>Estabelecimento</th><th>Slug</th><th>Plano</th><th>Status</th><th>Criado</th><th>Ações</th></tr></thead><tbody>{data.map(t=><tr key={t.id}><td><b>{t.name}</b><small className="cell-sub">{t.crm_external_id||t.id.slice(0,8)}</small></td><td>{t.slug}</td><td>{t.plan}</td><td><StatusBadge status={t.status==='active'?'accepted':'cancelled'}/></td><td>{new Date(t.created_at).toLocaleDateString('pt-BR')}</td><td><button className="btn btn-xs btn-outline" onClick={async()=>{await req(`/superadmin/tenants/${t.id}/status`,{method:'PATCH',body:JSON.stringify({status:t.status==='active'?'blocked':'active',reason:'Ação pelo Console Central'})},token);load();}}>{t.status==='active'?'Bloquear':'Ativar'}</button></td></tr>)}</tbody></table></div></div>{modal&&<div className="modal-backdrop"><form className="form-modal" onSubmit={create}><div className="modal-heading"><div><span className="eyebrow">NOVA CONTA SAAS</span><h2>Adicionar estabelecimento</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)}><X/></button></div><div className="form-grid"><label>Nome comercial<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>Slug da vitrine<input required value={form.slug} onChange={e=>setForm({...form,slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-')})}/></label><label>Nome do proprietário<input required value={form.ownerName} onChange={e=>setForm({...form,ownerName:e.target.value})}/></label><label>E-mail proprietário<input type="email" required value={form.ownerEmail} onChange={e=>setForm({...form,ownerEmail:e.target.value})}/></label><label>Senha temporária (opcional)<input minLength={12} value={form.temporaryPassword||''} onChange={e=>setForm({...form,temporaryPassword:e.target.value})} placeholder="Gerar automaticamente"/></label></div>{error&&<div className="error-banner">{error}</div>}<div className="modal-footer"><button type="button" className="btn btn-outline" onClick={()=>setModal(false)}>Cancelar</button><button className="btn btn-primary">Criar estabelecimento</button></div></form></div>}</main></div>}
+type NewHortifrutiAccess={
+ tenantId:string; slug:string; name:string; ownerEmail:string;
+ temporaryPassword:string; adminUrl:string; storeUrl:string;
+ domainStatus:'registered'|'pending'|'manual'; domainMessage:string;
+};
+function SuperAdmin(){
+ const [token,setToken]=useState(localStorage.getItem('crj_token')||'');
+ const [email,setEmail]=useState('');
+ const [password,setPassword]=useState('');
+ const [data,setData]=useState<any[]>([]);
+ const [error,setError]=useState('');
+ const [modal,setModal]=useState(false);
+ const [creating,setCreating]=useState(false);
+ const [domainRetryId,setDomainRetryId]=useState<string|null>(null);
+ const [notice,setNotice]=useState('');
+ const [access,setAccess]=useState<NewHortifrutiAccess|null>(null);
+ const [showAccessPassword,setShowAccessPassword]=useState(false);
+ const [copied,setCopied]=useState('');
+ const [form,setForm]=useState<any>({name:'',slug:'',ownerName:'',ownerEmail:'',temporaryPassword:''});
+ async function login(e:React.FormEvent){
+  e.preventDefault();
+  setError('');
+  try{
+   const x=await req('/auth/login',{method:'POST',body:JSON.stringify({email,password})});
+   if(x.user.role!=='superadmin')throw Error('Este usuário não é Super-Admin.');
+   localStorage.setItem('crj_token',x.token);
+   setToken(x.token);
+   setPassword('');
+  }catch(err:any){setError(err.message);}
+ }
+ async function load(){
+  const x=await req('/superadmin/tenants',{},token);
+  setData(x.tenants||[]);
+ }
+ useEffect(()=>{if(token)void load().catch(err=>setError(err.message));},[token]);
+ async function create(e:React.FormEvent){
+  e.preventDefault();
+  if(creating)return;
+  setError('');
+  setCreating(true);
+  try{
+   const created=await req('/superadmin/tenants',{
+    method:'POST',body:JSON.stringify({...form,status:'active'})
+   },token) as NewHortifrutiAccess;
+   setAccess(created);
+   setNotice(created.domainStatus==='registered'?'Domínio registrado na Cloudflare. Confira o certificado HTTPS antes de divulgar.': 'Cadastro criado, mas a vitrine ainda não está pronta. Verifique o estado do domínio.');
+   setShowAccessPassword(false);
+   setCopied('');
+   setForm({name:'',slug:'',ownerName:'',ownerEmail:'',temporaryPassword:''});
+   setModal(false);
+   void load().catch(err=>setError(err.message));
+  }catch(err:any){setError(err.message);}
+  finally{setCreating(false);}
+ }
+ async function retryDomain(t:any){
+  if(domainRetryId)return;
+  setDomainRetryId(t.id);setError('');setNotice('');
+  try{
+   const response=await req(`/superadmin/tenants/${t.id}/domain/retry`,{method:'POST',body:'{}'},token);
+   setNotice(response.message||'Domínio registrado. Confirme HTTPS antes de divulgar.');
+   await load();
+  }catch(err:any){setError(err.message);await load().catch(()=>undefined);}
+  finally{setDomainRetryId(null);}
+ }
+ async function copyValue(label:string,value:string){
+  try{await navigator.clipboard.writeText(value);setCopied(label+' copiado com sucesso.');}
+  catch{setCopied('Não foi possível copiar. Verifique a permissão do navegador.');}
+ }
+ const clearAccess=()=>{setAccess(null);setCopied('');setShowAccessPassword(false);};
+ const logout=()=>{clearAccess();localStorage.removeItem('crj_token');setToken('');};
+ if(!token)return <div className="login-screen"><div className="login-form-side">
+  <form className="login-card" onSubmit={login}>
+   <Link to="/" className="login-back"><ArrowLeft size={16}/> Início</Link>
+   <div className="login-logo"><span className="brand-mark"><ShieldCheck/></span>
+    <span>CR Jornada<small> HORTIFRUTI</small></span></div>
+   <span className="eyebrow">GESTÃO DOS ESTABELECIMENTOS</span>
+   <h1>Super Admin do Hortifruti</h1>
+   <label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label>
+   <label>Senha<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>
+   {error&&<div className="error-banner">{error}</div>}
+   <button className="btn btn-primary btn-block">Entrar no Super Admin</button>
+  </form></div></div>;
+ return <div className="super-page">
+  <header className="super-top">
+   <Link to="/" className="brand"><span className="brand-mark"><ShieldCheck/></span>CR Jornada <b>Hortifruti</b></Link>
+   <button className="btn btn-outline" onClick={logout}>Sair</button>
+  </header>
+  <main className="super-content">
+   <PageHead eyebrow="SUPER ADMINISTRADOR · HORTIFRUTI" title="Estabelecimentos"
+    desc="Gerencie exclusivamente as lojas do CR Jornada Hortifruti."
+    action={<button className="btn btn-primary" onClick={()=>{setError('');setModal(true);}}><Plus/> Novo estabelecimento</button>}/>
+   {error&&<div className="error-banner" role="alert">{error}</div>}
+   {notice&&<div className="success-banner" role="status">{notice}</div>}
+   <div className="super-stats">
+    <div><Store/><b>{data.length}</b><span>Estabelecimentos</span></div>
+    <div><Check/><b>{data.filter(x=>x.status==='active').length}</b><span>Ativos</span></div>
+    <div><DoorOpen/><b>{data.filter(x=>x.status!=='active').length}</b><span>Inativos ou bloqueados</span></div>
+   </div>
+   <div className="panel-card"><div className="table-wrap"><table>
+    <thead><tr><th>Estabelecimento</th><th>Vitrine</th><th>Domínio</th><th>Status</th><th>Criado</th><th>Ações</th></tr></thead>
+    <tbody>{data.map(t=><tr key={t.id}>
+     <td><b>{t.name}</b><small className="cell-sub">{t.crm_external_id||t.id.slice(0,8)}</small></td>
+     <td><b>{t.slug}</b><small className="cell-sub">
+      <a href={storeHomeUrl(t.slug)} target="_blank" rel="noopener noreferrer">{storeHomeUrl(t.slug)}</a>
+     </small></td>
+     <td><span className="cell-sub">{t.domainStatus==='registered'
+        ?'Registrado na Cloudflare':t.domainStatus==='conflict'?'Nome em conflito':
+        t.domainStatus==='pending'?'Pendente de configuração':'Sem domínio automático'}</span>
+      {t.domainStatus!=='registered'&&<button type="button" className="btn btn-xs btn-outline"
+       disabled={domainRetryId===t.id} onClick={()=>void retryDomain(t)}>
+       {domainRetryId===t.id?'Verificando…':'Tentar configurar domínio'}
+      </button>}</td>
+     <td><StatusBadge status={t.status==='active'?'accepted':'cancelled'}/></td>
+     <td>{new Date(t.created_at).toLocaleDateString('pt-BR')}</td>
+     <td><button className="btn btn-xs btn-outline" onClick={async()=>{
+      try{
+       await req(`/superadmin/tenants/${t.id}/status`,{method:'PATCH',
+        body:JSON.stringify({status:t.status==='active'?'blocked':'active',reason:'Ação pelo Super Admin Hortifruti'})},token);
+       await load();
+      }catch(err:any){setError(err.message);}
+     }}>{t.status==='active'?'Bloquear':'Ativar'}</button></td>
+    </tr>)}</tbody>
+   </table></div></div>
+   {modal&&<div className="modal-backdrop"><form className="form-modal" onSubmit={create}>
+    <div className="modal-heading"><div><span className="eyebrow">NOVA LOJA HORTIFRUTI</span>
+      <h2>Adicionar estabelecimento</h2></div>
+     <button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Fechar cadastro"><X/></button></div>
+    <div className="form-grid">
+     <label>Nome comercial<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label>
+     <label>Subdomínio da vitrine (.crjornada.com)<input required
+      pattern="[a-z0-9]+(-[a-z0-9]+)*" title="Use letras minúsculas, números ou hífens, sem espaços."
+      value={form.slug}
+      onChange={e=>setForm({...form,slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-')})}/></label>
+     <label>Nome do proprietário<input required value={form.ownerName}
+      onChange={e=>setForm({...form,ownerName:e.target.value})}/></label>
+     <label>E-mail de login do proprietário<input type="email" required value={form.ownerEmail}
+      onChange={e=>setForm({...form,ownerEmail:e.target.value})}/></label>
+     <label>Senha inicial (opcional)<input minLength={12} autoComplete="new-password" type="password"
+      value={form.temporaryPassword} onChange={e=>setForm({...form,temporaryPassword:e.target.value})}
+      placeholder="Deixar vazio para gerar automaticamente"/></label>
+    </div>
+    <p className="integration-note">O sistema tentará registrar a vitrine na Cloudflare.
+     Se houver erro, ela ficará pendente para nova tentativa. Os dados de acesso serão
+     mostrados apenas uma vez. A troca de senha é opcional.</p>
+    <p className="integration-note">Endereço desejado: {form.slug||'nomedaloja'}.crjornada.com.
+     O cadastro automático precisa estar habilitado na configuração do Worker.</p>
+    {error&&<div className="error-banner">{error}</div>}
+    <div className="modal-footer">
+     <button type="button" className="btn btn-outline" onClick={()=>setModal(false)}>Cancelar</button>
+     <button type="submit" className="btn btn-primary" disabled={creating}>{creating?'Criando…':'Criar estabelecimento'}</button>
+    </div>
+   </form></div>}
+   {access&&<div className="modal-backdrop"><div className="form-modal"
+     role="dialog" aria-modal="true" aria-label="Credenciais do novo Hortifruti">
+    <div className="modal-heading"><div><span className="eyebrow">CADASTRO CONCLUÍDO</span>
+      <h2>Dados de acesso da loja</h2></div>
+     <button className="icon-btn" aria-label="Fechar dados de acesso" onClick={clearAccess}><X/></button></div>
+    <p className="integration-note">Copie os dados agora: a senha inicial não poderá ser consultada
+     novamente. Ela não precisa ser alterada no primeiro acesso.</p>
+    <p className={access.domainStatus==='registered'?'success-banner':'integration-note'} role="status">
+     {access.domainMessage}</p>
+    {([
+     ['E-mail',access.ownerEmail],
+     ['Senha inicial',showAccessPassword?access.temporaryPassword:'••••••••••••'],
+     ['Painel do proprietário',access.adminUrl],
+     ['Vitrine para os clientes',access.storeUrl]
+    ] as [string,string][]).map(([label,value])=><div className="panel-card" key={label}
+       style={{marginBottom:10,overflowWrap:'anywhere'}}>
+      <b>{label}</b><p>{value}</p>
+      <button type="button" className="btn btn-xs btn-outline"
+       onClick={()=>void copyValue(label,label==='Senha inicial'?access.temporaryPassword:value)}>
+       Copiar {label.toLowerCase()}
+      </button>
+      {label==='Senha inicial'&&<button type="button" className="btn btn-xs btn-outline"
+       onClick={()=>setShowAccessPassword(v=>!v)}>{showAccessPassword?'Ocultar':'Mostrar'} senha</button>}
+     </div>)}
+    <button className="btn btn-primary btn-block" onClick={()=>void copyValue('Todas as informações',[
+      'CR Jornada Hortifruti — '+access.name,
+      'E-mail: '+access.ownerEmail,
+      'Senha inicial: '+access.temporaryPassword,
+      'Painel administrativo: '+access.adminUrl,
+      'Vitrine da loja: '+access.storeUrl
+     ].join('\n'))}>Copiar e-mail, senha e links</button>
+    {copied&&<p role="status" className="integration-note">{copied}</p>}
+    <div className="modal-footer"><button className="btn btn-outline" onClick={clearAccess}>
+     Fechar e ocultar senha</button></div>
+   </div></div>}
+  </main>
+ </div>;
+}

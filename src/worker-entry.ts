@@ -10,8 +10,9 @@ interface Env {
  EVOLUTION_API_URL?:string; EVOLUTION_API_KEY?:string; PUBLIC_APP_URL?:string; EVOLUTION_WEBHOOK_TOKEN?:string;
  TELEGRAM_BOT_TOKEN?:string; TELEGRAM_CHAT_ID?:string;
  APP_ENV?:string;
+ CF_AUTO_DOMAINS_ENABLED?:string; CF_ACCOUNT_ID?:string; CF_ZONE_ID?:string; CF_DOMAINS_API_TOKEN?:string;
 }
-const servicesFor=(env:Env,origin?:string)=>({db:new CloudflareD1Adapter(env.DB),media:createCloudflareR2Storage(env.MEDIA_BUCKET),jwtSecret:env.JWT_SECRET,bootstrapSecret:env.BOOTSTRAP_SECRET,crmApiKey:env.CRM_API_KEY||'',crmWebhookUrl:env.CRM_WEBHOOK_URL,crmWebhookSecret:env.CRM_WEBHOOK_SECRET,appEnv:env.APP_ENV||'production',evolution:{evolutionApiUrl:env.EVOLUTION_API_URL,evolutionApiKey:env.EVOLUTION_API_KEY,publicWebhookUrl:env.PUBLIC_APP_URL||origin,evolutionWebhookToken:env.EVOLUTION_WEBHOOK_TOKEN,telegramBotToken:env.TELEGRAM_BOT_TOKEN,telegramChatId:env.TELEGRAM_CHAT_ID} as EvolutionEnvConfig});
+const servicesFor=(env:Env,origin?:string)=>({db:new CloudflareD1Adapter(env.DB),media:createCloudflareR2Storage(env.MEDIA_BUCKET),jwtSecret:env.JWT_SECRET,bootstrapSecret:env.BOOTSTRAP_SECRET,crmApiKey:env.CRM_API_KEY||'',crmWebhookUrl:env.CRM_WEBHOOK_URL,crmWebhookSecret:env.CRM_WEBHOOK_SECRET,appEnv:env.APP_ENV||'production',cloudflareDomains:{enabled:env.CF_AUTO_DOMAINS_ENABLED==='true',accountId:env.CF_ACCOUNT_ID,zoneId:env.CF_ZONE_ID,apiToken:env.CF_DOMAINS_API_TOKEN},evolution:{evolutionApiUrl:env.EVOLUTION_API_URL,evolutionApiKey:env.EVOLUTION_API_KEY,publicWebhookUrl:env.PUBLIC_APP_URL||origin,evolutionWebhookToken:env.EVOLUTION_WEBHOOK_TOKEN,telegramBotToken:env.TELEGRAM_BOT_TOKEN,telegramChatId:env.TELEGRAM_CHAT_ID} as EvolutionEnvConfig});
 export default {
  async fetch(request:Request,env:Env,ctx:ExecutionContext):Promise<Response>{
   const url=new URL(request.url);
