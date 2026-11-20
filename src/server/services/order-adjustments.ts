@@ -15,6 +15,7 @@ import {dispatchQueuedMessageById} from './evolution-whatsapp';
 interface EditInput {
   itemId:string;
   quantity:number;
+  markOutOfStock?:boolean;
 }
 interface OrderRecord {
   id:string;tenant_id:string;customer_id:string|null;order_number:number;
@@ -106,6 +107,8 @@ export async function adjustOrderItems(params:{
     const item=byId.get(up.itemId);
     if(!item)throw new Error('Um dos itens não pertence a este pedido.');
     if(up.quantity>item.quantity)throw new Error('Para acrescentar mercadorias, faça um novo pedido; nesta tela é permitido apenas reduzir ou remover.');
+    if(up.markOutOfStock && up.quantity!==0)
+      throw new Error('Marque como esgotado somente produtos removidos do pedido.');
     if(up.quantity===item.quantity)continue;
     let deducted=0,total=0;
     if(up.quantity>0){
@@ -185,6 +188,36 @@ export async function adjustOrderItems(params:{
         -difference,orderId,actorId,
         `Revisão do pedido #${order.order_number}: ${reason} (${change.from} → ${change.to})`,
         now,target.id,tenantId)});
+  }
+  // Quando um produto realmente acabou, a loja pode zerar o estoque livre
+  // sem mexer nas unidades já reservadas para outros pedidos. Isso impede
+  // que a vitrine volte a vender mercadoria fisicamente indisponível.
+  const outOfStock=new Map<string,ReturnType<typeof targetInfo>>();
+  for(const up of params.updates){
+    if(!up.markOutOfStock)continue;
+    const original=byId.get(up.itemId)!;
+    const target=targetInfo(original);
+    outOfStock.set(target.type+':'+target.id,target);
+  }
+  for(const target of outOfStock.values()){
+    const unitExpr=target.type==='pool'?'base_unit':
+      target.type==='variant'?"'un'":"CASE WHEN sale_mode='weight' THEN 'g' ELSE 'un' END";
+    const refs=target.type==='pool'?[null,null,target.id]:
+      target.type==='variant'?[null,target.id,null]:[target.id,null,null];
+    steps.push({stmt:db.prepare(`INSERT INTO stock_movements(
+      id,tenant_id,target_type,product_id,variant_id,stock_pool_id,target_name,
+      movement_type,delta_physical,delta_reserved,physical_after,reserved_after,
+      unit,order_id,actor_user_id,reason,created_at)
+      SELECT ?,?,?,?, ?,?,name,'manual_adjust',
+       reserved_qty-physical_qty,0,reserved_qty,reserved_qty,${unitExpr},?,?,?,?
+      FROM ${target.table} WHERE id=? AND tenant_id=?`)
+      .bind(generateId(),tenantId,target.type,...refs,
+        orderId,actorId,`Esgotado na vitrine após revisão do pedido #${order.order_number}: ${reason}`,
+        now,target.id,tenantId)});
+    steps.push({stmt:db.prepare(`UPDATE ${target.table} SET physical_qty=reserved_qty,updated_at=?
+      WHERE id=? AND tenant_id=? AND physical_qty>=reserved_qty`)
+      .bind(now,target.id,tenantId),requireChanges:1,
+      failErrorMessage:'Estoque já foi alterado; reabra o pedido antes de marcar como esgotado.'});
   }
   if(order.customer_id){
     steps.push({stmt:db.prepare(`UPDATE customers SET total_spent_cents=MAX(0,total_spent_cents-?),
