@@ -46,16 +46,30 @@ function ProductCard({p,getLine,setLine}:any){
  const dual=productIsDual(p);
  const [variant,setVariant]=useState<any>(p.variants?.[0]);
  const [purchaseMode,setPurchaseMode]=useState<'weight'|'unit'>(p.sale_mode==='unit'?'unit':'weight');
- const [weightQty,setWeightQty]=useState(Number(p.min_qty||100));
- const [unitQty,setUnitQty]=useState(1);
+ // Mantém o valor digitado como texto para permitir selecionar, apagar e reescrever sem forçar o mínimo a cada tecla.
+ const [weightInput,setWeightInput]=useState(String(Number(p.min_qty)||100));
+ const [unitInput,setUnitInput]=useState('1');
  const mode:PurchaseMode=p.sale_mode==='variants'?'variants':dual?purchaseMode:p.sale_mode;
  const current=mode==='variants'?variant||null:null;
- const quantity=mode==='weight'?weightQty:unitQty;
- const price=cartLinePrice({product:p,variant:current,purchaseMode:mode,quantity});
- const total=calculateLineTotalCents(price,quantity,mode,p.pricing_unit_grams||1000);
- const step=Number(p.step_qty)||50;
- const min=Number(p.min_qty)||100;
+ const price=cartLinePrice({product:p,variant:current,purchaseMode:mode,quantity:1});
+ const weightStep=Math.max(1,Number(p.step_qty)||50);
+ const weightMin=Math.max(1,Number(p.min_qty)||100);
+ const isWeight=mode==='weight';
+ const quantityText=isWeight?weightInput:unitInput;
+ const quantity=Number(quantityText);
+ const validQuantity=quantityText.trim()!==''&&/^\d+$/.test(quantityText.trim())&&Number.isSafeInteger(quantity)&&quantity>0&&
+   (isWeight?quantity>=weightMin&&quantity%weightStep===0:quantity>=1);
+ // Evita calcular o preço com quantidade vazia ou inválida enquanto o usuário ainda está digitando.
+ const total=validQuantity?calculateLineTotalCents(price,quantity,mode,p.pricing_unit_grams||1000):null;
  const unitDisabled=dual&&p.unit_available===0;
+ const changeBy=(delta:number)=>{
+   if(isWeight)setWeightInput(String(Math.max(weightMin,(Number.isSafeInteger(quantity)?quantity:0)+delta*weightStep)));
+   else setUnitInput(String(Math.max(1,(Number.isSafeInteger(quantity)?quantity:0)+delta)));
+ };
+ const restoreEmpty=()=>{
+   if(isWeight&&weightInput.trim()==='')setWeightInput(String(weightMin));
+   if(!isWeight&&unitInput.trim()==='')setUnitInput('1');
+ };
  return <article className="product-card">
   <div className="product-photo"><img src={img(p.image_url)} loading="lazy"/><div className="fresh-pill"><span/> Fresco</div>{p.is_featured?<span className="featured-tag">⭐ Destaque</span>:null}</div>
   <div className="product-info">
@@ -66,12 +80,26 @@ function ProductCard({p,getLine,setLine}:any){
       <button type="button" disabled={unitDisabled} className={purchaseMode==='unit'?'selected':''} onClick={()=>setPurchaseMode('unit')}>Por unidade</button>
     </div>{unitDisabled&&<small>Unidades temporariamente indisponíveis; venda por kg disponível.</small>}</div>}
     {mode==='variants'?<select className="variant-select" value={variant?.id||''} onChange={e=>setVariant(p.variants.find((v:any)=>v.id===e.target.value))}>{p.variants.map((v:any)=><option key={v.id} value={v.id}>{v.name} — {money(v.promo_price_cents!=null&&v.promo_price_cents<v.price_cents?v.promo_price_cents:v.price_cents)}</option>)}</select>
-    :<div className="product-price">{money(price)} <small>/ {mode==='weight'?'kg':'unidade'}</small></div>}
-    {mode==='weight'?<div className="weight-controls"><button type="button" onClick={()=>setWeightQty(v=>Math.max(min,v-step))}>−</button>
-      <input aria-label="Quantidade em gramas" value={weightQty} onChange={e=>{const v=Math.max(min,Math.floor(Number(e.target.value)||0));setWeightQty(Math.max(min,Math.ceil(v/step)*step));}} type="number" min={min} step={step}/>
-      <span>g</span><button type="button" onClick={()=>setWeightQty(v=>v+step)}>+</button></div>:
-      <div className="weight-controls"><button type="button" onClick={()=>setUnitQty(v=>Math.max(1,v-1))}>−</button><input aria-label="Quantidade de unidades" type="number" min="1" step="1" value={unitQty} onChange={e=>setUnitQty(Math.max(1,Math.floor(Number(e.target.value)||1)))}/><span>un</span><button type="button" onClick={()=>setUnitQty(v=>v+1)}>+</button></div>}
-    <button className="add-btn" type="button" onClick={()=>setLine(p,current,mode,getLine(p,current,mode)+quantity)}><Plus size={16}/> Adicionar <span>{mode==='weight'?formatWeightGrams(quantity)+' · ':quantity+' un · '}{money(total)}</span></button>
+    :<div className="product-price">{money(price)} <small>/ {isWeight?'kg':'unidade'}</small></div>}
+    <div className="weight-controls">
+      <button type="button" aria-label="Diminuir quantidade" onClick={()=>changeBy(-1)}>−</button>
+      <input
+        aria-label={isWeight?'Quantidade em gramas':'Quantidade de unidades'}
+        type="number" inputMode="numeric"
+        min={isWeight?weightMin:1} step={isWeight?weightStep:1}
+        value={quantityText}
+        onChange={e=>isWeight?setWeightInput(e.target.value):setUnitInput(e.target.value)}
+        onBlur={restoreEmpty}
+      />
+      <span>{isWeight?'g':'un'}</span>
+      <button type="button" aria-label="Aumentar quantidade" onClick={()=>changeBy(1)}>+</button>
+    </div>
+    {!validQuantity&&<small className="quantity-help" role="status">{quantityText.trim()===''?'Digite a quantidade desejada.':isWeight?`Informe pelo menos ${weightMin} g, em incrementos de ${weightStep} g.`:'Informe uma quantidade inteira maior que zero.'}</small>}
+    <button className="add-btn" type="button" disabled={!validQuantity||(mode==='unit'&&unitDisabled)}
+      onClick={()=>{if(validQuantity)setLine(p,current,mode,getLine(p,current,mode)+quantity);}}>
+      <Plus size={16}/> Adicionar
+      <span>{validQuantity?(isWeight?formatWeightGrams(quantity)+' · ':quantity+' un · ')+money(total!):'—'}</span>
+    </button>
   </div>
  </article>;
 }
