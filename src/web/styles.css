@@ -134,3 +134,11 @@
 .order-outofstock-checkbox{display:flex!important;align-items:flex-start;gap:7px;margin-top:7px;max-width:275px;
   color:#8a5b25;font-weight:650!important;font-size:10px!important;line-height:1.45;cursor:pointer}
 .order-outofstock-checkbox input{width:15px;height:15px;flex-shrink:0;accent-color:#178048;margin:1px 0 0}
+
+/* Exclusão lógica de pedidos de teste cancelados (sem apagar clientes). */
+.order-row-buttons{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.order-trash-button{display:inline-grid;place-items:center;min-width:31px;min-height:31px;
+ border:1px solid #f2ceca;border-radius:8px;background:#fff8f7;color:#af4337;cursor:pointer}
+.order-trash-button:hover,.order-trash-button:focus-visible{background:#ffe7e3;outline-color:#aa4034}
+.order-trash-button:disabled{opacity:.55;cursor:wait}
+.order-removed-message{background:#eef9f1;color:#1c7845;padding:11px 15px;border:1px solid #c4ebce;border-radius:10px;margin:8px 0 14px;font-size:12px;font-weight:650}
