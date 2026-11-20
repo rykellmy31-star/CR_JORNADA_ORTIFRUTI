@@ -1,9 +1,9 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Link,useLocation,useNavigate} from 'react-router-dom';
+import {Link,Navigate,useLocation,useNavigate} from 'react-router-dom';
 import {Apple,ArrowLeft,ArrowRight,BarChart3,Box,Check,ChevronDown,Clock,DoorOpen,Eye,EyeOff,Leaf,LogOut,Menu,MessageCircle,Package,Plus,RefreshCw,Search,Settings,ShoppingBasket,ShoppingCart,Store,Truck,Users,Trash2,X,LayoutDashboard,Tags,History,ClipboardList,ShieldCheck,Send,Image as ImageIcon,Phone,MapPin} from 'lucide-react';
 import {calculateLineTotalCents,formatBRL,formatWeightGrams,formatQuantityDisplay,parseBRLToCents,getDiscountPercent,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
 import {countCartItems,removeCartSelection} from '../shared/cart';
-import {vanityStoreSlug,storeHomeUrl} from '../shared/store-domain';
+import {vanityStoreSlug,storeHomeUrl,hortifrutiHomeRoute} from '../shared/store-domain';
 import {prepareBrandImage,IMAGE_ACCEPT} from './image-upload';
 
 const API='/api';
@@ -18,7 +18,9 @@ function DeveloperCredit(){return <footer className="developer-credit" aria-labe
 export default function App(){
  const loc=useLocation();
  const vanity=vanityStoreSlug(window.location.hostname);
- const page=loc.pathname==='/'&&vanity?<Storefront slugOverride={vanity}/>:
+ const homeRoute=hortifrutiHomeRoute(window.location.hostname);
+ const page=loc.pathname==='/'&&homeRoute?<Navigate to={homeRoute} replace/>:
+   loc.pathname==='/'&&vanity?<Storefront slugOverride={vanity}/>:
    loc.pathname.startsWith('/loja/')?<Storefront/>:
    loc.pathname.startsWith('/admin')?<Admin/>:
    loc.pathname.startsWith('/superadmin')?<SuperAdmin/>:
