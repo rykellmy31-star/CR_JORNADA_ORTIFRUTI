@@ -7,6 +7,7 @@ import { ORDER_NEXT_STATUS } from '../../shared/pricing';
 import { cancelOrderAndRestoreStock, commitOrderStockOnDelivery } from '../services/inventory';
 import { checkWhatsAppConnectionStatus, connectOrRefreshWhatsAppQr, confirmHomologationQrScan, disconnectWhatsAppInstance, dispatchQueuedMessageById, enqueueAndDispatchOrderWhatsAppNotification, DEFAULT_WHATSAPP_TEMPLATES } from '../services/evolution-whatsapp';
 import { parseDataUriImage } from '../storage/r2-media';
+import {runConditionalTransaction} from '../db/adapter';
 import {adjustOrderItems} from '../services/order-adjustments';
 
 export const adminRoutes = new Hono<AppHonoEnv>();
@@ -15,16 +16,16 @@ async function tenantOwnsCategory(db:any,tenantId:string,categoryId:string|null|
 
 adminRoutes.get('/dashboard', async (c) => {
   const db=c.get('services').db, tenantId=c.get('tenantId');
-  const {results: counts}=await db.prepare(`SELECT status, COUNT(*) AS count FROM orders WHERE tenant_id=? AND date(created_at)=date('now','localtime') GROUP BY status`).bind(tenantId).all<{status:string;count:number}>();
-  const {results: daily}=await db.prepare(`SELECT COALESCE(SUM(total_cents),0) AS sales, COUNT(*) AS orders FROM orders WHERE tenant_id=? AND date(created_at)=date('now','localtime') AND status!='cancelled'`).bind(tenantId).all();
-  const {results: recent}=await db.prepare(`SELECT id, order_number, customer_name, customer_phone, status, total_cents, payment_method, created_at FROM orders WHERE tenant_id=? ORDER BY created_at DESC LIMIT 8`).bind(tenantId).all();
+  const {results: counts}=await db.prepare(`SELECT status, COUNT(*) AS count FROM orders WHERE tenant_id=? AND deleted_at IS NULL AND date(created_at)=date('now','localtime') GROUP BY status`).bind(tenantId).all<{status:string;count:number}>();
+  const {results: daily}=await db.prepare(`SELECT COALESCE(SUM(total_cents),0) AS sales, COUNT(*) AS orders FROM orders WHERE tenant_id=? AND deleted_at IS NULL AND date(created_at)=date('now','localtime') AND status!='cancelled'`).bind(tenantId).all();
+  const {results: recent}=await db.prepare(`SELECT id, order_number, customer_name, customer_phone, status, total_cents, payment_method, created_at FROM orders WHERE tenant_id=? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 8`).bind(tenantId).all();
   const {results: lowStock}=await db.prepare(`SELECT id,name,physical_qty,reserved_qty,low_stock_threshold,unit_label,sale_mode FROM products WHERE tenant_id=? AND is_deleted=0 AND is_active=1 AND physical_qty-reserved_qty<=low_stock_threshold AND stock_pool_id IS NULL ORDER BY name LIMIT 10`).bind(tenantId).all();
   return c.json({counts:Object.fromEntries(counts.map((r:any)=>[r.status,r.count])), today:daily[0]||{sales:0,orders:0}, recentOrders:recent, lowStock});
 });
 
 adminRoutes.get('/orders', async(c)=>{
  const db=c.get('services').db,tid=c.get('tenantId'); const status=c.req.query('status'); const search=c.req.query('q')||'';
- const {results}=await db.prepare(`SELECT * FROM orders WHERE tenant_id=? AND (?='' OR status=?) AND (?='' OR CAST(order_number AS TEXT) LIKE '%'||?||'%' OR customer_name LIKE '%'||?||'%' OR customer_phone LIKE '%'||?||'%') ORDER BY created_at DESC LIMIT 200`).bind(tid,status||'',status||'',search,search,search,search).all<Record<string,any>>();
+ const {results}=await db.prepare(`SELECT * FROM orders WHERE tenant_id=? AND deleted_at IS NULL AND (?='' OR status=?) AND (?='' OR CAST(order_number AS TEXT) LIKE '%'||?||'%' OR customer_name LIKE '%'||?||'%' OR customer_phone LIKE '%'||?||'%') ORDER BY created_at DESC LIMIT 200`).bind(tid,status||'',status||'',search,search,search,search).all<Record<string,any>>();
  const orders=[]; for(const o of results){const {results:items}=await db.prepare(`SELECT id,product_name_snapshot,variant_name_snapshot,sale_mode,quantity,quantity_display,stock_deducted_qty,unit_price_cents,line_total_cents FROM order_items WHERE tenant_id=? AND order_id=? ORDER BY rowid`).bind(tid,o.id).all(); const {results:adjustments}=await db.prepare(`SELECT id,version,reason,old_total_cents,new_total_cents,changes_json,created_at
     FROM order_adjustments WHERE tenant_id=? AND order_id=? ORDER BY version DESC LIMIT 25`)
   .bind(tid,o.id).all<Record<string,any>>();
@@ -33,6 +34,53 @@ adminRoutes.get('/orders', async(c)=>{
 });
 
 // Atualizar pedido recebido/aceito/em preparação sem alterar pedidos de outras lojas.
+// Ocultação auditável dos pedidos de teste já cancelados: jamais apaga o cliente.
+adminRoutes.delete('/orders/:id',async(c)=>{
+ const db=c.get('services').db,tid=c.get('tenantId'),uid=c.get('authUser').sub;
+ const role=c.get('authUser').role;
+ if(!['owner','manager'].includes(role))
+   return c.json({error:'Apenas proprietário ou gerente pode remover pedidos.'},403);
+ const id=c.req.param('id');
+ const order=await db.prepare(`SELECT id,order_number,status,stock_state,deleted_at,customer_id
+   FROM orders WHERE id=? AND tenant_id=?`).bind(id,tid).first<Record<string,any>>();
+ if(!order||order.deleted_at)return c.json({error:'Pedido não encontrado na lista.'},404);
+ if(order.status!=='cancelled'||order.stock_state!=='released')
+   return c.json({error:'Cancele o pedido e confirme o estorno do estoque antes de removê-lo da lista.'},409);
+ const now=new Date().toISOString();
+ try{
+   const steps:any[]=[{
+      stmt:db.prepare(`UPDATE orders SET deleted_at=?,deleted_by_user_id=?,
+        deleted_reason='Removido da lista de pedidos de teste',updated_at=?
+        WHERE id=? AND tenant_id=? AND status='cancelled' AND stock_state='released'
+          AND deleted_at IS NULL`).bind(now,uid,now,id,tid),
+      requireChanges:1,
+      failErrorMessage:'O pedido já foi excluído ou mudou de estado. Atualize a página.'
+   },{
+      stmt:db.prepare(`UPDATE whatsapp_message_queue SET status='failed',
+        last_error='Pedido ocultado pelo estabelecimento antes do envio',next_retry_at=NULL,
+        updated_at=? WHERE tenant_id=? AND order_id=? AND status IN ('pending','processing')`)
+        .bind(now,tid,id)
+   }];
+   if(order.customer_id)steps.push({
+      stmt:db.prepare(`UPDATE customers SET
+        orders_count=(SELECT COUNT(*) FROM orders o WHERE o.tenant_id=?
+          AND o.customer_id=? AND o.deleted_at IS NULL),
+        last_order_at=(SELECT MAX(o.created_at) FROM orders o WHERE o.tenant_id=?
+          AND o.customer_id=? AND o.deleted_at IS NULL),
+        updated_at=? WHERE id=? AND tenant_id=?`)
+        .bind(tid,order.customer_id,tid,order.customer_id,now,order.customer_id,tid)
+   });
+   await runConditionalTransaction(db,steps);
+   await logAudit(db,{tenantId:tid,actorUserId:uid,actorRole:role,
+      action:'order.hidden_test',entityType:'order',entityId:id,
+      details:{orderNumber:order.order_number,previousStatus:order.status}});
+   return c.json({success:true,orderNumber:order.order_number,
+      message:'Pedido removido da lista e dos indicadores. Cliente preservado.'});
+ }catch(e:any){
+   return c.json({error:e.message||'Não foi possível remover o pedido.'},e.statusCode||409);
+ }
+});
+
 adminRoutes.patch('/orders/:id/items',async(c)=>{
  const services=c.get('services'),db=services.db,tid=c.get('tenantId'),uid=c.get('authUser').sub;
  const schema=z.object({
@@ -60,7 +108,7 @@ adminRoutes.patch('/orders/:id/items',async(c)=>{
 adminRoutes.patch('/orders/:id/status',async(c)=>{
  const services=c.get('services'),db=services.db,tid=c.get('tenantId'),uid=c.get('authUser').sub; const id=c.req.param('id');
  const body=await c.req.json().catch(()=>({})); const status=body.status as string;
- const order=await db.prepare('SELECT * FROM orders WHERE id=? AND tenant_id=?').bind(id,tid).first<Record<string,any>>(); if(!order)return c.json({error:'Pedido não encontrado.'},404);
+ const order=await db.prepare('SELECT * FROM orders WHERE id=? AND tenant_id=? AND deleted_at IS NULL').bind(id,tid).first<Record<string,any>>(); if(!order)return c.json({error:'Pedido não encontrado.'},404);
  try{
   if(status==='cancelled'){
    if(order.status==='delivered')return c.json({error:'Pedido entregue não pode ser cancelado pelo painel.'},409);
@@ -136,7 +184,7 @@ adminRoutes.delete('/products/:id',async(c)=>{const r=await c.get('services').db
 adminRoutes.post('/stock/adjust',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),b=await c.req.json();const target=String(b.targetType),id=String(b.targetId),qty=Number(b.quantity);if(!Number.isInteger(qty)||qty===0)return c.json({error:'Informe ajuste inteiro diferente de zero.'},400);const tables:any={product:'products',variant:'product_variants',pool:'stock_pools'};const table=tables[target];if(!table)return c.json({error:'Tipo de estoque inválido.'},400);const row=await db.prepare(`SELECT * FROM ${table} WHERE id=? AND tenant_id=?`).bind(id,tid).first<Record<string,any>>();if(!row)return c.json({error:'Item não encontrado.'},404);if(row.physical_qty+qty<row.reserved_qty)return c.json({error:'O ajuste não pode reduzir estoque abaixo do já reservado.'},409);const time=new Date().toISOString();await db.prepare(`UPDATE ${table} SET physical_qty=physical_qty+?,updated_at=? WHERE id=? AND tenant_id=?`).bind(qty,time,id,tid).run();await db.prepare(`INSERT INTO stock_movements(id,tenant_id,target_type,product_id,variant_id,stock_pool_id,target_name,movement_type,delta_physical,delta_reserved,physical_after,reserved_after,unit,actor_user_id,reason,created_at) VALUES(?,?,?,?,?, ?,?,'manual_adjust',?,0,?,?,?, ?,?,?)`).bind(generateId(),tid,target,target==='product'?id:null,target==='variant'?id:null,target==='pool'?id:null,row.name||row.title||'Estoque',qty,row.physical_qty+qty,row.reserved_qty,row.base_unit|| (row.sale_mode==='weight'?'g':'un'),c.get('authUser').sub,String(b.reason||'Ajuste manual'),time).run();return c.json({success:true});});
 adminRoutes.get('/stock',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId');const [products,variants,pools,movements]=await Promise.all([db.prepare(`SELECT id,name,sale_mode,unit_label,physical_qty,reserved_qty,low_stock_threshold FROM products WHERE tenant_id=? AND is_deleted=0 AND sale_mode!='variants'`).bind(tid).all(),db.prepare(`SELECT v.id,v.product_id,p.name AS product_name,v.name,v.physical_qty,v.reserved_qty,v.low_stock_threshold,v.stock_pool_id FROM product_variants v JOIN products p ON p.id=v.product_id AND p.tenant_id=v.tenant_id WHERE v.tenant_id=? AND v.stock_pool_id IS NULL`).bind(tid).all(),db.prepare(`SELECT * FROM stock_pools WHERE tenant_id=?`).bind(tid).all(),db.prepare(`SELECT * FROM stock_movements WHERE tenant_id=? ORDER BY created_at DESC LIMIT 100`).bind(tid).all()]);return c.json({products:products.results,variants:variants.results,pools:pools.results,movements:movements.results});});
 adminRoutes.get('/customers',async(c)=>{const {results}=await c.get('services').db.prepare(`SELECT * FROM customers WHERE tenant_id=? ORDER BY last_order_at DESC LIMIT 300`).bind(c.get('tenantId')).all();return c.json({customers:results});});
-adminRoutes.get('/reports',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId');const from=c.req.query('from')||'2000-01-01',to=c.req.query('to')||'2999-12-31';const {results:summary}=await db.prepare(`SELECT COUNT(*) orders_count,COALESCE(SUM(CASE WHEN status!='cancelled' THEN total_cents ELSE 0 END),0) sales_cents,COALESCE(AVG(CASE WHEN status!='cancelled' THEN total_cents END),0) avg_ticket_cents FROM orders WHERE tenant_id=? AND date(created_at)>=date(?) AND date(created_at)<=date(?)`).bind(tid,from,to).all();const {results:top}=await db.prepare(`SELECT oi.product_name_snapshot, SUM(oi.quantity) quantity, SUM(oi.line_total_cents) sales_cents FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.tenant_id=? AND o.status!='cancelled' AND date(o.created_at)>=date(?) AND date(o.created_at)<=date(?) GROUP BY oi.product_id ORDER BY sales_cents DESC LIMIT 10`).bind(tid,from,to).all();return c.json({summary:summary[0],topProducts:top});});
+adminRoutes.get('/reports',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId');const from=c.req.query('from')||'2000-01-01',to=c.req.query('to')||'2999-12-31';const {results:summary}=await db.prepare(`SELECT COUNT(*) orders_count,COALESCE(SUM(CASE WHEN status!='cancelled' THEN total_cents ELSE 0 END),0) sales_cents,COALESCE(AVG(CASE WHEN status!='cancelled' THEN total_cents END),0) avg_ticket_cents FROM orders WHERE tenant_id=? AND deleted_at IS NULL AND date(created_at)>=date(?) AND date(created_at)<=date(?)`).bind(tid,from,to).all();const {results:top}=await db.prepare(`SELECT oi.product_name_snapshot, SUM(oi.quantity) quantity, SUM(oi.line_total_cents) sales_cents FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.tenant_id=? AND o.status!='cancelled' AND o.deleted_at IS NULL AND date(o.created_at)>=date(?) AND date(o.created_at)<=date(?) GROUP BY oi.product_id ORDER BY sales_cents DESC LIMIT 10`).bind(tid,from,to).all();return c.json({summary:summary[0],topProducts:top});});
 
 adminRoutes.get('/settings',async(c)=>{const t=await c.get('services').db.prepare(`SELECT id,slug,name,legal_name,document_cnpj,logo_url,banner_url,banner_title,banner_subtitle,primary_color,accent_color,whatsapp_public,instagram_url,address_text,business_hours,delivery_info,default_delivery_fee_cents,free_delivery_min_cents,min_order_cents,is_open,accepts_cash,accepts_pix_delivery,accepts_debit_delivery,accepts_credit_delivery,signup_popup_enabled,signup_popup_title,signup_popup_description,signup_popup_button FROM tenants WHERE id=?`).bind(c.get('tenantId')).first();const {results:neighborhoods}=await c.get('services').db.prepare('SELECT * FROM neighborhoods WHERE tenant_id=? ORDER BY name').bind(c.get('tenantId')).all();return c.json({settings:t,neighborhoods});});
 adminRoutes.post('/settings/neighborhoods',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),b=await c.req.json(),name=String(b.name||'').trim();if(!name)return c.json({error:'Nome do bairro obrigatório.'},400);const id=generateId();try{await db.prepare(`INSERT INTO neighborhoods(id,tenant_id,name,delivery_fee_cents,estimated_time,is_active,created_at) VALUES(?,?,?,?,?,1,?)`).bind(id,tid,name,Number(b.deliveryFeeCents)||0,String(b.estimatedTime||'35-50 min'),new Date().toISOString()).run();return c.json({id},201);}catch(e:any){return c.json({error:'Bairro já cadastrado ou dados inválidos.'},409);}});
