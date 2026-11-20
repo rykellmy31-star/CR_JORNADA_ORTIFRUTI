@@ -1,8 +1,8 @@
 import {afterEach,describe,expect,it} from 'vitest';
 import {SqliteD1Adapter} from '../src/server/db/sqlite-local';
 import {seedDatabase} from '../src/server/seed';
-import {validateAndPrepareOrderLines,buildAtomicStockReservationSteps} from '../src/server/services/inventory';
-import {runConditionalTransaction} from '../src/server/db/adapter';
+import {validateAndPrepareOrderLines} from '../src/server/services/inventory';
+import {createApp} from '../src/server/app';
 
 let db:SqliteD1Adapter;
 afterEach(()=>{try{db?.close()}catch{}});
@@ -27,7 +27,16 @@ describe('venda por kg e unidade',()=>{
   expect(prepared.lines.map(x=>[x.sale_mode,x.stock_deducted_qty,x.quantity_display])).toEqual([
    ['unit',320,'2 un'],['weight',500,'500 g']
   ]);
-  await runConditionalTransaction(db,buildAtomicStockReservationSteps(db,tenantId,'order-test',1010,prepared.lines,new Date().toISOString()));
+  const media:any={async putObject(){throw Error('unused')},async getObject(){return null}};
+  const app=createApp({db,media,jwtSecret:'test-secret'.repeat(4),crmApiKey:'test',appEnv:'test',evolution:{}});
+  const response=await app.fetch(new Request('http://local/api/store/verde-vivo/orders',{
+   method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({customerName:'Compra mista',phone:'73999990178',street:'Rua A',number:'4',
+     neighborhood:'Centro',paymentMethod:'cash',whatsappOptIn:false,
+     items:[{productId,purchaseMode:'unit',quantity:2},{productId,purchaseMode:'weight',quantity:500}]})
+  }));
+  expect(response.status).toBe(201);
+  expect((await response.json() as any).order.subtotalCents).toBe(950);
   const state=await db.prepare('SELECT physical_qty,reserved_qty FROM products WHERE id=?').bind(productId).first<any>();
   expect(state).toEqual({physical_qty:2000,reserved_qty:820});
  });
