@@ -3,6 +3,7 @@ import {Link,useLocation,useNavigate} from 'react-router-dom';
 import {Apple,ArrowLeft,ArrowRight,BarChart3,Box,Check,ChevronDown,Clock,DoorOpen,Eye,EyeOff,Leaf,LogOut,Menu,MessageCircle,Package,Plus,RefreshCw,Search,Settings,ShoppingBasket,ShoppingCart,Store,Truck,Users,Trash2,X,LayoutDashboard,Tags,History,ClipboardList,ShieldCheck,Send,Image as ImageIcon,Phone,MapPin} from 'lucide-react';
 import {calculateLineTotalCents,formatBRL,formatWeightGrams,formatQuantityDisplay,parseBRLToCents,getDiscountPercent,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
 import {countCartItems,removeCartSelection} from '../shared/cart';
+import {vanityStoreSlug,storeHomeUrl} from '../shared/store-domain';
 import {prepareBrandImage,IMAGE_ACCEPT} from './image-upload';
 
 const API='/api';
@@ -14,19 +15,6 @@ const DEVELOPER_CREDIT='Desenvolvido por Carlos Rykellmy Santos Correia';
 function DeveloperCredit(){return <footer className="developer-credit" aria-label="Créditos do desenvolvedor">
   {DEVELOPER_CREDIT}
 </footer>}
-// A vitrine continua usando o tenant existente; somente a URL pública fica mais curta.
-const RESERVED_SUBDOMAINS = new Set(['admin','api','www','pontos','fidelidade','farmacia','evolution','site','hortifruti','hortifruti-admin','tigu','mail','ftp']);
-export function vanityStoreSlug(hostname:string):string|null {
- const host=hostname.toLowerCase().replace(/\.$/,'');
- const suffix='.crjornada.com';
- if(!host.endsWith(suffix))return null;
- const sub=host.slice(0,-suffix.length);
- return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(sub)&&!RESERVED_SUBDOMAINS.has(sub)?sub:null;
-}
-function storeHomeUrl(slug:string):string {
- return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)&&!RESERVED_SUBDOMAINS.has(slug)
-   ? 'https://'+slug+'.crjornada.com/' : '/loja/'+encodeURIComponent(slug);
-}
 export default function App(){
  const loc=useLocation();
  const vanity=vanityStoreSlug(window.location.hostname);
