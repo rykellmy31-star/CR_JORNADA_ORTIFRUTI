@@ -14,7 +14,7 @@ not_found_handling = "single-page-application"
 [[d1_databases]]
 binding = "DB"
 database_name = "cr-jornada-hortifruti-db"
-database_id = "REPLACE_WITH_YOUR_CLOUDFLARE_D1_DATABASE_ID"
+database_id = "0c4fe8fa-fcf2-4dbb-ab12-a1d412a43fba"
 migrations_dir = "migrations"
 
 # Cloudflare R2 Object Storage for Product Photos, Store Logos & Banners
