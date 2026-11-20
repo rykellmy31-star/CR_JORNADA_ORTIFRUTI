@@ -1,4 +1,5 @@
-name: Test and deploy Cloudflare Worker
+
+name: Publicar CR Jornada Hortifruti
 
 on:
   push:
@@ -12,6 +13,7 @@ permissions:
 
 jobs:
   verify:
+    name: Testar sistema
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,46 +26,78 @@ jobs:
       - run: npm run build
 
   deploy:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && vars.ENABLE_CLOUDFLARE_DEPLOY == 'true'))
+    name: Publicar na Cloudflare
     needs: verify
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'push' &&
+          (
+            vars.ENABLE_CLOUDFLARE_DEPLOY == 'true' ||
+            contains(github.event.head_commit.message, '[deploy:hortifruti]')
+          )
+        )
+      )
     runs-on: ubuntu-latest
     environment: production
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
       - run: npm ci
       - run: npm run build
-      - name: Install required Worker secrets
+
+      - name: Publicar sistema e segredos juntos
+        shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           CRM_API_KEY: ${{ secrets.CRM_API_KEY }}
-        run: |
-          set -euo pipefail
-          test -n "$JWT_SECRET" || (echo 'Missing GitHub secret JWT_SECRET' >&2; exit 1)
-          test -n "$CRM_API_KEY" || (echo 'Missing GitHub secret CRM_API_KEY' >&2; exit 1)
-          printf '%s' "$JWT_SECRET" | npx wrangler secret put JWT_SECRET --name cr-jornada-hortifruti
-          printf '%s' "$CRM_API_KEY" | npx wrangler secret put CRM_API_KEY --name cr-jornada-hortifruti
-      - name: Install optional Evolution secrets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           EVOLUTION_API_URL: ${{ secrets.EVOLUTION_API_URL }}
           EVOLUTION_API_KEY: ${{ secrets.EVOLUTION_API_KEY }}
           EVOLUTION_WEBHOOK_TOKEN: ${{ secrets.EVOLUTION_WEBHOOK_TOKEN }}
           PUBLIC_APP_URL: ${{ secrets.PUBLIC_APP_URL }}
+
         run: |
           set -euo pipefail
-          for name in EVOLUTION_API_URL EVOLUTION_API_KEY EVOLUTION_WEBHOOK_TOKEN PUBLIC_APP_URL; do
-            value="${!name:-}"
-            if [ -n "$value" ]; then printf '%s' "$value" | npx wrangler secret put "$name" --name cr-jornada-hortifruti; fi
-          done
-      - name: Deploy Worker and Static Assets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy
+
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$JWT_SECRET"
+          test -n "$CRM_API_KEY"
+
+          export SECRET_FILE="$RUNNER_TEMP/hortifruti-secrets.json"
+          trap 'rm -f "$SECRET_FILE"' EXIT
+
+          node -e '
+            const fs = require("node:fs");
+            const names = [
+              "JWT_SECRET",
+              "CRM_API_KEY",
+              "EVOLUTION_API_URL",
+              "EVOLUTION_API_KEY",
+              "EVOLUTION_WEBHOOK_TOKEN",
+              "PUBLIC_APP_URL"
+            ];
+            const values = {};
+            for (const name of names) {
+              if (process.env[name]) {
+                values[name] = process.env[name];
+              }
+            }
+            fs.writeFileSync(
+              process.env.SECRET_FILE,
+              JSON.stringify(values),
+              { mode: 0o600 }
+            );
+          '
+
+          npx wrangler deploy --secrets-file "$SECRET_FILE"
