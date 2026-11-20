@@ -636,13 +636,25 @@ async function searchProductPhotos(){
  try{
   const data=await req('/admin/products/image-suggestions?name='+encodeURIComponent(form.name.trim()),{},token);
   setPhotoSuggestions(data.suggestions||[]);
-  if(!data.suggestions?.length)setPhotoMessage('Não encontramos uma foto confiável. Você pode enviar a sua própria imagem.');
+  if(!data.suggestions?.length)setPhotoMessage('Ainda não temos este produto no acervo. Envie uma foto própria ou tente outra grafia.');
  }catch{setPhotoMessage('A busca está indisponível. Você ainda pode salvar o produto.');}
  finally{setFindingPhotos(false);}
 }
 async function useProductPhoto(photo:any){
  setPhotoMessage('');
- if(photo.pageId){
+ if(photo.source==='curated'){
+  setFindingPhotos(true);
+  try{
+   const result=await req('/admin/products/image-curated',{
+    method:'POST',body:JSON.stringify({name:form.name.trim()})
+   },token);
+   setForm((prev:any)=>({...prev,imageUrl:result.imageUrl}));
+   setPhotoMessage('Foto confirmada! Agora ela fica salva para todas as lojas.');
+  }catch(e:any){
+   setPhotoMessage('Foto localizada, mas a importação está indisponível. Vou usar a foto verificada.');
+   setForm((prev:any)=>({...prev,imageUrl:photo.imageUrl}));
+  }finally{setFindingPhotos(false);}
+ }else if(photo.pageId){
   setFindingPhotos(true);
   try{
    const result=await req('/admin/products/image-import',{
@@ -682,7 +694,7 @@ async function save(e:any){e.preventDefault();setError('');try{if(editing){await
  <button type="button" className="btn btn-xs btn-outline" disabled={findingPhotos||uploadingPhoto||!form.name?.trim()} onClick={searchProductPhotos}><Search size={14}/> {findingPhotos?'Pesquisando…':'Pesquisar mais imagens'}</button>
  {!!photoSuggestions.length&&<div className="product-image-suggestions">{photoSuggestions.map((p:any,i:number)=>
  <button type="button" className="product-image-option" key={p.pageId||p.imageUrl||i} disabled={findingPhotos} onClick={()=>useProductPhoto(p)} title={p.title}>
-  <img src={p.imageUrl} alt={'Opção de foto '+(i+1)}/><small>{p.source==='builtin'?'Do catálogo':p.source==='library'?'Compartilhada':'Fonte aberta'} · Usar</small>
+  <img src={p.imageUrl} alt={'Opção de foto '+(i+1)}/><small>{p.source==='builtin'?'Do catálogo':p.source==='library'?'Compartilhada':p.source==='curated'?'Foto verificada':'Fonte aberta'} · Usar</small>
  </button>)}</div>}
  <label className="product-image-upload">Ou envie sua própria imagem
  <input type="file" accept={IMAGE_ACCEPT} disabled={findingPhotos||uploadingPhoto} onChange={uploadProductPhoto}/></label>
