@@ -118,7 +118,7 @@ function SignupPopup({slug,store,onClose,onDone}:any){
        <button className="btn btn-primary signup-submit" type="submit" disabled={sending}>
          {sending?'Cadastrando...':store.signup_popup_button||'Quero ficar por dentro!'} <ArrowRight size={17}/>
        </button>
-       <p className="signup-privacy-note">Sem cupons ou mensagens automáticas. Seus dados ficam vinculados somente a {store.name}. Você pode solicitar atualização ou exclusão dos dados à loja.</p>
+       <p className="signup-privacy-note">Seus dados ficam vinculados somente a {store.name}. Você escolhe se quer receber novidades e pode solicitar atualização ou exclusão à loja.</p>
      </form>
    </section>
  </div>;
