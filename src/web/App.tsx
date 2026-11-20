@@ -304,7 +304,7 @@ function Orders({token}:any){
  const[selected,setSelected]=useState<any>(null),[error,setError]=useState('');
  const[busy,setBusy]=useState(''),[editing,setEditing]=useState(false);
  const[draft,setDraft]=useState<Record<string,string>>({}),[outOfStock,setOutOfStock]=useState<Record<string,boolean>>({}),[reason,setReason]=useState('');
- const[notice,setNotice]=useState('');
+ const[notice,setNotice]=useState(''),[success,setSuccess]=useState('');
  async function load(selectedId?:string){
    try{
      const x=await req('/admin/orders',{},token),orders=x.orders||[];
@@ -346,6 +346,21 @@ function Orders({token}:any){
      await load();setSelected(null);setEditing(false);
    }catch(e:any){setError(e.message);}finally{setBusy('');}
  }
+ async function removeOrder(o:any){
+   if(busy||o.status!=='cancelled')return;
+   const confirmed=window.confirm(
+     `Remover o pedido #${o.order_number} de todas as listas e indicadores?\n\nO cadastro do cliente será preservado. O pedido cancelado continuará no histórico interno de auditoria.`
+   );
+   if(!confirmed)return;
+   setBusy(o.id);setError('');setSuccess('');
+   try{
+     await req(`/admin/orders/${o.id}`,{method:'DELETE'},token);
+     setSelected(null);setEditing(false);
+     await load();
+     setSuccess(`Pedido #${o.order_number} removido das listas. O cliente continua cadastrado.`);
+   }catch(e:any){setError(e.message||'Não foi possível remover o pedido.');}
+   finally{setBusy('');}
+ }
  async function saveItems(){
    if(!selected||busy)return;
    setError('');setNotice('');
@@ -381,7 +396,7 @@ function Orders({token}:any){
      desc="Acompanhe, aceite, edite quantidades e atualize cada pedido."
      action={<button className="btn btn-outline" onClick={()=>load()}>
        <RefreshCw size={16}/> Atualizar</button>}/>
-   {error&&!selected&&<div className="error-banner">{error}</div>}
+   {error&&!selected&&<div className="error-banner">{error}</div>}{success&&<div className="order-removed-message" role="status">{success}</div>}
    <div className="filter-row"><div className="filter-scroll">
      {([['all','Todos'],['received','Recebidos'],['accepted','Aceitos'],['preparing','Preparação'],
        ['out_for_delivery','Em entrega'],['delivered','Entregues'],['cancelled','Cancelados']] as string[][])
@@ -398,7 +413,14 @@ function Orders({token}:any){
        <td>{PAYMENT_METHOD_LABELS[o.payment_method as keyof typeof PAYMENT_METHOD_LABELS]}</td>
        <td><StatusBadge status={o.status}/></td>
        <td><b>{money(o.total_cents)}</b></td>
-       <td><button className="btn btn-xs btn-outline" onClick={()=>openOrder(o)}>Detalhes</button></td>
+       <td><div className="order-row-buttons">
+        <button className="btn btn-xs btn-outline" onClick={()=>openOrder(o)}>Detalhes</button>
+        {o.status==='cancelled'&&<button className="order-trash-button" type="button"
+          disabled={!!busy} aria-label={`Remover pedido #${o.order_number} da lista`}
+          title="Remover pedido cancelado" onClick={()=>removeOrder(o)}>
+          <Trash2 size={15}/>
+        </button>}
+       </div></td>
      </tr>)}</tbody>
    </table>{!filtered.length&&<div className="empty-table">Nenhum pedido nesta etapa.</div>}</div></div>
    {selected&&<div className="modal-backdrop" onClick={closeOrder}>
@@ -498,6 +520,10 @@ function Orders({token}:any){
          </div>)}
        </div>}
        <div className="order-actions">
+         {!editing&&selected.status==='cancelled'&&<button className="btn btn-danger-soft"
+           disabled={!!busy} onClick={()=>removeOrder(selected)}>
+           <Trash2 size={15}/> Remover pedido da lista
+         </button>}
          {editing?<><button className="btn btn-outline" disabled={!!busy}
            onClick={()=>{setEditing(false);setError('');}}>Voltar</button>
            <button className="btn btn-primary" disabled={!!busy||invalid||!changes.length}
