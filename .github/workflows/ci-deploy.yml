@@ -64,6 +64,8 @@ jobs:
           EVOLUTION_API_URL: ${{ secrets.EVOLUTION_API_URL }}
           EVOLUTION_API_KEY: ${{ secrets.EVOLUTION_API_KEY }}
           EVOLUTION_WEBHOOK_TOKEN: ${{ secrets.EVOLUTION_WEBHOOK_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PUBLIC_APP_URL: ${{ secrets.PUBLIC_APP_URL }}
 
         run: |
@@ -85,6 +87,8 @@ jobs:
               "EVOLUTION_API_URL",
               "EVOLUTION_API_KEY",
               "EVOLUTION_WEBHOOK_TOKEN",
+              "TELEGRAM_BOT_TOKEN",
+              "TELEGRAM_CHAT_ID",
               "PUBLIC_APP_URL"
             ];
             const values = {};
