@@ -130,3 +130,7 @@
  .order-actions{flex-wrap:wrap}
  .order-actions button{flex:1}
 }
+
+.order-outofstock-checkbox{display:flex!important;align-items:flex-start;gap:7px;margin-top:7px;max-width:275px;
+  color:#8a5b25;font-weight:650!important;font-size:10px!important;line-height:1.45;cursor:pointer}
+.order-outofstock-checkbox input{width:15px;height:15px;flex-shrink:0;accent-color:#178048;margin:1px 0 0}
