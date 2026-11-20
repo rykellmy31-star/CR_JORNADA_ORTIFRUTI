@@ -109,3 +109,17 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - O pop-up pode ser fechado; reaparece após 7 dias no navegador se não houver cadastro. Após cadastro, deixa de aparecer naquele navegador.
 - Nenhum cupom é criado, nenhuma campanha ou WhatsApp promocional é enviado automaticamente.
 - Migração aditiva D1 0004_customer_popup.sql e testes automáticos concluídos antes da publicação.
+
+
+## Atualização — Integração Evolution API real (20/11/2026)
+
+- A aba **WhatsApp** do painel de cada estabelecimento oferece criação da própria instância e QR Code real, diretamente no site, sem expor URL/chave da Evolution ao lojista.
+- Cada loja tem identificador exclusivo de instância `crj_<slug>_<id>`. O serviço não altera instâncias de outros sistemas.
+- Integração Evolution API v2: criar instância Baileys (quando ainda não existe), conectar/atualizar QR, consultar `connectionState`, configurar webhook específico e enviar textos pelo endpoint `message/sendText`.
+- O Worker usa `PUBLIC_APP_URL` se configurado; caso contrário utiliza a origem HTTPS da própria requisição autenticada para a URL do webhook. O token do webhook é validado no backend e nunca é devolvido ao navegador.
+- Modelos transacionais existentes: pedido recebido, aceito (com itens/quantidades), em preparação, saída para entrega, entregue e cancelado, com consentimento separado no checkout.
+- Sem `EVOLUTION_API_URL` ou `EVOLUTION_API_KEY`, o painel indica *Não configurado*, não cria QR simulado e nenhuma mensagem recebe status de enviada.
+- Fila de mensagens não consome tentativas por falta de conexão, e descarta eventos muito antigos em vez de enviar avisos de pedidos desatualizados.
+- Após configurar os **GitHub Secrets** `EVOLUTION_API_URL` (URL HTTPS da API Evolution acessível a partir da Cloudflare), `EVOLUTION_API_KEY` (chave do provedor) e `EVOLUTION_WEBHOOK_TOKEN` (chave aleatória forte própria para autenticar os callbacks), execute novamente **Publicar CR Jornada Hortifruti** em Actions > Run workflow na branch main.
+- Depois da nova publicação, no painel de proprietário vá a **WhatsApp → Conexão → Conectar WhatsApp**, leia o QR com o aparelho empresarial e confirme o estado **Conectado**. Faça pedido de teste com número próprio autorizado e valide em **Histórico de envios**, sem enviar campanhas a clientes reais durante os testes.
+- Revisado e validado com testes automatizados de QR, webhook, fila, envio e isolamento multiempresa. Integração com servidor Evolution externo ainda depende das credenciais e da conexão do número pelo responsável.
