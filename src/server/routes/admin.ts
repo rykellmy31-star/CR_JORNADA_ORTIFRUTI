@@ -9,6 +9,7 @@ import { checkWhatsAppConnectionStatus, connectOrRefreshWhatsAppQr, confirmHomol
 import { parseDataUriImage } from '../storage/r2-media';
 import {runConditionalTransaction} from '../db/adapter';
 import {adjustOrderItems} from '../services/order-adjustments';
+import {autoProductImage,cachedProductImage,builtInProductImage,suggestProductImages,importCommonsProductImage,normalizeProductName} from '../services/product-images';
 
 export const adminRoutes = new Hono<AppHonoEnv>();
 adminRoutes.use('*', requireTenantAdmin());
@@ -132,7 +133,28 @@ adminRoutes.patch('/orders/:id/status',async(c)=>{
 });
 
 adminRoutes.post('/media/upload',async(c)=>{const body=await c.req.json().catch(()=>({}));try{const image=parseDataUriImage(String(body.dataUri||''));const id=generateId();const key=`tenants/${c.get('tenantId')}/${String(body.folder||'products').replace(/[^a-z0-9_-]/gi,'')}/${id}.${image.extension}`;const stored=await c.get('services').media.putObject(key,image.bytes,image.contentType);return c.json({key:stored.key,url:stored.publicUrl},201);}catch(e:any){return c.json({error:e.message||'Falha no upload.'},400);}});
-adminRoutes.post('/products/with-variants',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),b=await c.req.json();if(!String(b.name||'').trim()||!Array.isArray(b.variants)||!b.variants.length)return c.json({error:'Produto e pelo menos uma variação são obrigatórios.'},400);if(b.categoryId&&!await tenantOwnsCategory(db,tid,b.categoryId))return c.json({error:'Categoria inválida para este estabelecimento.'},400);const time=new Date().toISOString(),productId=generateId();let poolId:string|null=null;if(b.sharedPool){poolId=generateId();const stockQty=Number(b.poolPhysicalQty);if(!Number.isInteger(stockQty)||stockQty<=0)return c.json({error:'Informe o estoque físico total do pool compartilhado.'},400);await db.prepare(`INSERT INTO stock_pools(id,tenant_id,name,sku_code,base_unit,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at) VALUES(?,?,?,?,'un',?,0,?,?,?)`).bind(poolId,tid,String(b.poolName||`${b.name} — estoque compartilhado`),b.poolSku||null,stockQty,Number(b.lowStockThreshold)||0,time,time).run();}await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'variants','embalagem',1000,1,1,0,?,?,0,0,0,?,?)`).bind(productId,tid,b.categoryId||null,b.sku||null,String(b.name).trim(),b.description||'',b.imageUrl||null,b.featured?1:0,1,time,time).run();for(let i=0;i<b.variants.length;i++){const v=b.variants[i];const name=String(v.name||'').trim(),price=Number(v.priceCents),deduction=Number(v.deductionQty||1);if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(deduction)||deduction<=0)return c.json({error:'Confira nome, preço e unidades consumidas de cada variação.'},400);await db.prepare(`INSERT INTO product_variants(id,tenant_id,product_id,sku,name,price_cents,promo_price_cents,stock_pool_id,pool_deduction_qty,physical_qty,reserved_qty,low_stock_threshold,sort_order,is_active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,0,0,?,1,?,?)`).bind(generateId(),tid,productId,v.sku||null,name,price,v.promoPriceCents==null?null:Number(v.promoPriceCents),poolId,deduction,poolId?0:Number(v.stockQty||0),i,time,time).run();}return c.json({id:productId,stockPoolId:poolId},201);});
+/** Apenas o proprietário autenticado consulta e reutiliza as imagens abertas. */
+adminRoutes.get('/products/image-suggestions',async(c)=>{
+ const name=String(c.req.query('name')||'').trim();
+ if(name.length<2||name.length>140)return c.json({error:'Informe um nome de produto válido.'},400);
+ const full=c.req.query('external')!=='0';
+ const suggestions=await suggestProductImages(c.get('services').db,name,full);
+ return c.json({suggestions,matched:!!suggestions.length});
+});
+adminRoutes.post('/products/image-import',async(c)=>{
+ const body=await c.req.json().catch(()=>({}));
+ const name=String(body.name||'').trim(),pageId=Number(body.pageId);
+ if(name.length<2||name.length>140||!Number.isSafeInteger(pageId)||pageId<1)
+  return c.json({error:'Nome ou imagem inválidos.'},400);
+ try{
+  const {db,media}=c.get('services');
+  const result=await importCommonsProductImage(db,media,name,pageId);
+  return c.json({imageUrl:result.imageUrl,photo:result},201);
+ }catch(e:any){return c.json({error:String(e.message||'Não foi possível importar a imagem.')},400);}
+});
+adminRoutes.post('/products/with-variants',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),b=await c.req.json();if(!String(b.name||'').trim()||!Array.isArray(b.variants)||!b.variants.length)return c.json({error:'Produto e pelo menos uma variação são obrigatórios.'},400);if(b.categoryId&&!await tenantOwnsCategory(db,tid,b.categoryId))return c.json({error:'Categoria inválida para este estabelecimento.'},400);const time=new Date().toISOString(),productId=generateId();
+ const automaticImage=!b.imageUrl?await autoProductImage(db,c.get('services').media,String(b.name)):null;
+ const imageUrl=b.imageUrl||automaticImage?.imageUrl||null;let poolId:string|null=null;if(b.sharedPool){poolId=generateId();const stockQty=Number(b.poolPhysicalQty);if(!Number.isInteger(stockQty)||stockQty<=0)return c.json({error:'Informe o estoque físico total do pool compartilhado.'},400);await db.prepare(`INSERT INTO stock_pools(id,tenant_id,name,sku_code,base_unit,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at) VALUES(?,?,?,?,'un',?,0,?,?,?)`).bind(poolId,tid,String(b.poolName||`${b.name} — estoque compartilhado`),b.poolSku||null,stockQty,Number(b.lowStockThreshold)||0,time,time).run();}await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'variants','embalagem',1000,1,1,0,?,?,0,0,0,?,?)`).bind(productId,tid,b.categoryId||null,b.sku||null,String(b.name).trim(),b.description||'',imageUrl,b.featured?1:0,1,time,time).run();for(let i=0;i<b.variants.length;i++){const v=b.variants[i];const name=String(v.name||'').trim(),price=Number(v.priceCents),deduction=Number(v.deductionQty||1);if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(deduction)||deduction<=0)return c.json({error:'Confira nome, preço e unidades consumidas de cada variação.'},400);await db.prepare(`INSERT INTO product_variants(id,tenant_id,product_id,sku,name,price_cents,promo_price_cents,stock_pool_id,pool_deduction_qty,physical_qty,reserved_qty,low_stock_threshold,sort_order,is_active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,0,0,?,1,?,?)`).bind(generateId(),tid,productId,v.sku||null,name,price,v.promoPriceCents==null?null:Number(v.promoPriceCents),poolId,deduction,poolId?0:Number(v.stockQty||0),i,time,time).run();}return c.json({id:productId,stockPoolId:poolId},201);});
 adminRoutes.get('/products',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId');const {results}=await db.prepare(`SELECT p.*,c.name as category_name,(p.physical_qty-p.reserved_qty) as available_internal FROM products p LEFT JOIN categories c ON c.id=p.category_id AND c.tenant_id=p.tenant_id WHERE p.tenant_id=? AND p.is_deleted=0 ORDER BY p.name`).bind(tid).all<Record<string,any>>();for(const p of results){const {results:variants}=await db.prepare(`SELECT v.*,sp.physical_qty AS pool_physical_qty FROM product_variants v LEFT JOIN stock_pools sp ON sp.id=v.stock_pool_id WHERE v.tenant_id=? AND v.product_id=? AND v.is_active=1 ORDER BY v.sort_order,v.name`).bind(tid,p.id).all();p.variants=variants;}return c.json({products:results});});
 adminRoutes.patch('/products/variant-items/:id',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),id=c.req.param('id'),b=await c.req.json();const name=String(b.name||'').trim(),price=Number(b.priceCents),deduction=Number(b.deductionQty);if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(deduction)||deduction<=0)return c.json({error:'Nome, preço e unidades consumidas são obrigatórios.'},400);const r=await db.prepare(`UPDATE product_variants SET name=?,sku=?,price_cents=?,promo_price_cents=?,pool_deduction_qty=?,updated_at=? WHERE id=? AND tenant_id=? AND is_active=1`).bind(name,b.sku||null,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),deduction,new Date().toISOString(),id,tid).run();return r.meta.changes?c.json({success:true}):c.json({error:'Variação não encontrada.'},404);});
 adminRoutes.post('/products/:id/variants',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),productId=c.req.param('id'),b=await c.req.json();const product=await db.prepare(`SELECT id FROM products WHERE id=? AND tenant_id=? AND sale_mode='variants'`).bind(productId,tid).first();if(!product)return c.json({error:'Produto com variações não encontrado.'},404);if(b.stockPoolId&&!await db.prepare(`SELECT id FROM stock_pools WHERE id=? AND tenant_id=?`).bind(b.stockPoolId,tid).first())return c.json({error:'Pool de estoque inválido para este estabelecimento.'},400);const name=String(b.name||'').trim(),price=Number(b.priceCents),deduction=Number(b.deductionQty||1);if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(deduction)||deduction<=0)return c.json({error:'Confira nome, preço e consumo do estoque.'},400);const id=generateId(),time=new Date().toISOString();await db.prepare(`INSERT INTO product_variants(id,tenant_id,product_id,sku,name,price_cents,promo_price_cents,stock_pool_id,pool_deduction_qty,physical_qty,reserved_qty,low_stock_threshold,sort_order,is_active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,0,0,?,1,?,?)`).bind(id,tid,productId,b.sku||null,name,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),b.stockPoolId||null,deduction,b.stockPoolId?0:Number(b.stockQty||0),Number(b.sortOrder)||0,time,time).run();return c.json({id},201);});
@@ -153,14 +175,16 @@ adminRoutes.post('/products',async(c)=>{
   if(!Number.isInteger(price)||price<0||!Number.isInteger(stock)||stock<0||!Number.isInteger(min)||min<1||!Number.isInteger(step)||step<1)return c.json({error:'Confira preço, estoque, mínimo e incremento do produto.'},400);
   if(isDual&&(!Number.isInteger(unitPrice)||(unitPrice??0)<=0||!Number.isInteger(unitWeight)||(unitWeight??0)<=0))return c.json({error:'Para vender por kg e unidade, informe preço por unidade e peso médio em gramas.'},400);
   const id=generateId(),time=new Date().toISOString();
+  const automaticImage=!b.imageUrl?await autoProductImage(db,c.get('services').media,name):null;
+  const imageUrl=b.imageUrl||automaticImage?.imageUrl||null;
   await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,promo_price_cents,unit_price_cents,unit_weight_grams,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)`)
-    .bind(id,tid,b.categoryId||null,b.sku||null,name,b.description||'',b.imageUrl||null,isWeight?'weight':'unit',isWeight?'kg':(b.unitLabel||'un'),1000,min,step,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),unitPrice,unitWeight,b.featured?1:0,b.active===false?0:1,stock,Number(b.lowStockThreshold)||0,time,time).run();
-  return c.json({id},201);
+    .bind(id,tid,b.categoryId||null,b.sku||null,name,b.description||'',imageUrl,isWeight?'weight':'unit',isWeight?'kg':(b.unitLabel||'un'),1000,min,step,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),unitPrice,unitWeight,b.featured?1:0,b.active===false?0:1,stock,Number(b.lowStockThreshold)||0,time,time).run();
+  return c.json({id,imageUrl,photoSource:automaticImage?.source||'manual'},201);
 });
 adminRoutes.patch('/products/:id',async(c)=>{
   const db=c.get('services').db,tid=c.get('tenantId'),id=c.req.param('id'),b=await c.req.json().catch(()=>({}));
   if(b.categoryId&&!await tenantOwnsCategory(db,tid,b.categoryId))return c.json({error:'Categoria inválida para este estabelecimento.'},400);
-  const current=await db.prepare('SELECT sale_mode,stock_pool_id FROM products WHERE id=? AND tenant_id=? AND is_deleted=0').bind(id,tid).first<{sale_mode:string;stock_pool_id:string|null}>();
+  const current=await db.prepare('SELECT sale_mode,stock_pool_id,image_url,name FROM products WHERE id=? AND tenant_id=? AND is_deleted=0').bind(id,tid).first<{sale_mode:string;stock_pool_id:string|null;image_url:string|null;name:string}>();
   if(!current)return c.json({error:'Produto não encontrado.'},404);
   const requestedMode=b.saleMode;
   if(requestedMode!==undefined){
@@ -169,6 +193,15 @@ adminRoutes.patch('/products/:id',async(c)=>{
     b.unitPriceCents=requestedMode==='dual'?Number(b.unitPriceCents):null;
     b.unitWeightGrams=requestedMode==='dual'?Number(b.unitWeightGrams):null;
     delete b.saleMode;
+  }
+  // Edição opcional: se apagar a imagem ou alterar o nome de um item sem
+  // imagem própria, reaproveitar automaticamente foto compatível.
+  if((b.imageUrl===null||b.imageUrl==='')&&b.name){
+    const automatic=await autoProductImage(db,c.get('services').media,String(b.name));
+    if(automatic.imageUrl)b.imageUrl=automatic.imageUrl;
+  }else if(b.imageUrl===undefined&&b.name&&!current.image_url){
+    const automatic=await autoProductImage(db,c.get('services').media,String(b.name));
+    if(automatic.imageUrl)b.imageUrl=automatic.imageUrl;
   }
   const allowed=['name','description','image_url','category_id','sku','unit_label','pricing_unit_grams','min_qty','step_qty','price_cents','promo_price_cents','unit_price_cents','unit_weight_grams','is_featured','is_active','low_stock_threshold'];
   const map:any={imageUrl:'image_url',categoryId:'category_id',unitLabel:'unit_label',pricingUnitGrams:'pricing_unit_grams',minQty:'min_qty',stepQty:'step_qty',priceCents:'price_cents',promoPriceCents:'promo_price_cents',unitPriceCents:'unit_price_cents',unitWeightGrams:'unit_weight_grams',featured:'is_featured',active:'is_active',lowStockThreshold:'low_stock_threshold'};
