@@ -129,3 +129,16 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - Depois de o administrador cadastrar os três GitHub Secrets `EVOLUTION_API_URL`, `EVOLUTION_API_KEY` e `EVOLUTION_WEBHOOK_TOKEN`, foi feita uma consulta autenticada somente de leitura à API Evolution.
 - Os três segredos foram encontrados no ambiente de produção e a consulta HTTPS a `/instance/fetchInstances` retornou HTTP 200.
 - Nenhuma instância foi criada ou conectada durante essa conferência. O próximo passo é republicar o Worker para carregar as credenciais e, no painel, conectar o WhatsApp da loja com QR Code.
+
+## Atualização — Edição de pedidos por falta de mercadoria (20/11/2026)
+
+- Na aba **Pedidos → Detalhes → Editar itens**, o dono pode reduzir quantidades em **unidades ou gramas** e retirar um produto inteiro antes da saída para entrega; não é possível adicionar novos produtos ou aumentar quantidades nesse fluxo.
+- É obrigatório informar um motivo (que aparece no histórico e na mensagem ao cliente). A janela mostra uma prévia do novo total antes de salvar.
+- A atualização de pedidos, itens, reservas de estoque e histórico ocorre em lote atômico; versão otimista impede edições simultâneas sobre dados desatualizados.
+- Reservas liberadas retornam à disponibilidade apenas se houver estoque físico. Opcionalmente, ao retirar um item, marque **Esgotado na vitrine** para zerar a disponibilidade desse estoque sem interferir nas quantidades reservadas para outros pedidos.
+- Valores são recalculados em centavos (subtotal, total, troco). A taxa de entrega original permanece acordada, evitando cobranças adicionais após o pedido.
+- Histórico de revisões permanece ligado ao pedido e pode ser consultado pelo cliente na página de acompanhamento, que atualiza automaticamente a cada 12 segundos após a consulta autenticada pelo número de telefone.
+- Cada revisão produz aviso com nome do cliente, itens corrigidos, quantidades antigas/novas, motivo e total anterior/atualizado. O aviso é enfileirado com identificador único por revisão na Evolution API, respeitando a autorização do cliente para receber mensagens transacionais por WhatsApp.
+- Se o WhatsApp estiver desconectado, o aviso fica pendente no Histórico de Envios; se o cliente não autorizou o canal, nenhuma mensagem é enviada, mas o acompanhamento exibe o novo valor.
+- Só é possível editar pedidos nas etapas **Recebido**, **Aceito** e **Em preparação**, com estoque ainda reservado. Pedidos já em entrega, entregues e cancelados não podem ser modificados por esse fluxo.
+- Os testes automatizados usam banco SQLite em memória e não modificam o pedido real #1001 nem disparam mensagens externas. Migração D1 incremental `0005_order_adjustments.sql` aplicada com êxito.
