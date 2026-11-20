@@ -20,3 +20,22 @@
 .purchase-mode-choices>small{color:#856b38;font-size:9px}
 .product-info .weight-controls{margin:9px 0;max-width:100%}
 .product-info .weight-controls input{min-width:0}
+
+/* Oferta na vitrine: selo de desconto e preço anterior riscado, como na referência. */
+.product-discount-badge{
+  position:absolute;top:9px;left:9px;z-index:1;
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:5px 8px;border-radius:7px;
+  background:#087f43;color:#fff;font-size:11px;font-weight:800;
+  line-height:1;white-space:nowrap;
+  box-shadow:0 1px 3px rgba(0,0,0,.08);
+}
+.product-price{
+  display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;line-height:1.35;
+}
+.product-price .current-price{font-size:15px;font-weight:800;color:#147740;}
+.product-price .previous-price{
+  font-size:11px;font-weight:400;color:#8c948f;
+  text-decoration:line-through;text-decoration-thickness:1px;
+}
+.product-price small{white-space:nowrap;}
