@@ -2,6 +2,10 @@ name: Preparar banco D1 do Hortifruti
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'migrations/0003_dual_sale_mode.sql'
 
 permissions:
   contents: read
