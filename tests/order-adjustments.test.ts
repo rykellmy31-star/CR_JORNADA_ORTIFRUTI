@@ -115,6 +115,39 @@ describe('ajuste dos pedidos antes da entrega',()=>{
    const count=await db.prepare('SELECT COUNT(*) total FROM order_adjustments WHERE order_id=?').bind(id).first<any>();
    expect(count.total).toBe(0);
  });
+ it('marca produto removido como esgotado sem afetar reservas de outros pedidos',async()=>{
+   const {id,items,patch,tenant}=await setup();
+   const old=await db.prepare('SELECT physical_qty,reserved_qty FROM products WHERE id=? AND tenant_id=?')
+     .bind(items[0].product_id,tenant).first<any>();
+   expect(old.physical_qty).toBeGreaterThan(old.reserved_qty);
+   const res=await patch({
+     expectedVersion:0,reason:'Mercadoria esgotada para novas vendas',
+     updates:[{itemId:items[0].id,quantity:0,markOutOfStock:true}]
+   });
+   expect(res.status).toBe(200);
+   const updated=await db.prepare('SELECT physical_qty,reserved_qty FROM products WHERE id=? AND tenant_id=?')
+     .bind(items[0].product_id,tenant).first<any>();
+   expect(updated.physical_qty).toBe(updated.reserved_qty);
+   expect(updated.physical_qty).toBe(0);
+   const moves=(await db.prepare("SELECT movement_type,delta_physical,delta_reserved,reason FROM stock_movements WHERE tenant_id=? AND order_id=? AND reason LIKE '%Esgotado na vitrine%'")
+     .bind(tenant,id).all<any>()).results;
+   expect(moves).toHaveLength(1);
+   expect(moves[0].delta_physical).toBeLessThan(0);
+   const catalog:any=await (await (await setupCatalog()).json());
+   // A disponibilidade do produto deve ser zero na API da vitrine, sem excluir seu histórico.
+   expect(catalog.products.find((p:any)=>p.id===items[0].product_id)?.available_internal).toBe(0);
+   async function setupCatalog(){
+     const media:any={async putObject(){throw Error('unused')},async getObject(){return null}};
+     const app=createApp({db,media,jwtSecret:'test-secret'.repeat(4),crmApiKey:'test',appEnv:'test',evolution:{}});
+     return app.fetch(new Request('http://local/api/store/verde-vivo'));
+   }
+ });
+ it('não permite marcar como esgotado sem retirar o item',async()=>{
+   const {items,patch}=await setup();
+   const res=await patch({expectedVersion:0,reason:'Tentativa inválida de estoque',
+     updates:[{itemId:items[0].id,quantity:500,markOutOfStock:true}]});
+   expect(res.status).toBe(400);
+ });
  it('reverte toda a edição quando a reserva física mudou',async()=>{
    const {id,items,patch,before,tenant}=await setup();
    await db.prepare('UPDATE products SET reserved_qty=0 WHERE id=? AND tenant_id=?').bind(items[0].product_id,tenant).run();
