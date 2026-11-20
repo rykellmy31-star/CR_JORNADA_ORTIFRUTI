@@ -19,12 +19,13 @@ publicStoreRoutes.get('/:slug', async (c) => {
     FROM tenants WHERE slug = ? AND status = 'active'`).bind(c.req.param('slug')).first<Record<string, any>>();
   if (!tenant) return c.json({ error: 'Loja não encontrada ou temporariamente indisponível.' }, 404);
   const { results: categories } = await db.prepare(`SELECT id, name, slug, icon, sort_order FROM categories WHERE tenant_id = ? AND is_active = 1 ORDER BY sort_order, name`).bind(tenant.id).all();
-  const { results: products } = await db.prepare(`SELECT p.id, p.category_id, p.name, p.description, p.image_url, p.sale_mode, p.unit_label, p.pricing_unit_grams, p.min_qty, p.step_qty, p.preset_quantities_json, p.price_cents, p.promo_price_cents, p.unit_price_cents, p.unit_weight_grams, p.is_featured,
+  const { results: products } = await db.prepare(`SELECT p.id, p.category_id, p.name, p.description, p.image_url, p.sale_mode, p.unit_label, p.pricing_unit_grams, p.min_qty, p.step_qty, p.preset_quantities_json, p.price_cents, p.promo_price_cents, p.unit_price_cents, p.unit_weight_grams, p.is_featured, lib.source_page_url AS photo_source_url, lib.license_name AS photo_license, lib.author AS photo_author,
     CASE WHEN p.sale_mode='weight' AND p.unit_price_cents IS NOT NULL AND p.unit_weight_grams IS NOT NULL
       AND (CASE WHEN p.stock_pool_id IS NOT NULL THEN (sp.physical_qty-sp.reserved_qty) ELSE (p.physical_qty-p.reserved_qty) END)>=p.unit_weight_grams
       THEN 1 ELSE 0 END AS unit_available,
     CASE WHEN p.sale_mode = 'variants' THEN EXISTS (SELECT 1 FROM product_variants av LEFT JOIN stock_pools asp ON asp.id=av.stock_pool_id WHERE av.tenant_id=p.tenant_id AND av.product_id=p.id AND av.is_active=1 AND CASE WHEN av.stock_pool_id IS NOT NULL THEN (asp.physical_qty-asp.reserved_qty)>=av.pool_deduction_qty ELSE (av.physical_qty-av.reserved_qty)>0 END) WHEN p.stock_pool_id IS NOT NULL THEN (sp.physical_qty - sp.reserved_qty) > 0 ELSE (p.physical_qty - p.reserved_qty) > 0 END AS available
     FROM products p LEFT JOIN stock_pools sp ON sp.id = p.stock_pool_id
+    LEFT JOIN product_image_library lib ON lib.image_url=p.image_url
     WHERE p.tenant_id = ? AND p.is_active = 1 AND p.is_deleted = 0
       AND CASE WHEN p.sale_mode = 'variants' THEN EXISTS (SELECT 1 FROM product_variants av LEFT JOIN stock_pools asp ON asp.id=av.stock_pool_id WHERE av.tenant_id=p.tenant_id AND av.product_id=p.id AND av.is_active=1 AND CASE WHEN av.stock_pool_id IS NOT NULL THEN (asp.physical_qty-asp.reserved_qty)>=av.pool_deduction_qty ELSE (av.physical_qty-av.reserved_qty)>0 END) WHEN p.stock_pool_id IS NOT NULL THEN (sp.physical_qty - sp.reserved_qty) > 0 ELSE (p.physical_qty - p.reserved_qty) > 0 END = 1
     ORDER BY p.is_featured DESC, p.name`).bind(tenant.id).all<Record<string, any>>();
