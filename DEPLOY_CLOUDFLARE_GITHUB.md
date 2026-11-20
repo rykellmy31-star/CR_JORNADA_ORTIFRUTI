@@ -154,3 +154,14 @@ A migração inicial deve ser validada em banco staging antes de produção. O d
 - Pedidos ocultos não aparecem na listagem, nos indicadores do proprietário, em relatórios, no Super Admin nem na consulta pública de pedidos. O cadastro do cliente e seus dados são preservados; o contador de pedidos do cliente é recalculado para desconsiderar o teste oculto.
 - A exclusão nunca estorna estoque uma segunda vez, não cancela pedidos ativos automaticamente e impede envio posterior de mensagens pendentes do pedido ocultado.
 - Migração aditiva: `0006_order_visibility_telegram_alerts.sql`. Testes automatizados realizados em banco isolado, sem desconectar números reais nem apagar pedidos de produção.
+
+## Atualização — Menu móvel, créditos e identidade visual (20/11/2026)
+
+- O menu lateral mobile agora pode ser fechado por botão **X** acessível no topo, toque fora, tecla Escape ou escolha de uma opção. Com menu aberto, o plano de fundo recebe uma camada de fechamento; a rolagem do conteúdo principal é bloqueada no celular.
+- O texto **Desenvolvido por Carlos Rykellmy Santos Correia** está presente no rodapé compartilhado de todas as rotas: vitrine, landing, login, proprietário, superadmin e acompanhamento do cliente.
+- Em **Configurações → Identidade da loja**, cada proprietário pode carregar a sua **logomarca** e seu **banner**; imagens escolhidas são convertidas no próprio navegador para WebP e ajustadas para R2 de forma segura, com limite de 20 MB na origem e 5 MB após conversão.
+- São aceitas imagens que o navegador conseguir decodificar, incluindo JPG, PNG, WebP, GIF, AVIF, BMP e outros formatos de imagem; arquivos especiais como HEIC dependem do suporte nativo do aparelho. GIF animado passa a imagem estática no banner. SVG é rasterizado, não publicado como código ativo.
+- Logomarca e banner são salvos imediatamente no D1 da **loja autenticada** após upload no R2 e aparecem na vitrine dela, sem depender do botão geral Salvar alterações. A imagem exibida no logotipo preserva suas proporções.
+- Arquivos sem assinatura válida de imagem ou SVG ativo direto são rejeitados no servidor, protegendo o domínio público.
+- Para evitar o zoom **automático** do Safari iOS ao focar um campo, todos os campos editáveis no celular usam fonte de pelo menos 16px. O zoom manual de acessibilidade não é desativado.
+- As alterações foram revisadas pelos testes automáticos e compilação TypeScript/React antes do deploy.
