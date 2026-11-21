@@ -1,4 +1,4 @@
-import {formatBRL,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
+import {formatBRL,formatPhoneBR,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
 
 import {formatReceiptQuantity,originalPromotionTotal,orderSavings} from '../shared/order-presentation';
 export {formatReceiptQuantity} from '../shared/order-presentation';
@@ -51,7 +51,7 @@ export default function OrderPrintReceipt({order,storeName,footerMessage=''}:{or
   <div className="order-print-section">
    <b>CLIENTE</b>
    <p>{order.customer_name}</p>
-   <p>{order.customer_phone}</p>
+   <p>{formatPhoneBR(order.customer_phone).replace(/^\((\d{2})\) /,'$1 ')}</p>
    <p>{address}</p>
    <p>{order.address_neighborhood}</p>
    {order.address_complement&&<p>Complemento: {order.address_complement}</p>}
