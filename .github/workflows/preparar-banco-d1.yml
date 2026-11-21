@@ -10,6 +10,8 @@ on:
       - 'migrations/0005_order_adjustments.sql'
       - 'migrations/0006_order_visibility_telegram_alerts.sql'
       - 'migrations/0007_shared_product_images.sql'
+      - 'migrations/0008_tenant_store_domains.sql'
+      - 'migrations/0009_store_banners.sql'
 
 permissions:
   contents: read
