@@ -30,6 +30,7 @@ interface ItemRecord {
   sale_mode:'weight'|'unit'|'variants';quantity:number;quantity_display:string;
   stock_deducted_qty:number;unit_price_cents:number;pricing_unit_label:string;
   line_total_cents:number;
+  original_line_total_cents:number|null;
 }
 type Change = {
   itemId:string;name:string;from:string;to:string;
@@ -162,8 +163,8 @@ export async function adjustOrderItems(params:{
         .bind(old.id,tenantId,orderId,old.quantity),requireChanges:1});
     }else{
       steps.push({stmt:db.prepare(`UPDATE order_items SET quantity=?,quantity_display=?,stock_deducted_qty=?,
-        line_total_cents=? WHERE id=? AND tenant_id=? AND order_id=? AND quantity=?`)
-        .bind(next.quantity,next.display,next.deducted,next.total,old.id,tenantId,orderId,old.quantity),requireChanges:1});
+        line_total_cents=?,original_line_total_cents=? WHERE id=? AND tenant_id=? AND order_id=? AND quantity=?`)
+        .bind(next.quantity,next.display,next.deducted,next.total,old.original_line_total_cents==null?null:Math.round(old.original_line_total_cents*next.quantity/old.quantity),old.id,tenantId,orderId,old.quantity),requireChanges:1});
     }
     steps.push({
       stmt:db.prepare(`UPDATE ${target.table} SET reserved_qty=reserved_qty-?,updated_at=?

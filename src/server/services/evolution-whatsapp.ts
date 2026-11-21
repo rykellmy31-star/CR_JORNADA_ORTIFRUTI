@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import {formatWhatsAppItems,orderSavings} from '../../shared/order-presentation';
 import {recordWhatsAppDisconnection,processPendingTelegramAlerts,telegramAlertsConfigured} from './telegram-alerts';
 import type { DbClient } from '../db/adapter';
 import { generateId } from '../security/crypto';
@@ -38,17 +39,17 @@ export const DEFAULT_WHATSAPP_TEMPLATES: Array<{
 }> = [
   {
     event_type: 'order_received',
-    title: 'Pedido Recebido (Aguardando Confirmação)',
+    title: 'Pedido recebido (Detalhes da compra)',
     is_enabled: 1,
     message_template:
-      'Olá, {primeiro_nome}! 🥬 Recebemos o seu pedido *#{numero_pedido}* no *{nome_estabelecimento}* e ele aguarda confirmação.\n\nValor total: *{valor_total}*\nPagamento: {forma_pagamento}{troco_info}\n\nAssim que o estabelecimento aceitar o pedido, avisaremos você por aqui!',
+      "Oba! Recebemos seu pedido! 🥳\n\n🥬 *{nome_estabelecimento}*\n\nPedido *nº {numero_pedido}*\n\n*🛒 Itens do pedido:*\n\n{itens_pedido}\n\n─────────────────\n*Subtotal:* {subtotal}\n🛵 *Entrega:* {taxa_entrega}\n💰 *Total: {valor_total}*{economia_info}\n\n─────────────────\n💳 *Pagamento:* {forma_pagamento}{troco_info}\n\n🏠 *Endereço de entrega:*\n{endereco_entrega}\n\n📋 *Status:* Pedido recebido\n\nAvisaremos você assim que seu pedido avançar para a próxima etapa.\n\nObrigado pela preferência! 💚",
   },
   {
     event_type: 'order_accepted',
-    title: 'Pedido Aceito (Com Resumo Completo)',
+    title: 'Pedido aceito (Previsão de entrega)',
     is_enabled: 1,
     message_template:
-      'Olá, {primeiro_nome}! ✅ Seu pedido *#{numero_pedido}* no *{nome_estabelecimento}* foi *ACEITO*!\n\n*Produtos solicitados:*\n{itens_pedido}\n\nSubtotal: {subtotal}\nTaxa de entrega: {taxa_entrega}\n*Total: {valor_total}*\nPagamento: {forma_pagamento}{troco_info}\n\nVocê será avisado automaticamente assim que o seu pedido sair para entrega! 🚚',
+      "🥳 Oba! Seu pedido foi aceito!\n\nO seu pedido *Nº {numero_pedido}* está em preparação.\n\n⏱️ A previsão estimada é de *{previsao_entrega}* para seu pedido chegar.\n\n🥬 *{nome_estabelecimento}*",
   },
   {
     event_type: 'order_preparing',
@@ -509,6 +510,8 @@ export function renderWhatsAppOrderTemplate(
     troco_info: string;
     endereco_entrega: string;
     status_pedido: string;
+    economia_info?:string;
+    previsao_entrega?:string;
   }
 ): string {
   return template
@@ -523,7 +526,9 @@ export function renderWhatsAppOrderTemplate(
     .replace(/\{forma_pagamento\}/g, vars.forma_pagamento)
     .replace(/\{troco_info\}/g, vars.troco_info)
     .replace(/\{endereco_entrega\}/g, vars.endereco_entrega)
-    .replace(/\{status_pedido\}/g, vars.status_pedido);
+    .replace(/\{status_pedido\}/g, vars.status_pedido)
+    .replace(/\{economia_info\}/g,vars.economia_info||'')
+    .replace(/\{previsao_entrega\}/g,vars.previsao_entrega||'30 a 40 minutos');
 }
 
 /**
@@ -538,9 +543,9 @@ export async function enqueueAndDispatchOrderWhatsAppNotification(
   envCfg: EvolutionEnvConfig
 ): Promise<{ queued: boolean; status: string; queueId?: string }> {
   const tenant = await db
-    .prepare(`SELECT id, name, slug FROM tenants WHERE id = ?`)
+    .prepare(`SELECT id, name, slug, delivery_eta_text FROM tenants WHERE id = ?`)
     .bind(tenantId)
-    .first<{ id: string; name: string; slug: string }>();
+    .first<{ id: string; name: string; slug: string; delivery_eta_text:string }>();
 
   if (!tenant) return { queued: false, status: 'tenant_not_found' };
 
@@ -622,7 +627,7 @@ export async function enqueueAndDispatchOrderWhatsAppNotification(
 
   const { results: items } = await db
     .prepare(
-      `SELECT product_name_snapshot, quantity_display, line_total_cents
+      `SELECT product_name_snapshot, variant_name_snapshot, quantity_display, line_total_cents, original_line_total_cents
        FROM order_items
        WHERE order_id = ? AND tenant_id = ?`
     )
@@ -631,14 +636,12 @@ export async function enqueueAndDispatchOrderWhatsAppNotification(
       product_name_snapshot: string;
       quantity_display: string;
       line_total_cents: number;
+      variant_name_snapshot:string|null;
+      original_line_total_cents:number|null;
     }>();
 
-  const itemsText = items
-    .map(
-      (it) =>
-        `• ${it.product_name_snapshot} (${it.quantity_display}) — ${formatBRL(it.line_total_cents)}`
-    )
-    .join('\n');
+  const itemsText=formatWhatsAppItems(items);
+  const savings=orderSavings(items);
 
   const paymentLabel =
     PAYMENT_METHOD_LABELS[order.payment_method as PaymentMethod] || order.payment_method;
@@ -669,11 +672,13 @@ export async function enqueueAndDispatchOrderWhatsAppNotification(
     itens_pedido: itemsText,
     subtotal: formatBRL(order.subtotal_cents),
     taxa_entrega:
-      order.delivery_fee_cents === 0 ? 'Grátis' : formatBRL(order.delivery_fee_cents),
+      order.delivery_fee_cents === 0 ? 'GRÁTIS' : formatBRL(order.delivery_fee_cents),
     valor_total: formatBRL(order.total_cents),
     forma_pagamento: paymentLabel,
     troco_info: trocoInfo,
-    endereco_entrega: addressParts.join(' - '),
+    endereco_entrega: addressParts.join('\n'),
+    economia_info:savings>0?'\n🎉 *Você economizou '+formatBRL(savings)+'!*':'',
+    previsao_entrega:tenant.delivery_eta_text||'30 a 40 minutos',
     status_pedido: order.cancel_reason
       ? `${statusLabel} — ${order.cancel_reason}`
       : statusLabel,

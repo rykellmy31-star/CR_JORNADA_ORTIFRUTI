@@ -1,10 +1,14 @@
-import {formatBRL,formatWeightGrams,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
+import {formatBRL,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
+
+import {formatReceiptQuantity,originalPromotionTotal,orderSavings} from '../shared/order-presentation';
+export {formatReceiptQuantity} from '../shared/order-presentation';
 
 export type PrintableOrderItem={
  product_name_snapshot:string;
  variant_name_snapshot?:string|null;
  quantity_display:string;
  line_total_cents:number;
+ original_line_total_cents?:number|null;
 };
 export type PrintableOrder={
  order_number:number;
@@ -27,35 +31,9 @@ export type PrintableOrder={
  items:PrintableOrderItem[];
 };
 
-/** Resume pesos das opções de preço fechado, sem alterar o pedido ou seus valores.
- * Embalagens e opções sem um peso inequívoco mantêm a quantidade e o nome originais. */
-export function formatReceiptQuantity(item:PrintableOrderItem):string{
- const display=item.quantity_display.trim();
- const variant=item.variant_name_snapshot?.trim();
- if(!variant)return display;
- const counted=display.match(/^(\d+)\s*[x×]\s*(.+)$/i);
- if(!counted||counted[2].trim()!==variant)return display;
- const count=Number(counted[1]);
- if(!Number.isSafeInteger(count)||count<=0)return display;
- const label=variant.toLowerCase().replace(/\s+/g,' ');
- let grams=0;
- if(/^(?:meio|meia)\s*(?:kg|quilo|quilograma)$/.test(label))grams=500;
- else{
-  const weight=label.match(/^(\d+(?:[,.]\d+)?)\s*(kg|quilo(?:s)?|quilograma(?:s)?|g|grama(?:s)?)$/);
-  if(weight){
-   const amount=Number(weight[1].replace(',','.'));
-   grams=amount*(/^(?:kg|quilo)/.test(weight[2])?1000:1);
-  }
- }
- const total=Math.round(grams*count);
- if(grams>0&&Math.abs(grams-Math.round(grams))<1e-8&&Number.isSafeInteger(total)&&total>0){
-  return formatWeightGrams(total);
- }
- return display;
-}
-
 /** Comanda não fiscal para a janela de impressão nativa do navegador. */
-export default function OrderPrintReceipt({order,storeName}:{order:PrintableOrder;storeName:string}){
+export default function OrderPrintReceipt({order,storeName,footerMessage=''}:{order:PrintableOrder;storeName:string;footerMessage?:string}){
+ const savings=orderSavings(order.items||[]);
  const payment=PAYMENT_METHOD_LABELS[order.payment_method as keyof typeof PAYMENT_METHOD_LABELS]||order.payment_method;
  const status=ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS]||order.status;
  const created=new Date(order.created_at).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
@@ -64,7 +42,7 @@ export default function OrderPrintReceipt({order,storeName}:{order:PrintableOrde
   <header className="order-print-header">
    <h1>{storeName}</h1>
    <strong>COMANDA DE PEDIDO</strong>
-   <small>Documento não fiscal</small>
+   <small>CR Jornada Express · Documento não fiscal</small>
   </header>
   <div className="order-print-rule">
    <p><b>PEDIDO #{order.order_number}</b><span>{created}</span></p>
@@ -83,27 +61,28 @@ export default function OrderPrintReceipt({order,storeName}:{order:PrintableOrde
    <b>PRODUTOS</b>
    <table>
     <thead><tr><th>Item / quantidade</th><th>Valor</th></tr></thead>
-    <tbody>{(order.items||[]).map((item,i)=><tr key={i}>
+    <tbody>{(order.items||[]).map((item,i)=>{const original=originalPromotionTotal(item);return <tr key={i}>
      <td><b>{item.product_name_snapshot}</b>
       <span>{formatReceiptQuantity(item)}</span>
+      {original!==null&&<small>EM PROMOÇÃO</small>}
      </td>
-     <td>{formatBRL(item.line_total_cents)}</td>
-    </tr>)}</tbody>
+     <td>{original!==null?<><s className="order-print-old-price">{formatBRL(original)}</s><b className="order-print-new-price">{formatBRL(item.line_total_cents)}</b></>:formatBRL(item.line_total_cents)}</td>
+    </tr>})}</tbody>
    </table>
   </div>
   <div className="order-print-totals">
    <p><span>Subtotal</span><b>{formatBRL(order.subtotal_cents)}</b></p>
-   <p><span>Entrega</span><b>{formatBRL(order.delivery_fee_cents)}</b></p>
+   <p><span>Entrega</span><b>{order.delivery_fee_cents===0?'GRÁTIS':formatBRL(order.delivery_fee_cents)}</b></p>
    <p className="order-print-grand-total"><span>TOTAL</span><b>{formatBRL(order.total_cents)}</b></p>
   </div>
-  <div className="order-print-section">
-   <b>PAGAMENTO</b>
-   <p>{payment}</p>
+  {savings>0&&<div className="order-print-savings">VOCÊ ECONOMIZOU {formatBRL(savings)}!</div>}
+  <div className="order-print-section order-print-payment">
+   <p><b>PAGAMENTO</b><span>{payment}</span></p>
    {!!order.needs_change&&<>
     <p>Troco para: {formatBRL(order.change_for_cents||0)}</p>
     <p>Troco a devolver: {formatBRL(order.change_amount_cents||0)}</p>
    </>}
   </div>
-  <footer className="order-print-footer">CR Jornada Express · Comanda não fiscal</footer>
+  {footerMessage.trim()&&<footer className="order-print-footer">{footerMessage}</footer>}
  </section>;
 }
