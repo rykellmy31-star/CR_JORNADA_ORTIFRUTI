@@ -15,6 +15,34 @@ export const adminRoutes = new Hono<AppHonoEnv>();
 adminRoutes.use('*', requireTenantAdmin());
 async function tenantOwnsCategory(db:any,tenantId:string,categoryId:string|null|undefined){if(!categoryId)return true;const found=await db.prepare(`SELECT id FROM categories WHERE id=? AND tenant_id=?`).bind(categoryId,tenantId).first();return !!found;}
 
+// Primeira etapa da integração com impressoras térmicas: gestão da fila.
+adminRoutes.get('/printing',async(c)=>{
+ const db=c.get('services').db,tenantId=c.get('tenantId');
+ const store=await db.prepare('SELECT auto_print_enabled FROM tenants WHERE id=?')
+  .bind(tenantId).first<{auto_print_enabled:number}>();
+ const {results:jobs}=await db.prepare(`SELECT id,order_id,order_number,job_type,status,attempts,
+  last_error,created_at,updated_at,printed_at
+  FROM print_jobs WHERE tenant_id=? ORDER BY created_at DESC LIMIT 50`)
+  .bind(tenantId).all();
+ return c.json({enabled:store?.auto_print_enabled===1,jobs});
+});
+
+// A fila é opt-in. Ativar sem aplicativo Android conectado não produz impressão.
+adminRoutes.patch('/printing/settings',async(c)=>{
+ const user=c.get('authUser');
+ if(!['owner','manager'].includes(user.role))
+  return c.json({error:'Apenas proprietário ou gerente pode configurar impressoras.'},403);
+ const payload=z.object({enabled:z.boolean()}).safeParse(await c.req.json().catch(()=>null));
+ if(!payload.success)return c.json({error:'Informe enabled como verdadeiro ou falso.'},400);
+ const now=new Date().toISOString(),tenantId=c.get('tenantId');
+ await c.get('services').db.prepare('UPDATE tenants SET auto_print_enabled=?,updated_at=? WHERE id=?')
+  .bind(payload.data.enabled?1:0,now,tenantId).run();
+ await logAudit(c.get('services').db,{tenantId,actorUserId:user.sub,actorRole:user.role,
+  action:'printing.settings_changed',entityType:'tenant',entityId:tenantId,
+  details:{enabled:payload.data.enabled}});
+ return c.json({enabled:payload.data.enabled,requiresAndroidBridge:true});
+});
+
 adminRoutes.get('/dashboard', async (c) => {
   const db=c.get('services').db, tenantId=c.get('tenantId');
   const {results: counts}=await db.prepare(`SELECT status, COUNT(*) AS count FROM orders WHERE tenant_id=? AND deleted_at IS NULL AND date(created_at)=date('now','localtime') GROUP BY status`).bind(tenantId).all<{status:string;count:number}>();
