@@ -15,7 +15,7 @@ describe('identidade CR Jornada Express',()=>{
   expect(app).not.toContain('Super Admin do Hortifruti');
  });
  it('mantém os domínios legados para não quebrar acesso de lojistas',()=>{
-  expect(HORTIFRUTI_ADMIN_URL).toBe('https://hortifruti.crjornada.com');
+  expect(HORTIFRUTI_ADMIN_URL).toBe('https://hortifruti.crjornada.com/admin');
   expect(HORTIFRUTI_SUPERADMIN_URL).toBe('https://hortifruti-admin.crjornada.com');
  });
 });
