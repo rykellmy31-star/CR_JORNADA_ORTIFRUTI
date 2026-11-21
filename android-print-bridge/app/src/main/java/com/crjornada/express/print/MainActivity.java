@@ -90,9 +90,18 @@ public final class MainActivity extends Activity {
     AndroidUpdater.requestInstall(this,pendingInstall);pendingInstall=null;
    }catch(Exception ex){message("Falha ao abrir instalador: "+ex.getMessage());}
   }
-  checkUpdates(false);
+  boolean fromNotification=getIntent().getBooleanExtra("CHECK_UPDATE_NOW",false);
+  if(fromNotification)getIntent().removeExtra("CHECK_UPDATE_NOW");
+  checkUpdates(fromNotification);
  }
  @Override protected void onPause(){handler.removeCallbacks(refresh);super.onPause();}
+ @Override protected void onNewIntent(Intent intent){
+  super.onNewIntent(intent);
+  setIntent(intent);
+  if(intent!=null&&intent.getBooleanExtra("CHECK_UPDATE_NOW",false)){
+   intent.removeExtra("CHECK_UPDATE_NOW");checkUpdates(true);
+  }
+ }
  private void refreshDisplay(){
   if(deviceInfo!=null)deviceInfo.setText(store.token().isEmpty()?"Loja não pareada":"Vinculado: "+store.storeName()+" ("+store.slug()+")");
   if(printerInfo!=null)printerInfo.setText(store.printerAddress().isEmpty()?"Impressora: não selecionada":"Impressora: "+store.printerAddress());
