@@ -27,6 +27,7 @@ export default function FixedPriceProductCard({p,getLine,setLine,img,money}:{
   document.addEventListener('keydown',key);
   return()=>{document.body.style.overflow=previous;document.removeEventListener('keydown',key);};
  },[open]);
+ const openOptions=()=>setOpen(true);
  const close=()=>{setOpen(false);setSelectedId('');setQuantity(1);};
  const add=()=>{
   if(!selected)return;
@@ -34,16 +35,18 @@ export default function FixedPriceProductCard({p,getLine,setLine,img,money}:{
   close();
  };
  return <>
-  <article className="product-card fixed-price-card">
-   <div className="product-photo"><img src={img(p.image_url||undefined)} loading="lazy" alt={p.name}/>
-    <div className="fresh-pill"><span/> Preço fixo</div>
-   </div>
+  <article className="product-card fixed-price-card" onClick={openOptions}>
+   <button type="button" className="product-photo fixed-product-photo-trigger"
+    aria-label={'Escolher quantidade de '+p.name} onClick={openOptions}>
+    <img src={img(p.image_url||undefined)} loading="lazy" alt={p.name}/>
+    <span className="fresh-pill"><span/> Preço fixo</span>
+   </button>
    <div className="product-info">
     <small className="product-category">ESCOLHA A QUANTIDADE</small>
-    <h3>{p.name}</h3>
+    <h3><button type="button" className="fixed-product-name-trigger" onClick={openOptions}>{p.name}</button></h3>
     {p.description&&<p className="product-desc">{p.description}</p>}
     <div className="product-price"><span className="current-price">a partir de {money(minimum)}</span></div>
-    <button type="button" className="add-btn fixed-open-button" onClick={()=>setOpen(true)}>
+    <button type="button" className="add-btn fixed-open-button" onClick={openOptions}>
      <Plus size={16}/> Escolher quantidade
     </button>
    </div>
