@@ -55,6 +55,12 @@ describe('comanda para impressão direta do navegador',()=>{
   expect(html).toContain('&lt;script&gt;');
   expect(html).toContain('&lt;img');
  });
+ it('exibe promoção, economia, entrega grátis e mensagem personalizada sem repetir a marca no rodapé',()=>{
+  const data=order();data.items[0].original_line_total_cents=1800;data.delivery_fee_cents=0;data.total_cents=data.subtotal_cents;
+  const html=renderToStaticMarkup(createElement(OrderPrintReceipt,{order:data,storeName:'Loja',footerMessage:'Volte sempre!'}));
+  for(const label of ['R$ 18,00','EM PROMOÇÃO','VOCÊ ECONOMIZOU R$ 3,00!','GRÁTIS','Volte sempre!','CR Jornada Express · Documento não fiscal'])expect(html).toContain(label);
+  expect(html).not.toContain('Desconto promocional');
+ });
  it('identifica pedidos cancelados para evitar comanda de venda incorreta',()=>{
   const data=order();data.status='cancelled';
   const html=renderToStaticMarkup(createElement(OrderPrintReceipt,{order:data,storeName:'Loja'}));

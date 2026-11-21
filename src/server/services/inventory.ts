@@ -37,6 +37,7 @@ export interface PreparedOrderLine {
   unit_price_cents: number;
   pricing_unit_label: string;
   line_total_cents: number;
+  original_line_total_cents?: number|null;
 }
 
 interface ProductRow {
@@ -196,6 +197,7 @@ export async function validateAndPrepareOrderLines(
         unit_price_cents: effectivePrice,
         pricing_unit_label: variant.name,
         line_total_cents: lineTotal,
+        original_line_total_cents: effectivePrice<variant.price_cents?calculateLineTotalCents(variant.price_cents,rawItem.quantity,'variants',1):null,
       });
 
       subtotalCents += lineTotal;
@@ -271,6 +273,7 @@ export async function validateAndPrepareOrderLines(
         unit_price_cents: effectivePrice,
         pricing_unit_label: label,
         line_total_cents: lineTotal,
+        original_line_total_cents: !isUnitFromWeight&&effectivePrice<product.price_cents?calculateLineTotalCents(product.price_cents,rawItem.quantity,purchaseMode,product.pricing_unit_grams):null,
       });
 
       subtotalCents += lineTotal;
