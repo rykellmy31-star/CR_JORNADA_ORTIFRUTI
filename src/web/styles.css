@@ -434,3 +434,48 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
  .express-showcase-product>span{width:35px;height:36px;font-size:21px}
  .express-showcase-checkout span:last-child{font-size:8px}
 }
+
+
+/* CR Jornada Express: painel de impressão térmica (mobile-first). */
+.print-panel{display:grid;gap:18px;max-width:1250px}
+.print-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.print-heading>svg{color:#178349;flex-shrink:0}
+.print-heading h1{font-size:clamp(24px,3vw,32px);color:#234734;letter-spacing:-.5px;margin:6px 0}
+.print-heading p{font-size:13px;color:#6b7f70;line-height:1.5}
+.print-card{padding:24px;display:grid;gap:14px}
+.print-card-header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.print-card-header h2{margin:0 0 6px;display:flex;align-items:center;gap:8px;font-size:17px}
+.print-card-header>svg{color:#2b8d59;flex-shrink:0}
+.print-card-header p{font-size:12px;line-height:1.5;color:#6f8075}
+.print-actions{display:flex;flex-wrap:wrap;gap:10px}
+.print-status{display:inline-flex;align-items:center;white-space:nowrap;border-radius:99px;
+ padding:6px 11px;font-size:11px;font-weight:700;background:#f1f3f2;color:#52665a}
+.print-status.active,.print-status.printed{background:#e5f6e9;color:#167d46}
+.print-status.queued,.print-status.leased{background:#fff6db;color:#8d661c}
+.print-status.failed{background:#fff0ed;color:#a32929}
+.print-hint{color:#687f70;font-size:12px;line-height:1.6;max-width:850px}
+.print-pair-code{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:16px;
+ border-radius:13px;border:1px dashed #73a88c;background:#f4fcf7}
+.print-pair-code strong{font-size:clamp(17px,3vw,25px);letter-spacing:1.4px;color:#1d5438;word-break:break-all}
+.print-pair-code small{width:100%;color:#5b7465;font-size:11px}
+.print-device-list{display:grid;gap:10px;margin-top:5px}
+.print-device-row{display:flex;align-items:center;gap:12px;border:1px solid #e4ece6;
+ border-radius:12px;padding:12px}
+.print-device-icon{width:41px;height:41px;border-radius:11px;background:#e6f5ea;
+ color:#258953;display:grid;place-items:center;flex-shrink:0}
+.print-device-row>div{flex:1;min-width:0;display:grid;gap:3px}
+.print-device-row b{font-size:12px}
+.print-device-row small{font-size:11px;color:#657669;line-height:1.5}
+.print-card .table-wrap{max-width:100%;overflow-x:auto}
+.print-card table{width:100%;font-size:12px}
+.print-card th,.print-card td{white-space:nowrap;padding:11px 12px}
+.print-card td small{white-space:normal;max-width:220px}
+@media(max-width:700px){
+ .print-card{padding:15px}
+ .print-card-header h2{font-size:15px}
+ .print-card-header p{font-size:11px}
+ .print-device-row{flex-wrap:wrap}
+ .print-device-row .btn{width:100%;justify-content:center}
+ .print-pair-code{gap:8px}
+ .print-pair-code strong{letter-spacing:1px}
+}
