@@ -162,6 +162,14 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
       statements.push(db.prepare(`INSERT INTO order_items (id, tenant_id, order_id, product_id, variant_id, stock_pool_id, product_name_snapshot, variant_name_snapshot, sku_snapshot, sale_mode, quantity, quantity_display, stock_deducted_qty, unit_price_cents, pricing_unit_label, line_total_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(line.id, tenant.id, orderId, line.product_id, line.variant_id, line.stock_pool_id, line.product_name_snapshot, line.variant_name_snapshot, line.sku_snapshot, line.sale_mode, line.quantity, line.quantity_display, line.stock_deducted_qty, line.unit_price_cents, line.pricing_unit_label, line.line_total_cents));
     }
+    // Gera a comanda na MESMA transação do pedido: falha no checkout não cria
+    // impressão órfã; cada pedido tem uma única comanda inicial por loja.
+    // Sem Android pareado, a fila só guarda o trabalho — não imprime sozinha.
+    statements.push(db.prepare(`INSERT INTO print_jobs
+      (id,tenant_id,order_id,order_number,idempotency_key,created_at,updated_at)
+      SELECT ?,t.id,?,?,?,?,? FROM tenants t
+      WHERE t.id=? AND t.auto_print_enabled=1`)
+      .bind(generateId(),orderId,orderNumber,`new-order:${orderId}`,timestamp,timestamp,tenant.id));
     const stockSteps = buildAtomicStockReservationSteps(db, tenant.id, orderId, orderNumber, prepared.lines, timestamp);
     await runConditionalTransaction(db, [...statements.map((stmt) => ({ stmt })), ...stockSteps]);
     await db.prepare(`UPDATE customers SET total_spent_cents = total_spent_cents + ? WHERE id = ? AND tenant_id = ?`).bind(total, customerId, tenant.id).run();
