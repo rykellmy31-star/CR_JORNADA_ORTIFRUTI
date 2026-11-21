@@ -1,8 +1,10 @@
-# CR Jornada Hortifruti
+# CR Jornada Express
 
-Plataforma SaaS multiempresa de vendas online para hortifrutis e verdurões. Aplicação construída com React + TypeScript + Vite, API Hono, SQLite para desenvolvimento e Cloudflare Workers + D1 + R2 para produção.
+Plataforma SaaS multiempresa de comércio online para hortifrutis, verdurões, mercearias, mercados, minimercados e lojas de produtos alimentícios. Aplicação construída com React + TypeScript + Vite, API Hono, SQLite para desenvolvimento e Cloudflare Workers + D1 + R2 para produção.
 
 > **Estado desta entrega:** base operacional do MVP implementada e testada localmente (lojas, checkout somente na entrega, reservas atômicas de estoque, administração, isolamento por tenant, CRM API, Evolution API preparada, outbox/retentativas e interface responsiva). A implantação pública ainda depende das contas/credenciais Cloudflare, GitHub privado, URL/chave da Evolution API e credenciais finais do SuperAdmin/CRM. O modo WhatsApp sem Evolution configurada é explicitamente homologação: não envia mensagens reais.
+
+> **Compatibilidade de produção:** a marca exibida passa a ser CR Jornada Express. Os endereços legados `hortifruti.crjornada.com` e `hortifruti-admin.crjornada.com`, identificadores internos do Worker, banco D1, URLs de API e cadastros das lojas continuam inalterados para preservar conexões e clientes existentes.
 
 ## Funcionalidades
 
