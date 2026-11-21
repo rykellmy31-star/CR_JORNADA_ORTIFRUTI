@@ -35,6 +35,22 @@ jobs:
           gradle-version: '8.11.1'
       - name: Testar compilação APK debug
         run: gradle -p android-print-bridge :app:assembleDebug --no-daemon --stacktrace
+      - name: Testar assinatura do release com chave descartável de CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_SIGNING_KEYSTORE_PATH="$RUNNER_TEMP/cr-express-test-only.jks"
+          keytool -genkeypair -noprompt -keystore "$ANDROID_SIGNING_KEYSTORE_PATH" \
+            -storepass TestOnly1234 -keypass TestOnly1234 -alias citest \
+            -keyalg RSA -keysize 2048 -validity 1 -dname "CN=CR CI Test"
+          export ANDROID_KEYSTORE_PASSWORD=TestOnly1234
+          export ANDROID_KEY_ALIAS=citest
+          export ANDROID_KEY_PASSWORD=TestOnly1234
+          export APP_VERSION_CODE=200002
+          gradle -p android-print-bridge :app:assembleRelease --no-daemon
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose \
+            android-print-bridge/app/build/outputs/apk/release/app-release.apk
+          rm -f "$ANDROID_SIGNING_KEYSTORE_PATH" android-print-bridge/app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@v4
         with:
           name: cr-jornada-express-impressao-android-debug
