@@ -91,7 +91,7 @@ const cartLineKey=(line:CartLine)=>[line.product.id,line.variant?.id||'',line.pu
 
 /** Imagem sem recorte: texto e botão ficam fora da arte, inclusive em celular. */
 function StoreBannerCarousel({store,banners}:{store:any;banners:any[]}){
- const slides=banners.length?banners:[{id:'default',image_url:'/images/banners/hero-hortifruti.jpg',mobile_image_url:null}];
+ const slides=banners.length?banners:[{id:'default',image_url:'',mobile_image_url:null}];
  const [index,setIndex]=useState(0);
  useEffect(()=>setIndex(0),[store.id]);
  useEffect(()=>{
@@ -105,11 +105,14 @@ function StoreBannerCarousel({store,banners}:{store:any;banners:any[]}){
  const go=(delta:number)=>setIndex(i=>(i+delta+slides.length)%slides.length);
  return <section className="store-banner-carousel" aria-label="Banners da loja">
   <div className={`store-banner-frame ${selected.mobile_image_url?'has-mobile-banner':''}`}>
-   <picture key={selected.id}>
+   {selected.image_url?<picture key={selected.id}>
     {selected.mobile_image_url&&<source media="(max-width:680px)" srcSet={selected.mobile_image_url}/>}
     <img className="store-banner-image" src={selected.image_url}
      alt={`Banner ${index%slides.length+1} de ${store.name}`} loading="eager" decoding="async"/>
-   </picture>
+   </picture>:<div className="store-banner-express-default" role="img" aria-label="Vitrine de produtos variados">
+    <div className="store-banner-express-emojis" aria-hidden="true">🛒 🍎 🥖 🥬</div>
+    <strong>Bem-vindo à nossa loja!</strong><span>Produtos, novidades e ofertas para você</span>
+   </div>}
   </div>
   <div className="store-banner-bottom">
    <div className="store-banner-copy">
@@ -129,6 +132,11 @@ function StoreBannerCarousel({store,banners}:{store:any;banners:any[]}){
  </section>;
 }
 function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOverride||useLocation().pathname.split('/')[2]||'';const[storeData,setStoreData]=useState<any>(null),[showSignup,setShowSignup]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState(''),[cat,setCat]=useState('all'),[cart,setCart]=useState<CartLine[]>([]),[checkout,setCheckout]=useState(false),[placed,setPlaced]=useState<any>(null),[loading,setLoading]=useState(true),[mobileCart,setMobileCart]=useState(false);const navigate=useNavigate();
+ useEffect(()=>{
+  if(!storeData?.store?.name)return;
+  document.title=storeData.store.name+' | Loja Online';
+  return()=>{document.title='CR Jornada Express';};
+ },[storeData?.store?.name]);
  const categoryListRef=useRef<HTMLDivElement>(null);
  const [canScrollCategoriesBack,setCanScrollCategoriesBack]=useState(false);
  const [canScrollCategoriesForward,setCanScrollCategoriesForward]=useState(false);
@@ -185,7 +193,7 @@ function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOve
  const getLine=(product:any,variant:any,purchaseMode:PurchaseMode)=>cart.find(x=>cartLineKey(x)===cartLineKey({product,variant,purchaseMode,quantity:1}))?.quantity||0;
  const removeLine=(line:CartLine)=>setCart(old=>removeCartSelection(old,line));
  if(loading)return <div className="loading"><span className="spinner"/>Carregando a loja…</div>;if(error||!store)return <div className="center-page"><h2>Não foi possível carregar esta loja</h2><p>{error}</p><button type="button" className="btn btn-primary" onClick={()=>window.location.reload()}>Tentar novamente</button></div>;
- return <div className="storefront" style={{'--store-color':store.primary_color||'#16834b'} as any}><div className="announcement"><ShoppingCart size={14}/> Ofertas e novidades da sua loja <span>•</span> Entrega no seu bairro</div><header className="store-header"><div className="store-logo"><span className="store-logo-icon">{store.logo_url?<img src={store.logo_url} alt={`Logomarca de ${store.name}`}/>:<Leaf size={24}/>}</span><span><b>{store.name}</b><small>Fresquinho todo dia</small></span></div><div className="store-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="O que você procura hoje?"/><kbd>⌘ K</kbd></div><div className="store-head-actions"><a className="contact-link" href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank"><MessageCircle size={17}/><span>Fale conosco</span></a><button className="cart-head" onClick={()=>setMobileCart(true)}><ShoppingCart size={19}/><span className="cart-count" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'} na cesta`}>{cartItemCount}</span></button></div></header>
+ return <div className="storefront" style={{'--store-color':store.primary_color||'#16834b'} as any}><div className="announcement"><ShoppingCart size={14}/> Ofertas e novidades da sua loja <span>•</span> Entrega no seu bairro</div><header className="store-header"><div className="store-logo"><span className="store-logo-icon">{store.logo_url?<img src={store.logo_url} alt={`Logomarca de ${store.name}`}/>:<Store size={24}/>}</span><span><b>{store.name}</b><small>Sua loja online</small></span></div><div className="store-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="O que você procura hoje?"/><kbd>⌘ K</kbd></div><div className="store-head-actions"><a className="contact-link" href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank"><MessageCircle size={17}/><span>Fale conosco</span></a><button className="cart-head" onClick={()=>setMobileCart(true)}><ShoppingCart size={19}/><span className="cart-count" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'} no carrinho`}>{cartItemCount}</span></button></div></header>
  <main className="store-body"><StoreBannerCarousel store={store} banners={storeData?.banners||[]}/><div className="store-benefits"><span><Truck/> Entrega no mesmo dia</span><span><Check/> Pagamento na entrega</span><span><Clock/> {store.business_hours}</span></div><div className="catalog-layout" id="catalogo"><section className="catalog-main"><div className="catalog-heading"><div><span className="eyebrow">SUA LOJA, SUAS ESCOLHAS</span><h2>Escolha seus produtos</h2></div><span className="result-count">{shown.length} produtos disponíveis</span></div><div className="category-nav" aria-label="Categorias de produtos">
  <button type="button" className="category-nav-arrow" aria-label="Ver categorias anteriores"
    disabled={!canScrollCategoriesBack} onClick={()=>moveCategories(-1)}><ArrowLeft size={18}/></button>
@@ -220,9 +228,9 @@ function SignupPopup({slug,store,onClose,onDone}:any){
  return <div className="signup-overlay" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
    <section className="signup-dialog" role="dialog" aria-modal="true" aria-labelledby="signup-title">
      <button type="button" className="signup-close" aria-label="Fechar cadastro" onClick={onClose}><X size={22}/></button>
-     <div className="signup-brand-graphic" aria-hidden="true">🥬 🍓 🥕</div>
-     <span className="signup-eyebrow"><Leaf size={13}/> NOVIDADES DA SUA FEIRA</span>
-     <h2 id="signup-title">{store.signup_popup_title||'🍓 Fresquinho de verdade, novidades em primeira mão!'}</h2>
+     <div className="signup-brand-graphic" aria-hidden="true">🛒 🍎 📦</div>
+     <span className="signup-eyebrow"><ShoppingCart size={13}/> NOVIDADES DA SUA LOJA</span>
+     <h2 id="signup-title">{store.signup_popup_title||'Novidades e ofertas em primeira mão!'}</h2>
      <p className="signup-description">{store.signup_popup_description||'Cadastre-se para conhecer as novidades e ofertas da nossa loja!'}</p>
      <form onSubmit={submit} className="signup-form">
        <label>Nome completo
@@ -339,15 +347,15 @@ function CartSummary({cart,subtotal,store,onQty,onRemove,onCheckout}:any){
  const neighborhoods=store.neighborhoods||[];
  const fee=store.free_delivery_min_cents&&subtotal>=store.free_delivery_min_cents?0:(neighborhoods.find((x:any)=>x.name===neighborhood)?.delivery_fee_cents??store.default_delivery_fee_cents);
  return <div className="cart-box">
-  <div className="cart-title"><div><span className="cart-title-icon"><ShoppingBasket size={19}/></span><span><b>Sua cesta</b><small>{cartItemCount} {cartItemCount===1?'item':'itens'} na cesta</small></span></div><span className="cart-qty-pill" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'}`}>{cartItemCount}</span></div>
-  {cart.length===0?<div className="cart-empty"><div>🧺</div><b>Sua cesta está vazia</b><p>Adicione produtos para começar.</p></div>:<>
+  <div className="cart-title"><div><span className="cart-title-icon"><ShoppingCart size={19}/></span><span><b>Seu carrinho</b><small>{cartItemCount} {cartItemCount===1?'item':'itens'} no carrinho</small></span></div><span className="cart-qty-pill" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'}`}>{cartItemCount}</span></div>
+  {cart.length===0?<div className="cart-empty"><div>🛒</div><b>Seu carrinho está vazio</b><p>Adicione produtos para começar.</p></div>:<>
   <div className="cart-lines">{cart.map((line:CartLine)=>{
     const step=line.purchaseMode==='weight'?Number(line.product.step_qty||50):1;
     const minimum=line.purchaseMode==='weight'?Number(line.product.min_qty||100):1;
     const display=line.purchaseMode==='variants'?line.variant?.name:line.purchaseMode==='weight'?'Compra por kg':'Compra por unidade';
     const label= formatQuantityDisplay(line.quantity,line.purchaseMode,line.purchaseMode==='weight'?'kg':'un',line.variant?.name);
     return <div className="cart-line" key={cartLineKey(line)}><img src={img(line.product.image_url)}/><div className="cart-line-meta"><b>{line.product.name}</b><small>{display} · {label}</small><strong>{money(cartLineTotal(line))}</strong>
-      <button type="button" className="cart-line-remove" aria-label={`Remover ${line.product.name} da cesta`}
+      <button type="button" className="cart-line-remove" aria-label={`Remover ${line.product.name} do carrinho`}
         onClick={()=>onRemove(line)}><Trash2 size={13} aria-hidden="true"/> Remover</button>
     </div><div className="cart-line-qty">
       <button type="button" onClick={()=>onQty(line.product,line.variant,line.purchaseMode,line.quantity-step)}>−</button><span>{label}</span>
@@ -936,7 +944,7 @@ function SuperAdmin(){
   <form className="login-card" onSubmit={login}>
    <Link to="/" className="login-back"><ArrowLeft size={16}/> Início</Link>
    <div className="login-logo"><span className="brand-mark"><ShieldCheck/></span>
-    <span>CR Jornada<small> HORTIFRUTI</small></span></div>
+    <span>CR Jornada<small> EXPRESS</small></span></div>
    <span className="eyebrow">GESTÃO DOS ESTABELECIMENTOS</span>
    <h1>Super Admin do Express</h1>
    <label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label>
@@ -950,7 +958,7 @@ function SuperAdmin(){
    <button className="btn btn-outline" onClick={logout}>Sair</button>
   </header>
   <main className="super-content">
-   <PageHead eyebrow="SUPER ADMINISTRADOR · HORTIFRUTI" title="Estabelecimentos"
+   <PageHead eyebrow="SUPER ADMINISTRADOR · EXPRESS" title="Estabelecimentos"
     desc="Gerencie exclusivamente os estabelecimentos do CR Jornada Express."
     action={<button className="btn btn-primary" onClick={()=>{setError('');setModal(true);}}><Plus/> Novo estabelecimento</button>}/>
    {error&&<div className="error-banner" role="alert">{error}</div>}
@@ -986,7 +994,7 @@ function SuperAdmin(){
     </tr>)}</tbody>
    </table></div></div>
    {modal&&<div className="modal-backdrop"><form className="form-modal" onSubmit={create}>
-    <div className="modal-heading"><div><span className="eyebrow">NOVA LOJA HORTIFRUTI</span>
+    <div className="modal-heading"><div><span className="eyebrow">NOVO ESTABELECIMENTO</span>
       <h2>Adicionar estabelecimento</h2></div>
      <button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Fechar cadastro"><X/></button></div>
     <div className="form-grid">
