@@ -1,3 +1,4 @@
+import {readCustomConfig,resolveCustomSelection,type CustomSelection} from '../../shared/custom-product';
 import {
   type DbClient,
   type DbPreparedStatement,
@@ -15,6 +16,7 @@ export interface CheckoutItemInput {
   product_id: string;
   variant_id?: string | null;
   purchase_mode?: 'weight' | 'unit';
+  customization?:CustomSelection;
   quantity: number;
 }
 
@@ -38,9 +40,11 @@ export interface PreparedOrderLine {
   pricing_unit_label: string;
   line_total_cents: number;
   original_line_total_cents?: number|null;
+  customization_snapshot?:string|null;
 }
 
 interface ProductRow {
+  custom_config_json:string|null;
   id: string;
   tenant_id: string;
   name: string;
@@ -110,7 +114,7 @@ export async function validateAndPrepareOrderLines(
     const product = await db
       .prepare(
         `SELECT id, tenant_id, name, sku, sale_mode, unit_label, pricing_unit_grams,
-                min_qty, step_qty, price_cents, promo_price_cents, unit_price_cents, unit_weight_grams, is_active, is_deleted,
+                min_qty, step_qty, price_cents, promo_price_cents, unit_price_cents, unit_weight_grams, is_active, is_deleted,custom_config_json,
                 stock_pool_id, pool_deduction_qty, physical_qty, reserved_qty
          FROM products
          WHERE id = ? AND tenant_id = ? AND is_deleted = 0`
@@ -124,6 +128,10 @@ export async function validateAndPrepareOrderLines(
       );
     }
 
+    const config=readCustomConfig(product.custom_config_json);
+    if(config&&(product.sale_mode!=='unit'||rawItem.variant_id||rawItem.purchase_mode==='weight'))throw Error('Modalidade inválida para produto personalizável.');
+    if(!config&&rawItem.customization)throw Error('Este produto não possui complementos.');
+    const custom=config?resolveCustomSelection(config,rawItem.customization):null;
     if (product.sale_mode === 'variants') {
       if (!rawItem.variant_id) {
         throw new Error(`Selecione uma opção/embalagem para o produto "${product.name}".`);
@@ -223,8 +231,9 @@ export async function validateAndPrepareOrderLines(
         ? product.unit_price_cents!
         : product.promo_price_cents !== null && product.promo_price_cents < product.price_cents
           ? product.promo_price_cents : product.price_cents;
+      const finalUnitPrice=effectivePrice+(custom?.extrasCents||0);
       const lineTotal = calculateLineTotalCents(
-        effectivePrice, rawItem.quantity, purchaseMode, product.pricing_unit_grams
+        finalUnitPrice, rawItem.quantity, purchaseMode, product.pricing_unit_grams
       );
 
       let targetType: 'product' | 'pool' = 'product';
@@ -270,10 +279,11 @@ export async function validateAndPrepareOrderLines(
         quantity: rawItem.quantity,
         quantity_display: formatQuantityDisplay(rawItem.quantity, purchaseMode, label),
         stock_deducted_qty: deductedQty,
-        unit_price_cents: effectivePrice,
+        unit_price_cents: finalUnitPrice,
+        customization_snapshot:custom?.details||null,
         pricing_unit_label: label,
         line_total_cents: lineTotal,
-        original_line_total_cents: !isUnitFromWeight&&effectivePrice<product.price_cents?calculateLineTotalCents(product.price_cents,rawItem.quantity,purchaseMode,product.pricing_unit_grams):null,
+        original_line_total_cents: !isUnitFromWeight&&effectivePrice<product.price_cents?calculateLineTotalCents(product.price_cents+(custom?.extrasCents||0),rawItem.quantity,purchaseMode,product.pricing_unit_grams):null,
       });
 
       subtotalCents += lineTotal;

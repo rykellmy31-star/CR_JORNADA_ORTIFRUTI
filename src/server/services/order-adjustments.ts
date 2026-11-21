@@ -30,6 +30,7 @@ interface ItemRecord {
   sale_mode:'weight'|'unit'|'variants';quantity:number;quantity_display:string;
   stock_deducted_qty:number;unit_price_cents:number;pricing_unit_label:string;
   line_total_cents:number;
+  customization_snapshot?:string|null;
   original_line_total_cents:number|null;
 }
 type Change = {
@@ -39,7 +40,7 @@ type Change = {
 type Step={stmt:DbPreparedStatement;requireChanges?:number;failErrorMessage?:string};
 
 const nameOf=(it:ItemRecord)=>it.product_name_snapshot+
-  (it.variant_name_snapshot?' — '+it.variant_name_snapshot:'');
+  (it.variant_name_snapshot?' — '+it.variant_name_snapshot:'')+(it.customization_snapshot?' ('+it.customization_snapshot.replace(/\n/g,'; ')+')':'');
 function newDisplay(item:ItemRecord,qty:number){
   return qty===0?'Retirado':formatQuantityDisplay(qty,item.sale_mode,
     item.pricing_unit_label,item.variant_name_snapshot);

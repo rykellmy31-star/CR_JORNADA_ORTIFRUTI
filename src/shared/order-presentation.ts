@@ -36,12 +36,12 @@ export function originalPromotionTotal(item:PricingSnapshot):number|null{
 export function orderSavings(items:PricingSnapshot[]):number{
  return items.reduce((sum,item)=>sum+((originalPromotionTotal(item)??item.line_total_cents)-item.line_total_cents),0);
 }
-export function formatWhatsAppItems(items:(ReceiptQuantityItem&PricingSnapshot&{product_name_snapshot:string})[]):string{
+export function formatWhatsAppItems(items:(ReceiptQuantityItem&PricingSnapshot&{product_name_snapshot:string;customization_snapshot?:string|null})[]):string{
  return items.map(item=>{
   const name=item.product_name_snapshot.replace(/[\r\n]+/g,' ').trim().toUpperCase();
   const qty=formatReceiptQuantity(item);
   const original=originalPromotionTotal(item);
-  const title='➡️ *'+name+' — '+qty+'*';
+  const title='➡️ *'+name+' — '+qty+'*'+(item.customization_snapshot?'\n'+item.customization_snapshot.split('\n').map(s=>'   • '+s).join('\n'):'');
   return original===null?title+'\nValor: *'+formatBRL(item.line_total_cents)+'*':
     title+'\nDe: ~'+formatBRL(original)+'~\n🔥 Por: *'+formatBRL(item.line_total_cents)+'*';
  }).join('\n\n');
