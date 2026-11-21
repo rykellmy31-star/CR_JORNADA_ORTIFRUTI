@@ -1,4 +1,4 @@
-import {readCustomConfig,resolveCustomSelection,type CustomSelection} from '../../shared/custom-product';
+import {readCustomConfig,resolveCustomSelection,customUnitPrice,type CustomSelection} from '../../shared/custom-product';
 import {
   type DbClient,
   type DbPreparedStatement,
@@ -231,7 +231,7 @@ export async function validateAndPrepareOrderLines(
         ? product.unit_price_cents!
         : product.promo_price_cents !== null && product.promo_price_cents < product.price_cents
           ? product.promo_price_cents : product.price_cents;
-      const finalUnitPrice=effectivePrice+(custom?.extrasCents||0);
+      const finalUnitPrice=custom?customUnitPrice(effectivePrice,custom):effectivePrice;
       const lineTotal = calculateLineTotalCents(
         finalUnitPrice, rawItem.quantity, purchaseMode, product.pricing_unit_grams
       );
@@ -283,7 +283,7 @@ export async function validateAndPrepareOrderLines(
         customization_snapshot:custom?.details||null,
         pricing_unit_label: label,
         line_total_cents: lineTotal,
-        original_line_total_cents: !isUnitFromWeight&&effectivePrice<product.price_cents?calculateLineTotalCents(product.price_cents+(custom?.extrasCents||0),rawItem.quantity,purchaseMode,product.pricing_unit_grams):null,
+        original_line_total_cents: !isUnitFromWeight&&effectivePrice<product.price_cents&&custom?.selectedBaseCents==null?calculateLineTotalCents(product.price_cents+(custom?.extrasCents||0),rawItem.quantity,purchaseMode,product.pricing_unit_grams):null,
       });
 
       subtotalCents += lineTotal;
