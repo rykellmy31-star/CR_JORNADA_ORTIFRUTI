@@ -248,6 +248,63 @@ adminRoutes.get('/stock',async(c)=>{const db=c.get('services').db,tid=c.get('ten
 adminRoutes.get('/customers',async(c)=>{const {results}=await c.get('services').db.prepare(`SELECT * FROM customers WHERE tenant_id=? ORDER BY last_order_at DESC LIMIT 300`).bind(c.get('tenantId')).all();return c.json({customers:results});});
 adminRoutes.get('/reports',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId');const from=c.req.query('from')||'2000-01-01',to=c.req.query('to')||'2999-12-31';const {results:summary}=await db.prepare(`SELECT COUNT(*) orders_count,COALESCE(SUM(CASE WHEN status!='cancelled' THEN total_cents ELSE 0 END),0) sales_cents,COALESCE(AVG(CASE WHEN status!='cancelled' THEN total_cents END),0) avg_ticket_cents FROM orders WHERE tenant_id=? AND deleted_at IS NULL AND date(created_at)>=date(?) AND date(created_at)<=date(?)`).bind(tid,from,to).all();const {results:top}=await db.prepare(`SELECT oi.product_name_snapshot, SUM(oi.quantity) quantity, SUM(oi.line_total_cents) sales_cents FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.tenant_id=? AND o.status!='cancelled' AND o.deleted_at IS NULL AND date(o.created_at)>=date(?) AND date(o.created_at)<=date(?) GROUP BY oi.product_id ORDER BY sales_cents DESC LIMIT 10`).bind(tid,from,to).all();return c.json({summary:summary[0],topProducts:top});});
 
+
+/** Banners próprios de cada loja; imagens de outras contas não são aceitas. */
+function validOwnBannerImage(url:unknown,tenantId:string):url is string {
+ return typeof url==='string' &&
+   url.startsWith('/media/tenants/'+tenantId+'/') &&
+   /^\/media\/tenants\/[a-z0-9-]+\/[a-z0-9_-]+\/[a-z0-9-]+\.(png|jpe?g|webp|gif|avif)$/i.test(url);
+}
+adminRoutes.get('/banners',async(c)=>{
+ const {results}=await c.get('services').db.prepare(
+  'SELECT id,image_url,mobile_image_url,sort_order,is_active FROM store_banners WHERE tenant_id=? ORDER BY sort_order,created_at LIMIT 10'
+ ).bind(c.get('tenantId')).all();
+ return c.json({banners:results});
+});
+adminRoutes.post('/banners',async(c)=>{
+ const db=c.get('services').db,tid=c.get('tenantId'),b=await c.req.json().catch(()=>({}));
+ if(!validOwnBannerImage(b.imageUrl,tid))return c.json({error:'Envie uma imagem desta loja antes de adicionar o banner.'},400);
+ if(b.mobileImageUrl!=null && !validOwnBannerImage(b.mobileImageUrl,tid))
+  return c.json({error:'A imagem para celular precisa pertencer à mesma loja.'},400);
+ const count=await db.prepare('SELECT COUNT(*) AS n,COALESCE(MAX(sort_order),-1)+1 AS next_order FROM store_banners WHERE tenant_id=?').bind(tid).first<{n:number;next_order:number}>();
+ if((count?.n||0)>=10)return c.json({error:'Limite de 10 banners por estabelecimento.'},400);
+ const id=generateId(),now=new Date().toISOString();
+ await db.prepare('INSERT INTO store_banners(id,tenant_id,image_url,mobile_image_url,sort_order,is_active,created_at,updated_at) VALUES(?,?,?,?,?,1,?,?)')
+  .bind(id,tid,b.imageUrl,b.mobileImageUrl||null,count?.next_order||0,now,now).run();
+ return c.json({id},201);
+});
+adminRoutes.patch('/banners/:id',async(c)=>{
+ const db=c.get('services').db,tid=c.get('tenantId'),id=c.req.param('id'),b=await c.req.json().catch(()=>({}));
+ const current=await db.prepare('SELECT id,image_url,mobile_image_url,sort_order,is_active FROM store_banners WHERE id=? AND tenant_id=?').bind(id,tid).first<Record<string,any>>();
+ if(!current)return c.json({error:'Banner não encontrado nesta loja.'},404);
+ if(b.direction==='up'||b.direction==='down'){
+  const {results}=await db.prepare('SELECT id,sort_order FROM store_banners WHERE tenant_id=? ORDER BY sort_order,created_at').bind(tid).all<{id:string;sort_order:number}>();
+  const index=results.findIndex(x=>x.id===id),other=results[index+(b.direction==='up'?-1:1)];
+  if(!other)return c.json({success:true});
+  await db.prepare('UPDATE store_banners SET sort_order=CASE WHEN id=? THEN ? WHEN id=? THEN ? ELSE sort_order END,updated_at=? WHERE tenant_id=? AND id IN (?,?)')
+   .bind(id,other.sort_order,other.id,current.sort_order,new Date().toISOString(),tid,id,other.id).run();
+  return c.json({success:true});
+ }
+ if(b.imageUrl!==undefined && !validOwnBannerImage(b.imageUrl,tid))
+  return c.json({error:'Imagem inválida ou de outra loja.'},400);
+ if(b.mobileImageUrl!==undefined && b.mobileImageUrl!==null &&
+    !validOwnBannerImage(b.mobileImageUrl,tid))
+  return c.json({error:'Imagem para celular inválida ou de outra loja.'},400);
+ const fields:string[]=[],values:any[]=[];
+ if(b.imageUrl!==undefined){fields.push('image_url=?');values.push(b.imageUrl);}
+ if(b.mobileImageUrl!==undefined){fields.push('mobile_image_url=?');values.push(b.mobileImageUrl||null);}
+ if(typeof b.active==='boolean'){fields.push('is_active=?');values.push(b.active?1:0);}
+ if(!fields.length)return c.json({error:'Nenhuma alteração reconhecida.'},400);
+ fields.push('updated_at=?');values.push(new Date().toISOString(),id,tid);
+ await db.prepare('UPDATE store_banners SET '+fields.join(',')+' WHERE id=? AND tenant_id=?').bind(...values).run();
+ return c.json({success:true});
+});
+adminRoutes.delete('/banners/:id',async(c)=>{
+ const result=await c.get('services').db.prepare('DELETE FROM store_banners WHERE tenant_id=? AND id=?')
+  .bind(c.get('tenantId'),c.req.param('id')).run();
+ return result.meta.changes?c.json({success:true}):c.json({error:'Banner não encontrado nesta loja.'},404);
+});
+
 adminRoutes.get('/settings',async(c)=>{const t=await c.get('services').db.prepare(`SELECT id,slug,name,legal_name,document_cnpj,logo_url,banner_url,banner_title,banner_subtitle,primary_color,accent_color,whatsapp_public,instagram_url,address_text,business_hours,delivery_info,default_delivery_fee_cents,free_delivery_min_cents,min_order_cents,is_open,accepts_cash,accepts_pix_delivery,accepts_debit_delivery,accepts_credit_delivery,signup_popup_enabled,signup_popup_title,signup_popup_description,signup_popup_button FROM tenants WHERE id=?`).bind(c.get('tenantId')).first();const {results:neighborhoods}=await c.get('services').db.prepare('SELECT * FROM neighborhoods WHERE tenant_id=? ORDER BY name').bind(c.get('tenantId')).all();return c.json({settings:t,neighborhoods});});
 adminRoutes.post('/settings/neighborhoods',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),b=await c.req.json(),name=String(b.name||'').trim();if(!name)return c.json({error:'Nome do bairro obrigatório.'},400);const id=generateId();try{await db.prepare(`INSERT INTO neighborhoods(id,tenant_id,name,delivery_fee_cents,estimated_time,is_active,created_at) VALUES(?,?,?,?,?,1,?)`).bind(id,tid,name,Number(b.deliveryFeeCents)||0,String(b.estimatedTime||'35-50 min'),new Date().toISOString()).run();return c.json({id},201);}catch(e:any){return c.json({error:'Bairro já cadastrado ou dados inválidos.'},409);}});
 adminRoutes.patch('/settings/neighborhoods/:id',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),id=c.req.param('id'),b=await c.req.json();const r=await db.prepare(`UPDATE neighborhoods SET name=?,delivery_fee_cents=?,estimated_time=?,is_active=? WHERE id=? AND tenant_id=?`).bind(String(b.name||'').trim(),Number(b.deliveryFeeCents)||0,String(b.estimatedTime||'35-50 min'),b.active===false?0:1,id,tid).run();return c.json({success:r.meta.changes>0});});

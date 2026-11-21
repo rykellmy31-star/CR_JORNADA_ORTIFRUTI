@@ -54,7 +54,10 @@ publicStoreRoutes.get('/:slug', async (c) => {
   const publicProducts = products.filter((p: any) => p.sale_mode !== 'variants' || (variantMap.get(p.id)?.length || 0) > 0)
     .map(({ available, ...p }: any) => ({ ...p, variants: (variantMap.get(p.id) || []).map(({ available: _variantAvailable, ...v }: any) => v) }));
   const { results: neighborhoods } = await db.prepare(`SELECT name, delivery_fee_cents, estimated_time FROM neighborhoods WHERE tenant_id = ? AND is_active = 1 ORDER BY name`).bind(tenant.id).all();
-  return c.json({ store: tenant, categories, products: publicProducts, neighborhoods });
+  const {results:banners}=await db.prepare(
+    'SELECT id,image_url,mobile_image_url,sort_order FROM store_banners WHERE tenant_id=? AND is_active=1 ORDER BY sort_order,created_at LIMIT 10'
+  ).bind(tenant.id).all();
+  return c.json({ store: tenant, categories, products: publicProducts, neighborhoods, banners });
 });
 
 // Cadastro voluntário — não cria pedidos, cupons ou envios automáticos.
