@@ -1,36 +1,54 @@
-# CR Jornada Express — Impressão automática de pedidos (Android)
+# CR Jornada Express — Impressão automática via Android + Bluetooth ESC/POS
 
-## Etapa 1: fila segura no backend (implementada nesta PR)
+## Status da implementação
 
-- Após **checkout confirmado**, uma comanda `new_order` é enfileirada **dentro da transação do pedido** para a loja que ativar a opção.
-- O recurso é **desativado por padrão**, inclusive para todas as lojas existentes. Não há retroatividade: só novos pedidos depois de ativar entram na fila.
-- Cada comanda guarda apenas a referência ao pedido e o número, sem copiar dados pessoais. Os dados do recibo serão obtidos no backend autenticado no momento da impressão.
-- Cada nova comanda possui chave idempotente exclusiva por loja e pedido, evitando criação duplicada.
-- `GET /api/admin/printing` retorna configuração e histórico limitado à loja autenticada; `PATCH /api/admin/printing/settings` permite proprietário/gerente ativar/desativar, com corpo `{"enabled":true}`. **Ainda não expor como "pronto para imprimir" na interface.**
-- Migração `0010_print_jobs.sql`: nova tabela `print_jobs` e flag `tenants.auto_print_enabled`.
-- **Deploy exige aplicar a migração remota antes de publicar o código**, pois a rota de checkout usa o novo esquema.
+- **Backend:** fila transacional idempotente, por estabelecimento, com reserva exclusiva de comanda (lease), até 5 tentativas, confirmação e reimpressão auditada.
+- **Painel:** menu **Impressoras**, ativação, código de pareamento (10 minutos, uso único), aparelhos conectados/revogação, fila de comandas e reimpressão.
+- **Android:** projeto nativo em `android-print-bridge/` com tela de pareamento, escolha entre impressoras Bluetooth já pareadas, serviço em primeiro plano e recibo ESC/POS de 58 mm (32 colunas).
+- **Testes:** API, isolamento por estabelecimento, autenticação, recebimento e confirmação de comandas, revogação e checkout.
+- **Produção:** não ativar antes de executar a migração **0010** no D1 remoto e homologar com uma impressora real.
 
-## Etapa 2: aplicativo-ponte Android (AINDA NÃO IMPLEMENTADA)
+## Como será a configuração
 
-O aplicativo Android recebe sua credencial própria e acessa apenas a fila do estabelecimento autorizado. Ele mantém serviço em primeiro plano quando apropriado, solicita permissões Bluetooth, estabelece conexão com impressoras térmicas ESC/POS de 58 mm, imprime o recibo e confirma resultado ao servidor.
+1. Instale o APK de teste **CR Jornada Express Impressão** no Android. O APK é gerado pelo workflow `.github/workflows/android-print-bridge.yml` e fica como **artefato** da execução do GitHub Actions, não na Play Store.
+2. No Bluetooth do Android, pareie a impressora térmica ESC/POS 58 mm.
+3. No painel web do proprietário da loja, abra **Impressoras > Gerar código de pareamento**.
+4. No aplicativo Android, informe o **subdomínio da loja** (por exemplo, `verdurao-itanhem`), o código e o nome do celular. Toque em **Parear este Android**. O código expira em 10 minutos e não pode ser reutilizado.
+5. Escolha a impressora entre os dispositivos Bluetooth já pareados e toque em **Iniciar serviço de impressão**.
+6. No painel web, **Ative a impressão automática**. Somente **novos pedidos confirmados a partir desse momento** geram comanda. O Android consulta a fila enquanto o serviço estiver funcionando.
 
-Fluxo planejado:
+O serviço usa notificação persistente para funcionar com o aplicativo em segundo plano. Internet e Bluetooth devem permanecer ligados, e o aparelho não pode desligar/bloquear o serviço por economia extrema de bateria. O serviço não é garantido se o Android encerrar o processo.
 
-1. Proprietário autoriza/pareia Android no painel com código temporário de uso único.
-2. Servidor emite **token de dispositivo revogável**, armazenado somente como hash no backend; nenhuma credencial de funcionário ou segredo da plataforma fica embutido no APK.
-3. O dispositivo conectado consulta `print_jobs`, obtém uma única comanda por **lease** exclusivo, acessa o resumo do pedido e imprime por Bluetooth.
-4. Após sucesso, confirma a impressão; falhas reais são registradas e podem ser reprocessadas. Bloquear impressão automática de pedido cancelado antes de o aparelho receber a comanda.
-5. Proprietário vê estados `Na fila`, `Em impressão`, `Impresso`, `Falhou` e poderá reimprimir manualmente.
+## Segurança e falhas
 
-**Limitação técnica:** a entrega de trabalho é do tipo *pelo menos uma vez*; uma desconexão no instante entre papel impresso e confirmação ao servidor pode ocasionar repetição. Mitigar com IDs impressos e deduplicação persistida no Android, com reimpressão sinalizada.
+- O Android recebe um **token aleatório próprio por aparelho**; somente o hash SHA-256 fica no D1. O token é protegido por Android Keystore no dispositivo.
+- O token pode ser revogado pelo proprietário no painel. Senhas de proprietário e tokens JWT não são embutidos no aplicativo.
+- Cada aparelho acessa somente a fila da **própria loja**. Um segundo aparelho de outra loja não consegue obter ou confirmar comandas alheias.
+- A fila é criada **na mesma transação** do pedido, sem imprimir pedidos rejeitados. Cancelados são excluídos do envio automático, mas pedidos já enviados fisicamente não podem ser recuperados.
+- O backend usa lease de 5 minutos e deduplicação por ID. O Android mantém registro local das comandas enviadas e confirma após a escrita no Bluetooth.
+- **Confirmação de impressão significa que os bytes foram enviados sem erro pela conexão Bluetooth; não é confirmação de que havia papel ou de que a impressão física estava legível.** Homologar os erros do modelo comprado.
+- A entrega é do tipo **pelo menos uma vez**: se o telefone perder o armazenamento local e a confirmação do servidor após imprimir, pode haver reimpressão. A opção **Reimprimir** registra um novo trabalho manual.
+- A função começa **desligada em todas as lojas** e não toca nos dados históricos.
 
-Sem APK instalado e configurado, **Bluetooth sozinho não permite impressão silenciosa automática a partir do navegador**. A automação em segundo plano também depende de restrições do Android e de permissões concedidas; o sistema deve sinalizar quando o dispositivo estiver offline.
+## Regras de implantação seguras
 
-## Etapa 3: homologação física (PENDENTE)
+1. Execute **Preparar banco D1** em GitHub Actions **selecionando a branch da PR**, com a migração `0010_print_jobs.sql`. Confirme o registro `0010_print_jobs.sql ✅` no log.
+2. Depois dos testes da API e do build do APK verdes, faça merge da PR.
+3. Publique o Worker na Cloudflare e confira que o portal de pedidos continua respondendo.
+4. Habilite em **uma loja-piloto** somente após instalar e conectar o Android.
 
-- Testar o modelo adquirido com Android real, conexão ESC/POS Bluetooth e papel térmico 58 mm.
-- Validar acentuação, letras grandes, preço, peso, troco, forma de pagamento, endereço e conferência de quantidade.
-- Testar pedidos consecutivos, Android sem rede, Bluetooth desligado, papel esgotado e reconexão.
-- Somente depois de homologar, liberar o recurso no painel de todos os estabelecimentos.
+**Não publicar o código no Worker antes da migração 0010**, porque o checkout já consulta a tabela de impressão.
 
-*As URLs internas legadas do Hortifruti e o fluxo de compras existentes não devem ser renomeados.*
+## Arquitetura
+
+- API de administração: `GET /api/admin/printing`, `PATCH /api/admin/printing/settings`, `POST /api/admin/printing/pairing-codes`, `DELETE /api/admin/printing/devices/:id`, `POST /api/admin/printing/jobs/:id/reprint`.
+- API Android: `POST /api/printing/device/pair`, `GET /api/printing/device/status`, `POST /api/printing/device/jobs/claim`, `POST /api/printing/device/jobs/:id/ack`.
+- Banco: `tenants.auto_print_enabled`, `print_jobs`, `print_devices`, `print_pairing_codes`.
+- Android: Java nativo, Bluetooth clássico SPP UUID `00001101-0000-1000-8000-00805F9B34FB`, ESC/POS, API mínima Android 8.
+- Mantidos os endereços técnicos existentes; o app usa o endpoint HTTPS legado do sistema.
+
+## Homologação pendente
+
+Testar com a impressora do anúncio e o aparelho Android real: compatibilidade do Bluetooth clássico SPP, velocidade, tamanho e papel, acentos/ASCII, bobina vazia, desligamento, falha de internet, pedidos simultâneos, cancelamento, reimpressão, reinício de celular e restrições de bateria.
+
+Apenas após esses testes é possível declarar **impressão automática física homologada**.
