@@ -1,4 +1,4 @@
-import {formatBRL,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
+import {formatBRL,formatWeightGrams,ORDER_STATUS_LABELS,PAYMENT_METHOD_LABELS} from '../shared/pricing';
 
 export type PrintableOrderItem={
  product_name_snapshot:string;
@@ -26,6 +26,33 @@ export type PrintableOrder={
  total_cents:number;
  items:PrintableOrderItem[];
 };
+
+/** Resume pesos das opções de preço fechado, sem alterar o pedido ou seus valores.
+ * Embalagens e opções sem um peso inequívoco mantêm a quantidade e o nome originais. */
+export function formatReceiptQuantity(item:PrintableOrderItem):string{
+ const display=item.quantity_display.trim();
+ const variant=item.variant_name_snapshot?.trim();
+ if(!variant)return display;
+ const counted=display.match(/^(\d+)\s*[x×]\s*(.+)$/i);
+ if(!counted||counted[2].trim()!==variant)return display;
+ const count=Number(counted[1]);
+ if(!Number.isSafeInteger(count)||count<=0)return display;
+ const label=variant.toLowerCase().replace(/\s+/g,' ');
+ let grams=0;
+ if(/^(?:meio|meia)\s*(?:kg|quilo|quilograma)$/.test(label))grams=500;
+ else{
+  const weight=label.match(/^(\d+(?:[,.]\d+)?)\s*(kg|quilo(?:s)?|quilograma(?:s)?|g|grama(?:s)?)$/);
+  if(weight){
+   const amount=Number(weight[1].replace(',','.'));
+   grams=amount*(/^(?:kg|quilo)/.test(weight[2])?1000:1);
+  }
+ }
+ const total=Math.round(grams*count);
+ if(grams>0&&Math.abs(grams-Math.round(grams))<1e-8&&Number.isSafeInteger(total)&&total>0){
+  return formatWeightGrams(total);
+ }
+ return display;
+}
 
 /** Comanda não fiscal para a janela de impressão nativa do navegador. */
 export default function OrderPrintReceipt({order,storeName}:{order:PrintableOrder;storeName:string}){
@@ -58,8 +85,7 @@ export default function OrderPrintReceipt({order,storeName}:{order:PrintableOrde
     <thead><tr><th>Item / quantidade</th><th>Valor</th></tr></thead>
     <tbody>{(order.items||[]).map((item,i)=><tr key={i}>
      <td><b>{item.product_name_snapshot}</b>
-      {item.variant_name_snapshot&&<span>{item.variant_name_snapshot}</span>}
-      <span>{item.quantity_display}</span>
+      <span>{formatReceiptQuantity(item)}</span>
      </td>
      <td>{formatBRL(item.line_total_cents)}</td>
     </tr>)}</tbody>
