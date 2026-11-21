@@ -597,3 +597,21 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 @media screen and (min-width:681px) and (max-width:1050px){
  .qr-panel{grid-template-columns:minmax(0,1fr);justify-items:center;text-align:center;gap:14px}
 }
+
+/* Atalho da sacola: sempre acessível na vitrine mobile enquanto houver produtos. */
+.mobile-bag-bar{display:none}
+@media(max-width:980px){
+ .mobile-bag-bar{display:block;position:fixed;z-index:40;bottom:0;left:0;right:0;
+  background:#fff;border-top:1px solid #e5ece6;padding:10px max(14px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+  box-shadow:0 -4px 20px #19392412}
+ .mobile-bag-button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;
+  width:100%;max-width:620px;margin:0 auto;min-height:52px;padding:10px 14px;border:0;border-radius:13px;
+  background:var(--store-color,#16834b);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+ .mobile-bag-count{display:grid;place-items:center;min-width:32px;height:32px;padding:0 7px;border-radius:9px;background:#ffffff2e;font-variant-numeric:tabular-nums}
+ .mobile-bag-label{text-align:center}
+ .mobile-bag-total{white-space:nowrap;font-variant-numeric:tabular-nums}
+ .mobile-bag-button:focus-visible{outline:3px solid #314b37;outline-offset:2px}
+ .storefront.has-mobile-cart-bar{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+ .storefront.has-mobile-cart-bar~.developer-credit{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+}
+@media print{.mobile-bag-bar{display:none!important}}
