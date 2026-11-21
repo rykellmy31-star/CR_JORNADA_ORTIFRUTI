@@ -12,6 +12,7 @@ on:
       - 'migrations/0007_shared_product_images.sql'
       - 'migrations/0008_tenant_store_domains.sql'
       - 'migrations/0009_store_banners.sql'
+      - 'migrations/0010_print_jobs.sql'
 
 permissions:
   contents: read
