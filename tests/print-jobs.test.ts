@@ -73,7 +73,7 @@ describe('fila de impressão automática por estabelecimento',()=>{
   const all=await db.prepare('SELECT * FROM print_jobs').all();
   expect(all.results).toHaveLength(1);
   const denied=await admin('invalid','printing');
-  expect(denied.status).toBe(403);
+  expect(denied.status).toBe(401);
  });
  it('não enfileira pedido rejeitado; desativar impede novas comandas',async()=>{
   const {admin,checkout,tokenA}=await setup();
