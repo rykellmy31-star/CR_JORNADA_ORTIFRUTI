@@ -22,8 +22,8 @@ describe('comanda para impressão direta do navegador',()=>{
    order:order(),storeName:'Verdurão Braga'
   }));
   for(const label of ['Verdurão Braga','PEDIDO #81','Maria &amp; João','Rua das Mangueiras',
-   'Perto da feira','Meio quilo','2x Meio quilo','R$ 15,00','R$ 31,50',
-   'R$ 18,50','Dinheiro na entrega','Documento não fiscal']){
+   'Perto da feira','Meio quilo','2x Meio quilo','R$ 15,00','R$ 31,50',
+   'R$ 18,50','Dinheiro na entrega','Documento não fiscal']){
    expect(html).toContain(label);
   }
   expect(html).toContain('class="order-print-receipt"');
