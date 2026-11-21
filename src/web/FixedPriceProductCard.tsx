@@ -8,9 +8,9 @@ const cost=(v:Variant)=>v.promo_price_cents!=null&&v.promo_price_cents>=0&&v.pro
 
 /** Escolha obrigatória da quantidade de preço fechado, sem alterar as embalagens antigas. */
 export default function FixedPriceProductCard({p,getLine,setLine,img,money}:{
- p:FixedProduct;getLine:(product:any,variant:any,mode:string)=>number;
- setLine:(product:any,variant:any,mode:string,quantity:number)=>void;
- img:(url:string|null|undefined)=>string;money:(value:number)=>string;
+ p:FixedProduct;getLine:(product:any,variant:any,mode:'variants')=>number;
+ setLine:(product:any,variant:any,mode:'variants',quantity:number)=>void;
+ img:(url?:string)=>string;money:(value:number)=>string;
 }){
  const [open,setOpen]=useState(false);
  const [selectedId,setSelectedId]=useState('');
@@ -35,7 +35,7 @@ export default function FixedPriceProductCard({p,getLine,setLine,img,money}:{
  };
  return <>
   <article className="product-card fixed-price-card">
-   <div className="product-photo"><img src={img(p.image_url)} loading="lazy" alt={p.name}/>
+   <div className="product-photo"><img src={img(p.image_url||undefined)} loading="lazy" alt={p.name}/>
     <div className="fresh-pill"><span/> Preço fixo</div>
    </div>
    <div className="product-info">
@@ -53,7 +53,7 @@ export default function FixedPriceProductCard({p,getLine,setLine,img,money}:{
    <section className="fixed-price-modal" role="dialog" aria-modal="true"
     aria-labelledby="fixed-modal-title">
     <div className="fixed-price-hero">
-     <img src={img(p.image_url)} alt={p.name}/>
+     <img src={img(p.image_url||undefined)} alt={p.name}/>
      <button type="button" aria-label="Fechar opções" className="fixed-price-close" onClick={close}><X size={23}/></button>
     </div>
     <div className="fixed-price-body">
