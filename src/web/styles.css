@@ -479,3 +479,62 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
  .print-pair-code{gap:8px}
  .print-pair-code strong{letter-spacing:1px}
 }
+
+
+/* Escolha de preço fixo por peso, no estilo de catálogo delivery (mobile-first). */
+.fixed-price-card .product-price .current-price{font-size:clamp(15px,2vw,19px)}
+.fixed-open-button{width:100%;justify-content:center;gap:8px}
+.fixed-price-overlay{position:fixed;inset:0;z-index:20000;background:#17261db3;
+ display:flex;align-items:center;justify-content:center;padding:14px}
+.fixed-price-modal{width:min(100%,520px);height:min(94dvh,830px);background:#fff;border-radius:22px;
+ display:flex;flex-direction:column;overflow:hidden;box-shadow:0 35px 100px #1020184d}
+.fixed-price-hero{height:clamp(150px,23dvh,230px);position:relative;background:#eef4ee;flex-shrink:0}
+.fixed-price-hero img{width:100%;height:100%;object-fit:cover}
+.fixed-price-close{position:absolute;right:14px;top:14px;width:45px;height:45px;display:grid;
+ place-items:center;border:0;border-radius:50%;background:#188e59;color:#fff;cursor:pointer}
+.fixed-price-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:20px 23px}
+.fixed-price-body h2{font-size:clamp(22px,5vw,28px);line-height:1.15;margin:0 0 10px;color:#213d2d}
+.fixed-price-start{color:#15965c;font-size:19px}
+.fixed-price-desc{color:#627468;font-size:13px;line-height:1.5;margin:14px 0 20px}
+.fixed-price-choose{background:#f4f5f2;margin:20px -23px 0;padding:15px 23px}
+.fixed-price-choose h3{font-size:17px;margin:0 0 5px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.fixed-price-choose h3 span{background:#f8d7e4;color:#be436d;font-size:11px;
+ padding:7px 11px;border-radius:25px}
+.fixed-price-choose small{font-size:13px;color:#78827a}
+.fixed-price-option{display:flex;align-items:center;justify-content:space-between;gap:12px;
+ border-bottom:1px solid #e8edea;padding:17px 2px;cursor:pointer;min-height:78px}
+.fixed-price-option>span:first-child{display:grid;gap:7px;min-width:0}
+.fixed-price-option b{font-size:15px;color:#24372d}
+.fixed-price-option strong{color:#198d56;font-size:15px}
+.fixed-price-option input{position:absolute;opacity:0;width:1px;height:1px}
+.fixed-price-radio{height:25px;width:25px;border:2px solid #c9d2cc;border-radius:50%;
+ display:grid;place-items:center;color:transparent;flex-shrink:0}
+.fixed-price-option.selected .fixed-price-radio{background:#218b58;color:#fff;border-color:#218b58}
+.fixed-price-option:focus-within{outline:2px solid #56b97f;outline-offset:-3px;border-radius:8px}
+.fixed-price-footer{flex-shrink:0;background:#fff;padding:14px 20px 17px;
+ box-shadow:0 -7px 22px #1028180a;display:flex;gap:12px}
+.fixed-price-stepper{display:flex;align-items:center;justify-content:space-between;min-width:124px;
+ border-radius:13px;background:#f1f3f1;gap:8px}
+.fixed-price-stepper button{border:0;background:transparent;width:40px;height:48px;display:grid;
+ place-items:center;cursor:pointer;color:#294634}
+.fixed-price-stepper button:disabled{color:#bcc5bf;cursor:default}
+.fixed-price-stepper span{font-size:16px;font-weight:700}
+.fixed-price-add{background:#20a768;color:#fff;border:0;border-radius:13px;padding:0 16px;
+ display:flex;justify-content:space-between;align-items:center;gap:10px;flex:1;
+ font-size:14px;font-weight:700;min-height:50px;cursor:pointer}
+.fixed-price-add span{white-space:nowrap}
+.fixed-price-add:disabled{background:#a4d9b9;cursor:not-allowed}
+.fixed-option-editor{display:grid;grid-template-columns:minmax(125px,1.5fr) minmax(100px,1fr)
+ minmax(88px,.7fr) auto;align-items:center;gap:7px}
+.fixed-option-editor input{min-width:0;width:100%;font-size:12px;padding:10px}
+.fixed-option-editor .icon-btn{flex-shrink:0}
+@media(max-width:700px){
+ .fixed-price-overlay{padding:0;align-items:stretch}
+ .fixed-price-modal{height:100dvh;max-height:100dvh;border-radius:0;width:100%}
+ .fixed-price-hero{height:clamp(168px,28dvh,265px)}
+ .fixed-price-footer{padding:12px 15px max(15px,env(safe-area-inset-bottom))}
+ .fixed-price-body{padding:19px}
+ .fixed-price-choose{margin-left:-19px;margin-right:-19px;padding:15px 19px}
+ .fixed-option-editor{grid-template-columns:minmax(0,1fr) minmax(0,.7fr);gap:8px}
+ .fixed-option-editor input{min-width:0}
+}
