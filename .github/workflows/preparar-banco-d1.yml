@@ -2,16 +2,7 @@ name: Preparar banco D1 do Hortifruti
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'migrations/0003_dual_sale_mode.sql'
-      - 'migrations/0004_customer_popup.sql'
-      - 'migrations/0005_order_adjustments.sql'
-      - 'migrations/0006_order_visibility_telegram_alerts.sql'
-      - 'migrations/0007_shared_product_images.sql'
-      - 'migrations/0008_tenant_store_domains.sql'
-      - 'migrations/0009_store_banners.sql'
+  # Workflow avulso reservado para recuperação manual. Deploy normal migra automaticamente.
 
 permissions:
   contents: read
