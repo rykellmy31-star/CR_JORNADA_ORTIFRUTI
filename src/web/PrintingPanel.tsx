@@ -67,6 +67,15 @@ export default function PrintingPanel({token,user}: {token:string;user:any}){
   {error&&<div className="error-banner" role="alert">{error}</div>}
   {notice&&<div className="success-banner" role="status">{notice}</div>}
   <section className="panel-card print-card">
+   <div className="print-card-header"><div><h2><Printer size={18}/> Imprimir pelo computador</h2>
+    <p>Sem instalar aplicativo e sem cadastrar impressora neste sistema.</p></div><Check size={21}/></div>
+   <p className="print-hint">Com a impressora já instalada no Windows, abra <b>Pedidos</b> e clique em <b>Imprimir</b>
+    ao lado do pedido ou dentro dos detalhes. O navegador abrirá a seleção de impressão,
+    onde você poderá usar a impressora habitual e o tamanho de papel configurado nela.</p>
+   <p className="print-hint">Esta opção é manual. A impressão automática abaixo continua disponível
+    para quem utiliza o aplicativo Android.</p>
+  </section>
+  <section className="panel-card print-card">
    <div className="print-card-header"><div><h2>Impressão automática</h2>
     <p>O pedido será enviado para impressão assim que o cliente finalizar a compra.</p></div>
     <span className={'print-status '+(data?.enabled?'active':'inactive')}>{data?.enabled?'Ativada':'Desativada'}</span>
