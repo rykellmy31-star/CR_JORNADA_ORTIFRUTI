@@ -60,10 +60,9 @@ describe('ponte Android e fila segura por estabelecimento',()=>{
    .bind(paired.deviceId).first<{token_hash:string}>();
   expect(record?.token_hash).toBe(await hashSecret(paired.deviceToken));
   expect(record?.token_hash).not.toBe(paired.deviceToken);
-  expect((await admin(a,'/devices/'+paired.deviceId,'DELETE')).status).toBe(404);
-  expect((await admin(a,'/devices/'+paired.deviceId,'DELETE',undefined)).status).toBe(404);
   const revoked=await admin(a,'/devices/'+paired.deviceId,'DELETE');
-  expect(revoked.status).toBe(404);
+  expect(revoked.status).toBe(200);
+  expect((await device('/status','GET',undefined,paired.deviceToken)).status).toBe(401);
  });
  it('gera código revogável e rejeita código expirado',async()=>{
   const {admin,device,a}=await setup();
@@ -126,9 +125,9 @@ describe('ponte Android e fila segura por estabelecimento',()=>{
   const againJob=(await again.json() as any).job;
   expect(againJob.id).toBe(job.id);
   expect(againJob.leaseToken).not.toBe(job.leaseToken);
-  expect((await admin(a,'/devices/'+pa.deviceId,'DELETE')).status).toBe(405);
   const removed=await admin(a,'/devices/'+pa.deviceId,'DELETE');
-  expect(removed.status).toBe(405);
+  expect(removed.status).toBe(200);
+  expect((await device('/jobs/claim','POST',{},pa.deviceToken)).status).toBe(401);
  });
  it('gera comanda térmica de 32 colunas e não repassa controles do cliente',()=>{
   const text=formatPrintReceipt('Minha Loja',{
@@ -140,6 +139,6 @@ describe('ponte Android e fila segura por estabelecimento',()=>{
   },[{product_name_snapshot:'Alface crespa',quantity_display:'2 unidades',line_total_cents:350}]);
   expect(text).toContain('R$ 9,50');
   expect(text).toContain('Troco: R$ 10,50');
-  expect(text.split('\n').every(line=>line.length<=80)).toBe(true);
+  expect(text.split('\n').every(line=>line.length<=32)).toBe(true);
  });
 });
