@@ -29,7 +29,47 @@ export default function App(){
  return <>{page}<DeveloperCredit/></>;
 }
 
-function Landing(){return <div className="landing"><header className="landing-nav"><div className="brand"><span className="brand-mark"><Leaf size={24}/></span><span>CR Jornada <b>Hortifruti</b></span></div><nav><a href="#recursos">Plataforma</a><Link className="btn btn-outline" to="/admin">Acessar painel</Link></nav></header><main><section className="hero"><div className="hero-copy"><span className="eyebrow"><span className="pulse"></span> TECNOLOGIA PARA COMÉRCIO LOCAL</span><h1>Seu hortifruti.<br/><em>Mais perto de todos.</em></h1><p>Uma plataforma completa para vender produtos frescos online, organizar pedidos e cuidar do estoque — tudo em um só lugar.</p><div className="hero-actions"><Link className="btn btn-soft btn-lg" to="/admin">Entrar no painel</Link></div><div className="hero-proof"><div className="avatar-stack"><i>🍊</i><i>🥬</i><i>🍓</i></div><span>Feito para o dia a dia do hortifruti</span></div></div><div className="hero-art"><div className="art-glow"></div><img src="/images/banners/hero-hortifruti.jpg"/><div className="float-card"><span className="float-icon"><ShoppingBasket size={19}/></span><span><b>Pedido recebido!</b><small>Uma cesta cheia de frescor</small></span><Check className="float-check" size={19}/></div><div className="float-tag">🌿 Fresquinho todo dia</div></div></section><section id="recursos" className="features"><div className="section-title"><span className="eyebrow">SIMPLES PARA O CLIENTE. PODEROSO PARA O LOJISTA.</span><h2>Tudo que sua loja precisa<br/>para crescer no digital.</h2></div><div className="feature-grid">{[[ShoppingCart,'Vitrine e pedidos','Uma loja online bonita, carrinho fácil e pedidos sem taxa de pagamento online.'],[Package,'Estoque inteligente','Venda por peso, unidade e embalagens com reserva para evitar venda duplicada.'],[MessageCircle,'WhatsApp integrado','Notificações de pedidos com templates e conexão interna por Evolution API.'],[ShieldCheck,'Multiempresas seguro','Painéis isolados por empresa e gestão centralizada pela CR Jornada.']].map(([I,title,copy]:any)=><article className="feature-card" key={title}><div className="feature-icon"><I size={22}/></div><h3>{title}</h3><p>{copy}</p></article>)}</div></section></main><footer className="footer"><div className="brand"><span className="brand-mark"><Leaf size={20}/></span>CR Jornada Hortifruti</div><span>Plataforma demonstrativa preparada para integração operacional.</span></footer></div>;}
+function Landing(){return <div className="landing">
+ <header className="landing-nav">
+  <div className="brand express-brand"><span className="brand-mark"><Store size={23}/></span><span>CR Jornada <b>Express</b></span></div>
+  <nav><a href="#recursos">Plataforma</a><Link className="btn btn-outline" to="/admin">Acessar painel</Link></nav>
+ </header>
+ <main>
+  <section className="hero">
+   <div className="hero-copy">
+    <span className="eyebrow"><span className="pulse"></span> SUA LOJA ONLINE, DO SEU JEITO</span>
+    <h1>Seu comércio.<br/><em>Mais perto de todos.</em></h1>
+    <p>Seu comércio online, simples e rápido! Crie sua vitrine, cadastre produtos, organize pedidos e controle o estoque em uma única plataforma.</p>
+    <div className="hero-actions"><Link className="btn btn-soft btn-lg" to="/admin">Entrar no painel <ArrowRight size={17}/></Link></div>
+    <div className="hero-proof"><span className="express-segment-pill">🥬 Hortifrutis</span><span className="express-segment-pill">🛒 Mercados</span><span className="express-segment-pill">🏪 Mercearias</span></div>
+   </div>
+   <div className="hero-art express-hero-art" aria-label="Exemplo ilustrativo de uma vitrine online">
+    <div className="art-glow"/>
+    <div className="express-showcase">
+     <div className="express-showcase-top"><span className="express-showcase-icon"><Store size={24}/></span><span><strong>Minha Loja Online</strong><small>Vitrine digital · Exemplo ilustrativo</small></span><span className="express-showcase-open">Aberta</span></div>
+     <div className="express-showcase-categories"><span>Todos</span><span>Hortifruti</span><span>Mercearia</span><span>Ofertas</span></div>
+     <div className="express-showcase-grid">
+      {[['🍌','Banana','Por kg'],['🍚','Arroz','Pacote'],['🥬','Alface','Unidade'],['☕','Café','Pacote']].map(([emoji,name,mode])=><div className="express-showcase-product" key={name}><span aria-hidden="true">{emoji}</span><b>{name}</b><small>{mode}</small></div>)}
+     </div>
+     <div className="express-showcase-checkout"><span><ShoppingCart size={17}/> Carrinho de compras</span><span>Finalizar pedido <ArrowRight size={14}/></span></div>
+    </div>
+    <div className="float-card"><span className="float-icon"><ShoppingCart size={19}/></span><span><b>Pedido recebido!</b><small>Nova venda na sua loja</small></span><Check className="float-check" size={19}/></div>
+    <div className="float-tag">⚡ CR Jornada Express</div>
+   </div>
+  </section>
+  <section id="recursos" className="features">
+   <div className="section-title"><span className="eyebrow">SIMPLES PARA O CLIENTE. PODEROSO PARA O LOJISTA.</span><h2>Tudo que sua loja precisa<br/>para crescer no digital.</h2></div>
+   <div className="feature-grid">{[
+    [ShoppingCart,'Vitrine e pedidos','Uma loja online própria, com carrinho e pedidos organizados.'],
+    [Package,'Estoque inteligente','Venda por peso, unidade e variações, com controle de estoque.'],
+    [MessageCircle,'WhatsApp integrado','Notificações de pedidos quando o estabelecimento configura a integração.'],
+    [ShieldCheck,'Cada loja com seu painel','Produtos, vendas, configurações e clientes separados por estabelecimento.']
+   ].map(([I,title,copy]:any)=><article className="feature-card" key={title}><div className="feature-icon"><I size={22}/></div><h3>{title}</h3><p>{copy}</p></article>)}</div>
+  </section>
+  <section className="express-segments"><span className="eyebrow">UMA PLATAFORMA, VÁRIAS POSSIBILIDADES</span><h2>Feito para diferentes tipos de comércio</h2><div className="express-segment-grid"><span>🥬 Hortifrutis e verdurões</span><span>🍎 Frutarias e sacolões</span><span>🛒 Mercados e minimercados</span><span>🏪 Mercearias e empórios</span></div></section>
+ </main>
+ <footer className="footer"><div className="brand express-brand"><span className="brand-mark"><Store size={20}/></span>CR Jornada <b>Express</b></div><span>Seu comércio online, simples e rápido!</span></footer>
+</div>;}
 
 type PurchaseMode='weight'|'unit'|'variants';
 type CartLine={product:any;variant?:any;purchaseMode:PurchaseMode;quantity:number};
@@ -51,7 +91,7 @@ const cartLineKey=(line:CartLine)=>[line.product.id,line.variant?.id||'',line.pu
 
 /** Imagem sem recorte: texto e botão ficam fora da arte, inclusive em celular. */
 function StoreBannerCarousel({store,banners}:{store:any;banners:any[]}){
- const slides=banners.length?banners:[{id:'default',image_url:'/images/banners/hero-hortifruti.jpg',mobile_image_url:null}];
+ const slides=banners.length?banners:[{id:'default',image_url:'',mobile_image_url:null}];
  const [index,setIndex]=useState(0);
  useEffect(()=>setIndex(0),[store.id]);
  useEffect(()=>{
@@ -65,16 +105,19 @@ function StoreBannerCarousel({store,banners}:{store:any;banners:any[]}){
  const go=(delta:number)=>setIndex(i=>(i+delta+slides.length)%slides.length);
  return <section className="store-banner-carousel" aria-label="Banners da loja">
   <div className={`store-banner-frame ${selected.mobile_image_url?'has-mobile-banner':''}`}>
-   <picture key={selected.id}>
+   {selected.image_url?<picture key={selected.id}>
     {selected.mobile_image_url&&<source media="(max-width:680px)" srcSet={selected.mobile_image_url}/>}
     <img className="store-banner-image" src={selected.image_url}
      alt={`Banner ${index%slides.length+1} de ${store.name}`} loading="eager" decoding="async"/>
-   </picture>
+   </picture>:<div className="store-banner-express-default" role="img" aria-label="Vitrine de produtos variados">
+    <div className="store-banner-express-emojis" aria-hidden="true">🛒 🍎 🥖 🥬</div>
+    <strong>Bem-vindo à nossa loja!</strong><span>Produtos, novidades e ofertas para você</span>
+   </div>}
   </div>
   <div className="store-banner-bottom">
    <div className="store-banner-copy">
-    <strong>{store.banner_title||'Fresquinho todo dia'}</strong>
-    <span>{store.banner_subtitle||'Frutas, verduras e legumes selecionados com carinho.'}</span>
+    <strong>{store.banner_title||'Bem-vindo à nossa loja!'}</strong>
+    <span>{store.banner_subtitle||'Confira nossos produtos e ofertas.'}</span>
    </div>
    {slides.length>1&&<div className="store-banner-controls" aria-label="Navegar pelos banners">
     <button type="button" onClick={()=>go(-1)} aria-label="Banner anterior"><ArrowLeft size={17}/></button>
@@ -89,6 +132,11 @@ function StoreBannerCarousel({store,banners}:{store:any;banners:any[]}){
  </section>;
 }
 function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOverride||useLocation().pathname.split('/')[2]||'';const[storeData,setStoreData]=useState<any>(null),[showSignup,setShowSignup]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState(''),[cat,setCat]=useState('all'),[cart,setCart]=useState<CartLine[]>([]),[checkout,setCheckout]=useState(false),[placed,setPlaced]=useState<any>(null),[loading,setLoading]=useState(true),[mobileCart,setMobileCart]=useState(false);const navigate=useNavigate();
+ useEffect(()=>{
+  if(!storeData?.store?.name)return;
+  document.title=storeData.store.name+' | Loja Online';
+  return()=>{document.title='CR Jornada Express';};
+ },[storeData?.store?.name]);
  const categoryListRef=useRef<HTMLDivElement>(null);
  const [canScrollCategoriesBack,setCanScrollCategoriesBack]=useState(false);
  const [canScrollCategoriesForward,setCanScrollCategoriesForward]=useState(false);
@@ -145,8 +193,8 @@ function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOve
  const getLine=(product:any,variant:any,purchaseMode:PurchaseMode)=>cart.find(x=>cartLineKey(x)===cartLineKey({product,variant,purchaseMode,quantity:1}))?.quantity||0;
  const removeLine=(line:CartLine)=>setCart(old=>removeCartSelection(old,line));
  if(loading)return <div className="loading"><span className="spinner"/>Carregando a loja…</div>;if(error||!store)return <div className="center-page"><h2>Não foi possível carregar esta loja</h2><p>{error}</p><button type="button" className="btn btn-primary" onClick={()=>window.location.reload()}>Tentar novamente</button></div>;
- return <div className="storefront" style={{'--store-color':store.primary_color||'#16834b'} as any}><div className="announcement"><Leaf size={14}/> Produtos fresquinhos selecionados todos os dias <span>•</span> Entrega no seu bairro</div><header className="store-header"><div className="store-logo"><span className="store-logo-icon">{store.logo_url?<img src={store.logo_url} alt={`Logomarca de ${store.name}`}/>:<Leaf size={24}/>}</span><span><b>{store.name}</b><small>Fresquinho todo dia</small></span></div><div className="store-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="O que você procura hoje?"/><kbd>⌘ K</kbd></div><div className="store-head-actions"><a className="contact-link" href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank"><MessageCircle size={17}/><span>Fale conosco</span></a><button className="cart-head" onClick={()=>setMobileCart(true)}><ShoppingCart size={19}/><span className="cart-count" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'} na cesta`}>{cartItemCount}</span></button></div></header>
- <main className="store-body"><StoreBannerCarousel store={store} banners={storeData?.banners||[]}/><div className="store-benefits"><span><Truck/> Entrega no mesmo dia</span><span><Check/> Pagamento na entrega</span><span><Clock/> {store.business_hours}</span></div><div className="catalog-layout" id="catalogo"><section className="catalog-main"><div className="catalog-heading"><div><span className="eyebrow">DA NOSSA BANCA PARA SUA CASA</span><h2>Escolha seus fresquinhos</h2></div><span className="result-count">{shown.length} produtos disponíveis</span></div><div className="category-nav" aria-label="Categorias de produtos">
+ return <div className="storefront" style={{'--store-color':store.primary_color||'#16834b'} as any}><div className="announcement"><ShoppingCart size={14}/> Ofertas e novidades da sua loja <span>•</span> Entrega no seu bairro</div><header className="store-header"><div className="store-logo"><span className="store-logo-icon">{store.logo_url?<img src={store.logo_url} alt={`Logomarca de ${store.name}`}/>:<Store size={24}/>}</span><span><b>{store.name}</b><small>Sua loja online</small></span></div><div className="store-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="O que você procura hoje?"/><kbd>⌘ K</kbd></div><div className="store-head-actions"><a className="contact-link" href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank"><MessageCircle size={17}/><span>Fale conosco</span></a><button className="cart-head" onClick={()=>setMobileCart(true)}><ShoppingCart size={19}/><span className="cart-count" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'} no carrinho`}>{cartItemCount}</span></button></div></header>
+ <main className="store-body"><StoreBannerCarousel store={store} banners={storeData?.banners||[]}/><div className="store-benefits"><span><Truck/> Entrega no mesmo dia</span><span><Check/> Pagamento na entrega</span><span><Clock/> {store.business_hours}</span></div><div className="catalog-layout" id="catalogo"><section className="catalog-main"><div className="catalog-heading"><div><span className="eyebrow">SUA LOJA, SUAS ESCOLHAS</span><h2>Escolha seus produtos</h2></div><span className="result-count">{shown.length} produtos disponíveis</span></div><div className="category-nav" aria-label="Categorias de produtos">
  <button type="button" className="category-nav-arrow" aria-label="Ver categorias anteriores"
    disabled={!canScrollCategoriesBack} onClick={()=>moveCategories(-1)}><ArrowLeft size={18}/></button>
  <div className="category-chips" ref={categoryListRef} onScroll={updateCategoryArrows}
@@ -180,10 +228,10 @@ function SignupPopup({slug,store,onClose,onDone}:any){
  return <div className="signup-overlay" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
    <section className="signup-dialog" role="dialog" aria-modal="true" aria-labelledby="signup-title">
      <button type="button" className="signup-close" aria-label="Fechar cadastro" onClick={onClose}><X size={22}/></button>
-     <div className="signup-brand-graphic" aria-hidden="true">🥬 🍓 🥕</div>
-     <span className="signup-eyebrow"><Leaf size={13}/> NOVIDADES DA SUA FEIRA</span>
-     <h2 id="signup-title">{store.signup_popup_title||'🍓 Fresquinho de verdade, novidades em primeira mão!'}</h2>
-     <p className="signup-description">{store.signup_popup_description||'Cadastre-se para conhecer os produtos fresquinhos, as novidades e as ofertas da nossa loja!'}</p>
+     <div className="signup-brand-graphic" aria-hidden="true">🛒 🍎 📦</div>
+     <span className="signup-eyebrow"><ShoppingCart size={13}/> NOVIDADES DA SUA LOJA</span>
+     <h2 id="signup-title">{store.signup_popup_title||'Novidades e ofertas em primeira mão!'}</h2>
+     <p className="signup-description">{store.signup_popup_description||'Cadastre-se para conhecer as novidades e ofertas da nossa loja!'}</p>
      <form onSubmit={submit} className="signup-form">
        <label>Nome completo
          <input required autoComplete="name" minLength={3} maxLength={140} placeholder="Seu nome e sobrenome"
@@ -299,15 +347,15 @@ function CartSummary({cart,subtotal,store,onQty,onRemove,onCheckout}:any){
  const neighborhoods=store.neighborhoods||[];
  const fee=store.free_delivery_min_cents&&subtotal>=store.free_delivery_min_cents?0:(neighborhoods.find((x:any)=>x.name===neighborhood)?.delivery_fee_cents??store.default_delivery_fee_cents);
  return <div className="cart-box">
-  <div className="cart-title"><div><span className="cart-title-icon"><ShoppingBasket size={19}/></span><span><b>Sua cesta</b><small>{cartItemCount} {cartItemCount===1?'item':'itens'} na cesta</small></span></div><span className="cart-qty-pill" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'}`}>{cartItemCount}</span></div>
-  {cart.length===0?<div className="cart-empty"><div>🧺</div><b>Sua cesta está vazia</b><p>Adicione produtos fresquinhos para começar.</p></div>:<>
+  <div className="cart-title"><div><span className="cart-title-icon"><ShoppingCart size={19}/></span><span><b>Seu carrinho</b><small>{cartItemCount} {cartItemCount===1?'item':'itens'} no carrinho</small></span></div><span className="cart-qty-pill" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'}`}>{cartItemCount}</span></div>
+  {cart.length===0?<div className="cart-empty"><div>🛒</div><b>Seu carrinho está vazio</b><p>Adicione produtos para começar.</p></div>:<>
   <div className="cart-lines">{cart.map((line:CartLine)=>{
     const step=line.purchaseMode==='weight'?Number(line.product.step_qty||50):1;
     const minimum=line.purchaseMode==='weight'?Number(line.product.min_qty||100):1;
     const display=line.purchaseMode==='variants'?line.variant?.name:line.purchaseMode==='weight'?'Compra por kg':'Compra por unidade';
     const label= formatQuantityDisplay(line.quantity,line.purchaseMode,line.purchaseMode==='weight'?'kg':'un',line.variant?.name);
     return <div className="cart-line" key={cartLineKey(line)}><img src={img(line.product.image_url)}/><div className="cart-line-meta"><b>{line.product.name}</b><small>{display} · {label}</small><strong>{money(cartLineTotal(line))}</strong>
-      <button type="button" className="cart-line-remove" aria-label={`Remover ${line.product.name} da cesta`}
+      <button type="button" className="cart-line-remove" aria-label={`Remover ${line.product.name} do carrinho`}
         onClick={()=>onRemove(line)}><Trash2 size={13} aria-hidden="true"/> Remover</button>
     </div><div className="cart-line-qty">
       <button type="button" onClick={()=>onQty(line.product,line.variant,line.purchaseMode,line.quantity-step)}>−</button><span>{label}</span>
@@ -405,8 +453,8 @@ if(!auth||!user)return <Login onLogin={(t:string,u:any)=>{localStorage.setItem('
    onClick={()=>setMobileOpen(false)} aria-label="Fechar o menu lateral"/>}
  <aside className={`sidebar ${mobileOpen?'open':''}`}>
  <button type="button" className="sidebar-close" aria-label="Fechar menu" title="Fechar menu"
-   onClick={()=>setMobileOpen(false)}><X size={21}/></button><Link to="/" className="admin-brand"><span className="brand-mark"><Leaf/></span><span>CR Jornada<small>HORTIFRUTI</small></span></Link><div className="sidebar-tenant"><span className="tenant-avatar">{user.tenantName?.[0]||'C'}</span><span><b>{user.tenantName||'Central CR Jornada'}</b><small>{user.role==='superadmin'?'Super Administrador':'Plano Profissional'}</small></span><ChevronDown size={15}/></div><nav className="admin-menu"><small className="menu-label">MENU PRINCIPAL</small>{menuItems.map(([id,label,Icon])=><button key={id} className={active===id?'active':''} onClick={()=>{setActive(id);setMobileOpen(false);}}><Icon size={18}/><span>{label}</span>{id==='orders'&&<em className="menu-dot"/>}</button>)}</nav><div className="sidebar-bottom"><div className="sidebar-help"><span>🌱</span><b>Precisa de ajuda?</b><small>Fale com o suporte CR Jornada.</small></div><button className="profile-mini" onClick={logout}><span className="profile-avatar">{user.name?.[0]}</span><span><b>{user.name}</b><small>{user.email}</small></span><LogOut size={17}/></button></div></aside><main className="admin-main"><header className="admin-topbar"><button type="button" className="icon-btn mobile-menu-btn" aria-label={mobileOpen?"Fechar menu":"Abrir menu"} aria-expanded={mobileOpen} onClick={()=>setMobileOpen(!mobileOpen)}>{mobileOpen?<X/>:<Menu/>}</button><div className="breadcrumbs"><span>Painel</span><ChevronDown size={14}/><b>{menuItems.find(x=>x[0]===active)?.[1]}</b></div><div className="topbar-right"><span className={`open-indicator ${storeOpen?'':'closed'}`}><i/> {storeOpen?'Loja aberta':'Loja pausada'}</span><a className="btn btn-sm btn-outline" href={storeHomeUrl(user.tenantSlug||'verde-vivo')} target="_blank" rel="noopener noreferrer"><Eye size={15}/> Ver loja</a><button className="icon-btn notification-btn"><MessageCircle size={18}/></button><span className="profile-avatar top-avatar">{user.name?.[0]}</span></div></header><div className="admin-content">{active==='dashboard'?<Dashboard token={auth} user={user}/>:active==='orders'?<Orders token={auth}/>:active==='products'?<Products token={auth}/>:active==='categories'?<Categories token={auth}/>:active==='stock'?<Stock token={auth}/>:active==='customers'?<Customers token={auth}/>:active==='reports'?<Reports token={auth}/>:active==='whatsapp'?<WhatsApp token={auth}/>:<SettingsPanel token={auth} user={user}/>}</div></main></div>}
-function Login({onLogin}:any){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(false),[show,setShow]=useState(false);async function submit(e:any){e.preventDefault();setLoading(true);setError('');try{const x=await req('/auth/login',{method:'POST',body:JSON.stringify({email,password})});onLogin(x.token,x.user);}catch(e:any){setError(e.message);}finally{setLoading(false);}}return <div className="login-screen"><Link to="/" className="login-back"><ArrowLeft size={16}/> Página inicial</Link><div className="login-visual"><div className="login-illustration"><img src="/images/banners/hero-hortifruti.jpg"/><div className="login-quote"><Leaf/><b>Seu negócio merece<br/>crescer fresquinho.</b><small>CR Jornada Hortifruti</small></div></div></div><div className="login-form-side"><form className="login-card" onSubmit={submit}><div className="login-logo"><span className="brand-mark"><Leaf/></span><span>CR Jornada<small> HORTIFRUTI</small></span></div><span className="eyebrow">BEM-VINDO DE VOLTA</span><h1>Acesse seu painel</h1><p>Gerencie sua loja com praticidade.</p><label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Senha<div className="password-input"><input type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} required/><button type="button" onClick={()=>setShow(!show)}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></label>{error&&<div className="error-banner">{error}</div>}<button className="btn btn-primary btn-block login-submit" disabled={loading}>{loading?'Entrando…':'Entrar no painel'} <ArrowRight size={17}/></button><div className="demo-login"><ShieldCheck size={15}/><span>Ambiente local demonstrativo · altere as senhas antes da produção.</span></div></form></div></div>}
+   onClick={()=>setMobileOpen(false)}><X size={21}/></button><Link to="/" className="admin-brand"><span className="brand-mark"><Store/></span><span>CR Jornada<small>EXPRESS</small></span></Link><div className="sidebar-tenant"><span className="tenant-avatar">{user.tenantName?.[0]||'C'}</span><span><b>{user.tenantName||'Central CR Jornada'}</b><small>{user.role==='superadmin'?'Super Administrador':'Plano Profissional'}</small></span><ChevronDown size={15}/></div><nav className="admin-menu"><small className="menu-label">MENU PRINCIPAL</small>{menuItems.map(([id,label,Icon])=><button key={id} className={active===id?'active':''} onClick={()=>{setActive(id);setMobileOpen(false);}}><Icon size={18}/><span>{label}</span>{id==='orders'&&<em className="menu-dot"/>}</button>)}</nav><div className="sidebar-bottom"><div className="sidebar-help"><span>🌱</span><b>Precisa de ajuda?</b><small>Fale com o suporte CR Jornada.</small></div><button className="profile-mini" onClick={logout}><span className="profile-avatar">{user.name?.[0]}</span><span><b>{user.name}</b><small>{user.email}</small></span><LogOut size={17}/></button></div></aside><main className="admin-main"><header className="admin-topbar"><button type="button" className="icon-btn mobile-menu-btn" aria-label={mobileOpen?"Fechar menu":"Abrir menu"} aria-expanded={mobileOpen} onClick={()=>setMobileOpen(!mobileOpen)}>{mobileOpen?<X/>:<Menu/>}</button><div className="breadcrumbs"><span>Painel</span><ChevronDown size={14}/><b>{menuItems.find(x=>x[0]===active)?.[1]}</b></div><div className="topbar-right"><span className={`open-indicator ${storeOpen?'':'closed'}`}><i/> {storeOpen?'Loja aberta':'Loja pausada'}</span><a className="btn btn-sm btn-outline" href={storeHomeUrl(user.tenantSlug||'verde-vivo')} target="_blank" rel="noopener noreferrer"><Eye size={15}/> Ver loja</a><button className="icon-btn notification-btn"><MessageCircle size={18}/></button><span className="profile-avatar top-avatar">{user.name?.[0]}</span></div></header><div className="admin-content">{active==='dashboard'?<Dashboard token={auth} user={user}/>:active==='orders'?<Orders token={auth}/>:active==='products'?<Products token={auth}/>:active==='categories'?<Categories token={auth}/>:active==='stock'?<Stock token={auth}/>:active==='customers'?<Customers token={auth}/>:active==='reports'?<Reports token={auth}/>:active==='whatsapp'?<WhatsApp token={auth}/>:<SettingsPanel token={auth} user={user}/>}</div></main></div>}
+function Login({onLogin}:any){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(false),[show,setShow]=useState(false);async function submit(e:any){e.preventDefault();setLoading(true);setError('');try{const x=await req('/auth/login',{method:'POST',body:JSON.stringify({email,password})});onLogin(x.token,x.user);}catch(e:any){setError(e.message);}finally{setLoading(false);}}return <div className="login-screen"><Link to="/" className="login-back"><ArrowLeft size={16}/> Página inicial</Link><div className="login-visual"><div className="login-illustration"><div className="login-express-art"><div className="login-express-icon"><Store size={72}/></div><div className="login-express-products"><span>🥬</span><span>🛒</span><span>🍚</span><span>🍎</span></div></div><div className="login-quote"><ShoppingCart/><b>Seu comércio merece<br/>vender mais.</b><small>CR Jornada Express · Sua loja digital</small></div></div></div><div className="login-form-side"><form className="login-card" onSubmit={submit}><div className="login-logo"><span className="brand-mark"><Store/></span><span>CR Jornada<small> EXPRESS</small></span></div><span className="eyebrow">BEM-VINDO DE VOLTA</span><h1>Acesse seu painel</h1><p>Gerencie sua loja com praticidade.</p><label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Senha<div className="password-input"><input type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} required/><button type="button" onClick={()=>setShow(!show)}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></label>{error&&<div className="error-banner">{error}</div>}<button className="btn btn-primary btn-block login-submit" disabled={loading}>{loading?'Entrando…':'Entrar no painel'} <ArrowRight size={17}/></button><div className="demo-login"><ShieldCheck size={15}/><span>Ambiente local demonstrativo · altere as senhas antes da produção.</span></div></form></div></div>}
 function PageHead({eyebrow,title,desc,action}:any){return <div className="page-head"><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1>{desc&&<p>{desc}</p>}</div>{action}</div>}
 function Dashboard({token,user}:any){const[data,setData]=useState<any>(null),[error,setError]=useState('');useEffect(()=>{req('/admin/dashboard',{},token).then(setData).catch(e=>setError(e.message));},[]);return <><PageHead eyebrow={`OLÁ, ${user.name?.split(' ')[0]?.toUpperCase()||'LOJISTA'} 👋`} title="Sua loja em um olhar" desc="Acompanhe os pedidos e o movimento de hoje." action={<button className="btn btn-outline" onClick={()=>location.reload()}><RefreshCw size={16}/> Atualizar</button>}/>{error&&<div className="error-banner">{error}</div>}<div className="stats-grid">{[[ClipboardList,'Pedidos hoje',data?.today?.orders||0,'primary'],[BarChart3,'Vendas hoje',money(data?.today?.sales||0),'orange'],[Clock,'Aguardando aceite',data?.counts?.received||0,'blue'],[Truck,'Em entrega',data?.counts?.out_for_delivery||0,'purple']].map(([Icon,label,value,color]:any)=><div className="stat-card" key={label}><div className={`stat-icon ${color}`}><Icon size={20}/></div><div><small>{label}</small><b>{value}</b></div><span className="stat-spark">↗</span></div>)}</div><div className="dashboard-grid"><section className="panel-card recent-panel"><div className="panel-heading"><div><h2>Pedidos recentes</h2><p>Os últimos pedidos da sua loja</p></div><button className="text-link-btn" onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'orders'}))}>Ver todos <ArrowRight size={14}/></button></div><div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Data</th><th>Status</th><th>Total</th></tr></thead><tbody>{(data?.recentOrders||[]).map((o:any)=><tr key={o.id}><td><b>#{o.order_number}</b></td><td>{o.customer_name}</td><td>{new Date(o.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td><td><StatusBadge status={o.status}/></td><td><b>{money(o.total_cents)}</b></td></tr>)}</tbody></table>{!data?.recentOrders?.length&&<div className="empty-table">Nenhum pedido por enquanto.</div>}</div></section><section className="panel-card lowstock-panel"><div className="panel-heading"><div><h2>Estoque baixo</h2><p>Produtos que precisam de atenção</p></div><Box size={18}/></div>{(data?.lowStock||[]).map((p:any)=><div className="lowstock-row" key={p.id}><span className="lowstock-img">🥬</span><span><b>{p.name}</b><small>{p.physical_qty-p.reserved_qty} {p.unit_label} disponíveis</small></span><span className="lowstock-alert">Baixo</span></div>)}{!data?.lowStock?.length&&<div className="positive-state"><Check/> Estoque em dia. Bom trabalho!</div>}</section></div><div className="quick-actions"><span>Acesso rápido</span><button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'products'}))}><Plus/> Novo produto</button><button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'orders'}))}><ClipboardList/> Ver pedidos</button><button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'whatsapp'}))}><MessageCircle/> Conectar WhatsApp</button></div><NavEvents/></>}
 function NavEvents(){const nav=(e:any)=>{const btn=[...document.querySelectorAll('.admin-menu button')].find((x:any)=>x.textContent?.toLowerCase().includes(e.detail==='products'?'produtos':e.detail==='orders'?'pedidos':'whatsapp')) as HTMLButtonElement;btn?.click();};useEffect(()=>{window.addEventListener('nav',nav);return()=>window.removeEventListener('nav',nav);},[]);return null}
@@ -822,7 +870,7 @@ function SettingsPanel({token}:any){const[data,setData]=useState<any>(null),[sav
     <small>O cliente poderá fechar o convite. O consentimento para receber ofertas será opcional e ficará registrado na lista Clientes.</small>
   </section>
   <section className="panel-card settings-card"><div className="panel-heading"><div><h2>Entrega</h2><p>Taxa padrão e pedido mínimo</p></div><Truck size={19}/></div><label>Taxa padrão de entrega (R$)<input inputMode="decimal" value={data.defaultFeeDisplay} onChange={e=>set('defaultFeeDisplay',e.target.value)}/></label><label>Frete grátis a partir de (R$)<input inputMode="decimal" value={data.freeFeeDisplay} onChange={e=>set('freeFeeDisplay',e.target.value)}/></label><label>Pedido mínimo (R$)<input inputMode="decimal" value={data.minOrderDisplay} onChange={e=>set('minOrderDisplay',e.target.value)}/></label></section><section className="panel-card settings-card"><div className="panel-heading"><div><h2>Pagamentos aceitos na entrega</h2><p>Nenhum pagamento online.</p></div></div>{[['accepts_cash','Dinheiro'],['accepts_pix_delivery','Pix na entrega'],['accepts_debit_delivery','Cartão de débito'],['accepts_credit_delivery','Cartão de crédito']].map(([k,l])=><label className="settings-toggle" key={k}><span>{l}</span><label className="switch"><input type="checkbox" checked={!!data[k]} onChange={e=>set(k,e.target.checked?1:0)}/><span/></label></label>)}</section><section className="panel-card settings-card"><div className="settings-toggle"><span><b>Loja aberta</b><small>Receber pedidos pela vitrine</small></span><label className="switch"><input type="checkbox" checked={!!data.is_open} onChange={e=>set('is_open',e.target.checked?1:0)}/><span/></label></div></section><section className="panel-card settings-card"><div className="panel-heading"><div><h2>Bairros atendidos</h2><p>Configure regiões e taxas de entrega.</p></div><MapPin size={17}/></div>{(data.neighborhoods||[]).map((n:any)=><div className="neighborhood-row" key={n.id}><span><b>{n.name}</b><small>{money(n.delivery_fee_cents)} · {n.estimated_time}</small></span><div className="neighborhood-actions"><button className="icon-btn" title="Editar bairro e taxa" onClick={async()=>{const name=window.prompt('Nome do bairro:',n.name);if(name===null)return;const fee=window.prompt('Taxa de entrega em reais (ex.: 6,00):',(Number(n.delivery_fee_cents)/100).toFixed(2).replace('.',','));if(fee===null)return;try{await req(`/admin/settings/neighborhoods/${n.id}`,{method:'PATCH',body:JSON.stringify({name,deliveryFeeCents:parseBRLToCents(fee)})},token);const x=await req('/admin/settings',{},token);set('neighborhoods',x.neighborhoods);}catch(e:any){setError(e.message);}}}><Settings size={14}/></button><button className="icon-btn" title="Remover bairro" onClick={async()=>{await req(`/admin/settings/neighborhoods/${n.id}`,{method:'DELETE'},token);set('neighborhoods',data.neighborhoods.filter((x:any)=>x.id!==n.id));}}><X size={15}/></button></div></div>)}<div className="neighborhood-add"><input placeholder="Novo bairro" value={data.newNeighborhoodName||''} onChange={e=>set('newNeighborhoodName',e.target.value)}/><input placeholder="Taxa (R$)" inputMode="decimal" value={data.newNeighborhoodFee||''} onChange={e=>set('newNeighborhoodFee',e.target.value)}/><button className="btn btn-xs btn-outline" onClick={async()=>{if(!data.newNeighborhoodName)return;try{await req('/admin/settings/neighborhoods',{method:'POST',body:JSON.stringify({name:data.newNeighborhoodName,deliveryFeeCents:parseBRLToCents(data.newNeighborhoodFee||'0')})},token);const x=await req('/admin/settings',{},token);setData({...data,neighborhoods:x.neighborhoods,newNeighborhoodName:'',newNeighborhoodFee:0});}catch(e:any){setError(e.message);}}}><Plus size={13}/></button></div></section></div></div></>}
-type NewHortifrutiAccess={
+type NewExpressAccess={
  tenantId:string; slug:string; name:string; ownerEmail:string;
  temporaryPassword:string; adminUrl:string; storeUrl:string;
  domainStatus:'registered'|'pending'|'manual'; domainMessage:string;
@@ -837,7 +885,7 @@ function SuperAdmin(){
  const [creating,setCreating]=useState(false);
  const [domainRetryId,setDomainRetryId]=useState<string|null>(null);
  const [notice,setNotice]=useState('');
- const [access,setAccess]=useState<NewHortifrutiAccess|null>(null);
+ const [access,setAccess]=useState<NewExpressAccess|null>(null);
  const [showAccessPassword,setShowAccessPassword]=useState(false);
  const [copied,setCopied]=useState('');
  const [form,setForm]=useState<any>({name:'',slug:'',ownerName:'',ownerEmail:'',temporaryPassword:''});
@@ -865,7 +913,7 @@ function SuperAdmin(){
   try{
    const created=await req('/superadmin/tenants',{
     method:'POST',body:JSON.stringify({...form,status:'active'})
-   },token) as NewHortifrutiAccess;
+   },token) as NewExpressAccess;
    setAccess(created);
    setNotice(created.domainStatus==='registered'?'Domínio registrado na Cloudflare. Confira o certificado HTTPS antes de divulgar.': 'Cadastro criado, mas a vitrine ainda não está pronta. Verifique o estado do domínio.');
    setShowAccessPassword(false);
@@ -896,9 +944,9 @@ function SuperAdmin(){
   <form className="login-card" onSubmit={login}>
    <Link to="/" className="login-back"><ArrowLeft size={16}/> Início</Link>
    <div className="login-logo"><span className="brand-mark"><ShieldCheck/></span>
-    <span>CR Jornada<small> HORTIFRUTI</small></span></div>
+    <span>CR Jornada<small> EXPRESS</small></span></div>
    <span className="eyebrow">GESTÃO DOS ESTABELECIMENTOS</span>
-   <h1>Super Admin do Hortifruti</h1>
+   <h1>Super Admin do Express</h1>
    <label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label>
    <label>Senha<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>
    {error&&<div className="error-banner">{error}</div>}
@@ -906,12 +954,12 @@ function SuperAdmin(){
   </form></div></div>;
  return <div className="super-page">
   <header className="super-top">
-   <Link to="/" className="brand"><span className="brand-mark"><ShieldCheck/></span>CR Jornada <b>Hortifruti</b></Link>
+   <Link to="/" className="brand"><span className="brand-mark"><ShieldCheck/></span>CR Jornada <b>Express</b></Link>
    <button className="btn btn-outline" onClick={logout}>Sair</button>
   </header>
   <main className="super-content">
-   <PageHead eyebrow="SUPER ADMINISTRADOR · HORTIFRUTI" title="Estabelecimentos"
-    desc="Gerencie exclusivamente as lojas do CR Jornada Hortifruti."
+   <PageHead eyebrow="SUPER ADMINISTRADOR · EXPRESS" title="Estabelecimentos"
+    desc="Gerencie exclusivamente os estabelecimentos do CR Jornada Express."
     action={<button className="btn btn-primary" onClick={()=>{setError('');setModal(true);}}><Plus/> Novo estabelecimento</button>}/>
    {error&&<div className="error-banner" role="alert">{error}</div>}
    {notice&&<div className="success-banner" role="status">{notice}</div>}
@@ -939,14 +987,14 @@ function SuperAdmin(){
      <td><button className="btn btn-xs btn-outline" onClick={async()=>{
       try{
        await req(`/superadmin/tenants/${t.id}/status`,{method:'PATCH',
-        body:JSON.stringify({status:t.status==='active'?'blocked':'active',reason:'Ação pelo Super Admin Hortifruti'})},token);
+        body:JSON.stringify({status:t.status==='active'?'blocked':'active',reason:'Ação pelo Super Admin Express'})},token);
        await load();
       }catch(err:any){setError(err.message);}
      }}>{t.status==='active'?'Bloquear':'Ativar'}</button></td>
     </tr>)}</tbody>
    </table></div></div>
    {modal&&<div className="modal-backdrop"><form className="form-modal" onSubmit={create}>
-    <div className="modal-heading"><div><span className="eyebrow">NOVA LOJA HORTIFRUTI</span>
+    <div className="modal-heading"><div><span className="eyebrow">NOVO ESTABELECIMENTO</span>
       <h2>Adicionar estabelecimento</h2></div>
      <button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Fechar cadastro"><X/></button></div>
     <div className="form-grid">
@@ -975,7 +1023,7 @@ function SuperAdmin(){
     </div>
    </form></div>}
    {access&&<div className="modal-backdrop"><div className="form-modal"
-     role="dialog" aria-modal="true" aria-label="Credenciais do novo Hortifruti">
+     role="dialog" aria-modal="true" aria-label="Credenciais do novo estabelecimento">
     <div className="modal-heading"><div><span className="eyebrow">CADASTRO CONCLUÍDO</span>
       <h2>Dados de acesso da loja</h2></div>
      <button className="icon-btn" aria-label="Fechar dados de acesso" onClick={clearAccess}><X/></button></div>
@@ -999,7 +1047,7 @@ function SuperAdmin(){
        onClick={()=>setShowAccessPassword(v=>!v)}>{showAccessPassword?'Ocultar':'Mostrar'} senha</button>}
      </div>)}
     <button className="btn btn-primary btn-block" onClick={()=>void copyValue('Todas as informações',[
-      'CR Jornada Hortifruti — '+access.name,
+      'CR Jornada Express — '+access.name,
       'E-mail: '+access.ownerEmail,
       'Senha inicial: '+access.temporaryPassword,
       'Painel administrativo: '+access.adminUrl,

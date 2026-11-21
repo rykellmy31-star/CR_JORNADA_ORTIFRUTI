@@ -33,6 +33,16 @@ describe('Super Admin original do Hortifruti com credenciais e links por loja',(
   expect(account.temporaryPassword).toBe('SenhaInicialSegura2026!');
   expect(account.adminUrl).toBe('https://hortifruti.crjornada.com/admin');
   expect(account.storeUrl).toBe('https://verdurao-itanhem.crjornada.com/');
+  // A identidade global muda; a loja conserva o nome e os links originais.
+  const storeIdentity=await db.prepare(
+   'SELECT name,banner_title,banner_subtitle,signup_popup_title,signup_popup_description FROM tenants WHERE id=?'
+  ).bind(account.tenantId).first<any>();
+  expect(storeIdentity.name).toBe('Verdurão Itanhém');
+  expect(storeIdentity.banner_title).toBe('Bem-vindo à nossa loja!');
+  expect(storeIdentity.banner_subtitle).toBe('Confira nossos produtos e ofertas.');
+  expect(storeIdentity.signup_popup_title).toBe('Novidades e ofertas em primeira mão!');
+  expect(storeIdentity.signup_popup_description).toContain('novidades e ofertas da nossa loja');
+
   const ownerLogin=await app.fetch(new Request('http://local/api/auth/login',{
    method:'POST',headers:{'content-type':'application/json'},
    body:JSON.stringify({email:account.ownerEmail,password:account.temporaryPassword})

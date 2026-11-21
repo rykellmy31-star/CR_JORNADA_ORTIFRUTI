@@ -55,7 +55,7 @@ export const DEFAULT_WHATSAPP_TEMPLATES: Array<{
     title: 'Pedido em Preparação',
     is_enabled: 0,
     message_template:
-      'Olá, {primeiro_nome}! 🧺 Estamos separando os produtos fresquinhos do seu pedido *#{numero_pedido}* no *{nome_estabelecimento}*.',
+      'Olá, {primeiro_nome}! 🧺 Estamos separando os produtos do seu pedido *#{numero_pedido}* no *{nome_estabelecimento}*.',
   },
   {
     event_type: 'order_out_for_delivery',

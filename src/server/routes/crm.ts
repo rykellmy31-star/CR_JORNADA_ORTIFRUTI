@@ -14,7 +14,15 @@ crmRoutes.post('/establishments',async(c)=>{
  const owner=await db.prepare(`SELECT id FROM users WHERE lower(email)=lower(?)`).bind(b.ownerEmail).first();if(owner)return c.json({error:'O e-mail do proprietário já está vinculado.'},409);
  const id=generateId(),userId=generateId(),time=new Date().toISOString();
  const oneTimePassword=b.ownerTemporaryPassword||`CRJ-${crypto.randomUUID()}-Tmp!`;const ownerHash=await hashPassword(oneTimePassword);
- try{await db.batch([db.prepare(`INSERT INTO tenants(id,crm_external_id,slug,name,status,plan,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`).bind(id,b.externalId,b.slug,b.name,b.status||'onboarding',b.plan||'profissional',time,time),db.prepare(`INSERT INTO users(id,tenant_id,name,email,phone,password_hash,role,is_active,created_at,updated_at) VALUES(?,?,?,?,?,?,'owner',1,?,?)`).bind(userId,id,b.ownerName,b.ownerEmail.toLowerCase(),b.ownerPhone||null,ownerHash,time,time)]);}catch{return c.json({error:'Não foi possível criar estabelecimento e proprietário; verifique duplicidade de slug, ID externo ou e-mail.'},409);}
+ try{await db.batch([db.prepare(`INSERT INTO tenants(
+ id,crm_external_id,slug,name,status,plan,
+ banner_title,banner_subtitle,signup_popup_title,signup_popup_description,signup_popup_button,
+ created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(
+ id,b.externalId,b.slug,b.name,b.status||'onboarding',b.plan||'profissional',
+ 'Bem-vindo à nossa loja!','Confira nossos produtos e ofertas.',
+ 'Novidades e ofertas em primeira mão!',
+ 'Cadastre-se para conhecer as novidades e ofertas da nossa loja!','Quero ficar por dentro!',
+ time,time),db.prepare(`INSERT INTO users(id,tenant_id,name,email,phone,password_hash,role,is_active,created_at,updated_at) VALUES(?,?,?,?,?,?,'owner',1,?,?)`).bind(userId,id,b.ownerName,b.ownerEmail.toLowerCase(),b.ownerPhone||null,ownerHash,time,time)]);}catch{return c.json({error:'Não foi possível criar estabelecimento e proprietário; verifique duplicidade de slug, ID externo ou e-mail.'},409);}
  await ensureTenantWhatsAppSetup(db,id,b.slug,services.evolution);await logAudit(db,{tenantId:id,actorUserId:c.get('authUser')?.sub,actorRole:'crm_integration',action:'crm.tenant_created',entityType:'tenant',entityId:id,details:{externalId:b.externalId}});return c.json({data:{id,externalId:b.externalId,slug:b.slug,name:b.name,status:b.status||'onboarding',owner:{id:userId,email:b.ownerEmail},temporaryPassword:oneTimePassword},warning:'Compartilhe a senha temporária por canal seguro e exija alteração após o primeiro acesso.'},201);
 });
 crmRoutes.get('/establishments/:id',async(c)=>{const db=c.get('services').db,id=c.req.param('id');const t=await db.prepare(`SELECT id,crm_external_id,slug,name,status,plan,blocked_reason,created_at,updated_at FROM tenants WHERE id=? OR crm_external_id=?`).bind(id,id).first();if(!t)return c.json({error:'Estabelecimento não encontrado.'},404);return c.json({data:t});});

@@ -52,7 +52,7 @@ superAdminRoutes.get('/tenants',async(c)=>{
  return c.json({tenants:results.map(row=>({...row,...domainInfo(row)}))});
 });
 
-/** Cadastro exclusivo no Hortifruti. Nunca edita a zona de outro serviço.
+/** Cadastro exclusivo no sistema CR Jornada Express (Worker legado). Nunca edita a zona de outro serviço.
  * Quando a Cloudflare está habilitada, confere domínio e DNS ANTES de criar dados.
  * Falha após a criação preserva o tenant em onboarding, sem anunciar vitrine ativa.
  */
@@ -96,8 +96,18 @@ superAdminRoutes.post('/tenants',async(c)=>{
  const initialStatus=shouldProvision?'onboarding':'active';
  try{
   await db.batch([
-   db.prepare(`INSERT INTO tenants(id,crm_external_id,slug,name,status,plan,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?)`).bind(tenantId,null,slug,name,initialStatus,'profissional',time,time),
+   db.prepare(`INSERT INTO tenants(
+    id,crm_external_id,slug,name,status,plan,
+    banner_title,banner_subtitle,
+    signup_popup_title,signup_popup_description,signup_popup_button,
+    created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(
+      tenantId,null,slug,name,initialStatus,'profissional',
+      'Bem-vindo à nossa loja!','Confira nossos produtos e ofertas.',
+      'Novidades e ofertas em primeira mão!',
+      'Cadastre-se para conhecer as novidades e ofertas da nossa loja!',
+      'Quero ficar por dentro!',
+      time,time),
    db.prepare(`INSERT INTO users(id,tenant_id,name,email,phone,password_hash,role,is_active,created_at,updated_at)
     VALUES(?,?,?,?,?,?,'owner',1,?,?)`).bind(ownerId,tenantId,ownerName,ownerEmail,null,passwordHash,time,time),
    db.prepare(`INSERT INTO tenant_store_domains
@@ -130,7 +140,7 @@ superAdminRoutes.post('/tenants',async(c)=>{
    domainStatus='pending';
   }
  }
- // A configuração do WhatsApp continua sendo a do Hortifruti já existente.
+ // Mantém a integração existente do WhatsApp deste Worker (sem migrar instâncias).
  await ensureTenantWhatsAppSetup(db,tenantId,slug,services.evolution).catch(()=>undefined);
  await logAudit(db,{actorUserId:c.get('authUser').sub,actorRole:'superadmin',
   action:'superadmin.tenant_created',entityType:'tenant',entityId:tenantId,
