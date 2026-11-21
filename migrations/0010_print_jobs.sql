@@ -30,3 +30,29 @@ CREATE INDEX IF NOT EXISTS idx_print_jobs_tenant_status
  ON print_jobs (tenant_id,status,created_at);
 CREATE INDEX IF NOT EXISTS idx_print_jobs_tenant_order
  ON print_jobs (tenant_id,order_id);
+
+-- Cada dispositivo Android possui credencial própria revogável por estabelecimento.
+CREATE TABLE IF NOT EXISTS print_devices (
+ id TEXT PRIMARY KEY,
+ tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ name TEXT NOT NULL,
+ token_hash TEXT NOT NULL UNIQUE,
+ last_seen_at TEXT,
+ revoked_at TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_print_devices_tenant
+ ON print_devices(tenant_id,revoked_at);
+
+-- Código de pareamento temporário, consumido uma única vez.
+CREATE TABLE IF NOT EXISTS print_pairing_codes (
+ id TEXT PRIMARY KEY,
+ tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ code_hash TEXT NOT NULL UNIQUE,
+ expires_at TEXT NOT NULL,
+ used_at TEXT,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_print_pairing_tenant
+ ON print_pairing_codes(tenant_id,used_at,expires_at);
