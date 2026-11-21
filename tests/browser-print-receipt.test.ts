@@ -28,6 +28,11 @@ describe('comanda para impressão direta do navegador',()=>{
   }
   expect(html).toContain('class="order-print-receipt"');
  });
+ it.each([['5573998504706','73 99850-4706'],['73998504706','73 99850-4706'],['553132345678','31 3234-5678'],['+55 (73) 99850-4706','73 99850-4706']])('imprime telefone %s sem DDI e com máscara local', (phone,expected)=>{
+  const data=order();data.customer_phone=phone;
+  const html=renderToStaticMarkup(createElement(OrderPrintReceipt,{order:data,storeName:'Loja'}));
+  expect(html).toContain('<p>'+expected+'</p>');
+ });
  it('mostra apenas o peso total, preservando opções de embalagem e unidades',()=>{
   const item=(name:string,quantity:string)=>({product_name_snapshot:'Tomate',
    variant_name_snapshot:name,quantity_display:quantity,line_total_cents:1500});
