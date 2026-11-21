@@ -7,6 +7,7 @@ import {adminRoutes} from './routes/admin';
 import {crmRoutes} from './routes/crm';
 import {superAdminRoutes} from './routes/superadmin';
 import {printingDeviceRoutes} from './routes/printing-device';
+import {latestAndroidUpdate} from './services/android-updates';
 import {timingSafeEqualStr} from './security/crypto';
 import {normalizePhoneBR} from '../shared/pricing';
 import {generateId,hashPassword} from './security/crypto';
@@ -27,6 +28,16 @@ export function createApp(services:AppRuntimeServices){
  app.route('/api/crm/v1',crmRoutes);
  app.route('/api/superadmin',superAdminRoutes);
  app.route('/api/printing/device',printingDeviceRoutes);
+ // Endpoint fixo para todos os Androids; apenas releases assinadas entram no canal.
+ app.get('/api/printing/android-update',async(c)=>{
+  try{
+   const release=await latestAndroidUpdate();
+   c.header('Cache-Control','public, max-age=60');
+   return c.json(release);
+  }catch{
+   return c.json({error:'Não foi possível consultar atualizações agora. Tente novamente.'},503);
+  }
+ });
  app.post('/api/webhooks/evolution',async(c)=>{
   const secret=services.evolution.evolutionWebhookToken||'';
   const received=c.req.header('x-evolution-token')||'';

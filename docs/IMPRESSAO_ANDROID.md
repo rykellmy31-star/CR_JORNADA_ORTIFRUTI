@@ -32,12 +32,13 @@ O serviço usa notificação persistente para funcionar com o aplicativo em segu
 
 ## Regras de implantação seguras
 
-1. Execute **Preparar banco D1** em GitHub Actions **selecionando a branch da PR**, com a migração `0010_print_jobs.sql`. Confirme o registro `0010_print_jobs.sql ✅` no log.
-2. Depois dos testes da API e do build do APK verdes, faça merge da PR.
-3. Publique o Worker na Cloudflare e confira que o portal de pedidos continua respondendo.
-4. Habilite em **uma loja-piloto** somente após instalar e conectar o Android.
+- As migrações D1 são aplicadas automaticamente **antes** da publicação do Worker a cada merge na branch `main`. Falha de migração bloqueia o deploy.
+- O portal e a vitrine são validados após a publicação pela equipe.
+- O banco D1 já recebeu a migração `0010_print_jobs.sql`; a função continua desligada até configuração do estabelecimento.
+- Homologar primeiro em **uma loja-piloto**, com um Android e uma impressora real.
+- O APK de release é publicado automaticamente pelo workflow após a **configuração única da assinatura**.
 
-**Não publicar o código no Worker antes da migração 0010**, porque o checkout já consulta a tabela de impressão.
+Não há necessidade de pressionar `Run workflow` para cada deploy ou atualização.
 
 ## Arquitetura
 
@@ -52,3 +53,37 @@ O serviço usa notificação persistente para funcionar com o aplicativo em segu
 Testar com a impressora do anúncio e o aparelho Android real: compatibilidade do Bluetooth clássico SPP, velocidade, tamanho e papel, acentos/ASCII, bobina vazia, desligamento, falha de internet, pedidos simultâneos, cancelamento, reimpressão, reinício de celular e restrições de bateria.
 
 Apenas após esses testes é possível declarar **impressão automática física homologada**.
+
+
+## Atualizações do próprio aplicativo (OTA, versão beta)
+
+O Android oferece **Buscar atualizações** e consulta automaticamente a versão publicada ao abrir o aplicativo (até a cada seis horas). Enquanto a impressão estiver ativa, um verificador separado consulta o canal e exibe notificação, sem bloquear o processamento dos pedidos. Ao confirmar uma versão nova, o próprio app faz o download, valida o SHA-256 e o pacote/assinatura, e abre o instalador nativo do Android.
+
+**O Android exige confirmação do usuário para instalar um APK recebido fora da Play Store.** A primeira vez pode pedir permissão "Instalar apps desconhecidos" para o CR Jornada Express Impressão. Não é possível substituir esse consentimento por uma atualização silenciosa num aparelho Android comum.
+
+**Distribuição segura e automática:**
+- API pública estável: `GET /api/printing/android-update`.
+- GitHub Actions compila `assembleDebug` em PR para testes.
+- Em `main`, uma **versão assinada** do APK é criada e publicada em GitHub Releases com tag `cr-express-print-v<versionCode>`, nome fixo `cr-jornada-express-impressao.apk` e SHA-256 na descrição.
+- A API anuncia **apenas releases oficiais que atendem ao nome, checksum e URL esperados**, nunca o artefato de debug.
+- Instalação é barrada se a assinatura do pacote não coincidir com a assinatura do app instalado; o Android confere novamente antes de substituir.
+- Após instalar, o aplicativo preserva credencial do aparelho, escolha de impressora e histórico local de deduplicação; tenta reiniciar o serviço se estava ativo antes da atualização.
+
+### Configuração única da assinatura (obrigatória)
+
+Antes de liberar atualizações oficiais, é necessário criar **uma única chave Android de release, protegida fora do repositório público**, e configurar quatro segredos no repositório GitHub:
+
+- `EXPRESS_ANDROID_KEYSTORE_BASE64` — conteúdo base64 do arquivo `.jks`;
+- `EXPRESS_ANDROID_KEYSTORE_PASSWORD` — senha do keystore;
+- `EXPRESS_ANDROID_KEY_ALIAS` — alias da chave;
+- `EXPRESS_ANDROID_KEY_PASSWORD` — senha da chave.
+
+O workflow **não publica** atualização sem estes segredos. Isso é proposital: builds de teste usam assinatura debug temporária e **não são atualizáveis entre execuções**. Nunca commitar a chave privada no repositório público, nem gerar uma chave nova a cada execução.
+
+**Transição:** o APK beta anterior, distribuído como `app-debug.apk`, não terá a mesma assinatura de release. Instalar a primeira versão oficial exigirá **uma única reinstalação** do aplicativo; como o Android desinstala os dados do APK antigo, o pareamento será refeito. A partir da primeira versão assinada, as próximas atualizações substituirão a versão anterior mantendo o pareamento.
+
+**Operação rotineira:** depois dessa configuração única, cada alteração em `android-print-bridge/**` mesclada em `main` aciona automaticamente build, assinatura, publicação da release e detecção da atualização no aplicativo. Nenhum clique em Run workflow para cada versão.
+
+## Homologação de atualização pendente
+
+Testar instalação da primeira versão assinada, atualização para a segunda versão pela UI, atualização via notificação, permissão de instalador, manutenção do pareamento e retorno do serviço após upgrade. Até então, o canal de update está preparado, mas a atualização de APK físico não está homologada.

@@ -64,6 +64,11 @@ public final class DeviceStore {
  public String printerAddress(){return prefs.getString("printer_address","");}
  public void setPrinterAddress(String value){prefs.edit().putString("printer_address",value).apply();}
  public void setStatus(String value){prefs.edit().putString("status",value).apply();}
+ public boolean shouldResumePrinting(){return prefs.getBoolean("printing_enabled",false);}
+ public void setShouldResumePrinting(boolean value){prefs.edit().putBoolean("printing_enabled",value).apply();}
+ public long lastUpdateCheckedAt(){return prefs.getLong("last_update_checked_at",0L);}
+ public void markUpdateChecked(){prefs.edit().putLong("last_update_checked_at",System.currentTimeMillis()).apply();}
+
  public String status(){return prefs.getString("status","Parado");}
  public synchronized void unpair(){
   prefs.edit().remove("token").remove("device_id").remove("slug")

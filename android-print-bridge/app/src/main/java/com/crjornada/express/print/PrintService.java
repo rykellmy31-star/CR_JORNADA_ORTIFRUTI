@@ -17,14 +17,20 @@ public final class PrintService extends Service {
  public static final String ACTION_START="com.crjornada.express.print.START";
  public static final String ACTION_STOP="com.crjornada.express.print.STOP";
  private static final String CHANNEL="crx_print_connected";
+ private static final String UPDATE_CHANNEL="crx_print_updates";
  private final ExecutorService executor=Executors.newSingleThreadExecutor();
+ private final ExecutorService updateExecutor=Executors.newSingleThreadExecutor();
  private volatile boolean running=false;
  private DeviceStore store;
  @Override public void onCreate(){
   super.onCreate();store=new DeviceStore(this);
   NotificationManager manager=getSystemService(NotificationManager.class);
-  if(Build.VERSION.SDK_INT>=26)manager.createNotificationChannel(
-   new NotificationChannel(CHANNEL,"Impressão automática",NotificationManager.IMPORTANCE_LOW));
+  if(Build.VERSION.SDK_INT>=26){
+   manager.createNotificationChannel(
+    new NotificationChannel(CHANNEL,"Impressão automática",NotificationManager.IMPORTANCE_LOW));
+   manager.createNotificationChannel(
+    new NotificationChannel(UPDATE_CHANNEL,"Atualizações do aplicativo",NotificationManager.IMPORTANCE_DEFAULT));
+  }
  }
  private Notification notification(){
   Intent open=new Intent(this,MainActivity.class);
@@ -42,7 +48,7 @@ public final class PrintService extends Service {
  }
  @Override public int onStartCommand(Intent intent,int flags,int startId){
   if(intent!=null&&ACTION_STOP.equals(intent.getAction())){
-   running=false;store.setStatus("Impressão parada pelo usuário");
+   running=false;store.setShouldResumePrinting(false);store.setStatus("Impressão parada pelo usuário");
    stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY;
   }
   if(store.token().isEmpty()||store.printerAddress().isEmpty()){
@@ -52,8 +58,35 @@ public final class PrintService extends Service {
   if(Build.VERSION.SDK_INT>=34)
    startForeground(101,notification(),ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
   else startForeground(101,notification());
+  store.setShouldResumePrinting(true);
   if(!running){running=true;executor.execute(this::loop);}
   return START_STICKY;
+ }
+ private void checkForAppUpdate(){
+  if(System.currentTimeMillis()-store.lastUpdateCheckedAt()<6L*60*60*1000)return;
+  store.markUpdateChecked();
+  updateExecutor.execute(()->{
+   try{
+    AndroidUpdater.Update update=AndroidUpdater.check();
+    if(update==null)return;
+    android.content.pm.PackageInfo pkg=getPackageManager().getPackageInfo(getPackageName(),0);
+    long installed=Build.VERSION.SDK_INT>=28?pkg.getLongVersionCode():pkg.versionCode;
+    if(update.versionCode<=installed)return;
+    Intent open=new Intent(this,MainActivity.class);
+    open.putExtra("CHECK_UPDATE_NOW",true);
+    open.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+    PendingIntent pending=PendingIntent.getActivity(this,202,open,
+     PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+    Notification notice=new Notification.Builder(this,UPDATE_CHANNEL)
+     .setSmallIcon(R.drawable.ic_printer)
+     .setContentTitle("Atualização do CR Jornada Express")
+     .setContentText("Versão "+update.versionName+" disponível. Toque para instalar.")
+     .setContentIntent(pending).setAutoCancel(true).build();
+    getSystemService(NotificationManager.class).notify(202,notice);
+   }catch(Exception ignored){
+    // A impressão de pedidos continua independente do canal de atualização.
+   }
+  });
  }
  private static String safeMessage(Exception ex){
   String msg=ex.getMessage()==null?ex.getClass().getSimpleName():ex.getMessage();
@@ -66,6 +99,7 @@ public final class PrintService extends Service {
   BackendClient client=new BackendClient();
   EscPosPrinter printer=new EscPosPrinter(this);
   while(running&&!Thread.currentThread().isInterrupted()){
+   checkForAppUpdate();
    try{
     String token=store.token(),printerMac=store.printerAddress();
     if(token.isEmpty()||printerMac.isEmpty()){store.setStatus("Pareamento ou impressora não configurados");break;}
@@ -105,7 +139,8 @@ public final class PrintService extends Service {
   running=false;
  }
  @Override public void onDestroy(){
-  running=false;executor.shutdownNow();store.setStatus("Serviço de impressão parado");super.onDestroy();
+  running=false;executor.shutdownNow();updateExecutor.shutdownNow();
+  store.setStatus("Serviço de impressão parado");super.onDestroy();
  }
  @Override public IBinder onBind(Intent intent){return null;}
 }
