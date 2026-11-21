@@ -647,3 +647,16 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .product-delete-btn{color:#a33c36!important;border-color:#e8bdb9!important;white-space:nowrap}
 .product-delete-btn:hover{background:#fff0ed}
 .custom-price-check{padding:12px;border:1px solid #d7e8da;border-radius:9px;background:#eef8ef;display:grid;gap:5px;color:#27583a}
+
+/* Estado de funcionamento visível, antes do banner da vitrine. */
+.store-status-notice{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 15px;border-radius:12px;margin:0 0 14px;border:1px solid;font-size:14px;line-height:1.4}
+.store-status-notice.is-open{background:#eaf8ee;border-color:#c9e9d2;color:#176738}
+.store-status-notice.is-closed{background:#fff0ef;border-color:#f0cbc7;color:#a52c29}
+.store-status-dot{height:10px;width:10px;background:currentColor;border-radius:50%;flex:none}
+.store-status-notice small{flex-basis:100%;font-size:12px;color:inherit}
+.store-closed-hint{font-size:12px;color:#a52c29;text-align:center}
+.store-schedule-editor{display:grid;gap:12px;margin-top:14px;border-top:1px solid #e4ece6;padding-top:14px}
+.store-schedule-editor>small{color:#718075;font-size:11px}
+.store-schedule-day{border-bottom:1px solid #e4ece6;padding-bottom:9px;display:grid;gap:6px}
+.store-schedule-times{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.store-schedule-times input{width:100%;min-width:0}
