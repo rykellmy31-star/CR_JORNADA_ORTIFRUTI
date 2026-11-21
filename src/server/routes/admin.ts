@@ -272,9 +272,84 @@ adminRoutes.post('/products/image-import',async(c)=>{
   return c.json({imageUrl:result.imageUrl,photo:result},201);
  }catch(e:any){return c.json({error:String(e.message||'Não foi possível importar a imagem.')},400);}
 });
-adminRoutes.post('/products/with-variants',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),b=await c.req.json();if(!String(b.name||'').trim()||!Array.isArray(b.variants)||!b.variants.length)return c.json({error:'Produto e pelo menos uma variação são obrigatórios.'},400);if(b.categoryId&&!await tenantOwnsCategory(db,tid,b.categoryId))return c.json({error:'Categoria inválida para este estabelecimento.'},400);const time=new Date().toISOString(),productId=generateId();
- const automaticImage=!b.imageUrl?await autoProductImage(db,c.get('services').media,String(b.name)):null;
- const imageUrl=b.imageUrl||automaticImage?.imageUrl||null;let poolId:string|null=null;if(b.sharedPool){poolId=generateId();const stockQty=Number(b.poolPhysicalQty);if(!Number.isInteger(stockQty)||stockQty<=0)return c.json({error:'Informe o estoque físico total do pool compartilhado.'},400);await db.prepare(`INSERT INTO stock_pools(id,tenant_id,name,sku_code,base_unit,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at) VALUES(?,?,?,?,'un',?,0,?,?,?)`).bind(poolId,tid,String(b.poolName||`${b.name} — estoque compartilhado`),b.poolSku||null,stockQty,Number(b.lowStockThreshold)||0,time,time).run();}await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'variants','embalagem',1000,1,1,0,?,?,0,0,0,?,?)`).bind(productId,tid,b.categoryId||null,b.sku||null,String(b.name).trim(),b.description||'',imageUrl,b.featured?1:0,1,time,time).run();for(let i=0;i<b.variants.length;i++){const v=b.variants[i];const name=String(v.name||'').trim(),price=Number(v.priceCents),deduction=Number(v.deductionQty||1);if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(deduction)||deduction<=0)return c.json({error:'Confira nome, preço e unidades consumidas de cada variação.'},400);await db.prepare(`INSERT INTO product_variants(id,tenant_id,product_id,sku,name,price_cents,promo_price_cents,stock_pool_id,pool_deduction_qty,physical_qty,reserved_qty,low_stock_threshold,sort_order,is_active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,0,0,?,1,?,?)`).bind(generateId(),tid,productId,v.sku||null,name,price,v.promoPriceCents==null?null:Number(v.promoPriceCents),poolId,deduction,poolId?0:Number(v.stockQty||0),i,time,time).run();}return c.json({id:productId,stockPoolId:poolId},201);});
+adminRoutes.post('/products/with-variants',async(c)=>{
+ const db=c.get('services').db,tid=c.get('tenantId'),b=await c.req.json().catch(()=>({}));
+ const name=String(b.name||'').trim(),options=Array.isArray(b.variants)?b.variants:[];
+ const fixed=b.fixedOptionsEnabled===true;
+ if(name.length<2||name.length>140||options.length<1||options.length>20)
+  return c.json({error:'Informe o produto e de 1 a 20 opções de venda.'},400);
+ if(b.categoryId&&!await tenantOwnsCategory(db,tid,b.categoryId))
+  return c.json({error:'Categoria inválida para este estabelecimento.'},400);
+ if(fixed&&!b.sharedPool)
+  return c.json({error:'Opções de preço fixo devem compartilhar estoque por peso.'},400);
+ const shared=!!b.sharedPool;
+ const stockQty=Number(b.poolPhysicalQty);
+ if(shared&&(!Number.isSafeInteger(stockQty)||stockQty<1||stockQty>1_000_000_000))
+  return c.json({error:'Informe o estoque físico total válido.'},400);
+ const normalized:any[]=[],names=new Set<string>();
+ for(const item of options){
+  const optionName=String(item?.name||'').trim();
+  const price=Number(item?.priceCents),promo=item?.promoPriceCents==null?null:Number(item.promoPriceCents);
+  const deduction=Number(item?.deductionQty),ownStock=Number(item?.stockQty||0);
+  if(optionName.length<2||optionName.length>80||names.has(optionName.toLocaleLowerCase('pt-BR'))||
+   !Number.isSafeInteger(price)||price<=0||price>100_000_000||
+   (promo!==null&&(!Number.isSafeInteger(promo)||promo<0||promo>=price))||
+   !Number.isSafeInteger(deduction)||deduction<1||deduction>1_000_000_000||
+   (!shared&&(!Number.isSafeInteger(ownStock)||ownStock<0||ownStock>1_000_000_000)))
+   return c.json({error:'Confira nomes únicos, preços e quantidade consumida por opção.'},400);
+  names.add(optionName.toLocaleLowerCase('pt-BR'));
+  normalized.push({name:optionName,price,promo,deduction,ownStock,sku:item.sku||null});
+ }
+ const time=new Date().toISOString(),productId=generateId(),poolId=shared?generateId():null;
+ const automaticImage=!b.imageUrl?await autoProductImage(db,c.get('services').media,name):null;
+ const imageUrl=b.imageUrl||automaticImage?.imageUrl||null;
+ const statements:any[]=[];
+ if(poolId)statements.push(db.prepare(`INSERT INTO stock_pools
+  (id,tenant_id,name,sku_code,base_unit,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at)
+  VALUES(?,?,?,?,?, ?,0,?,?,?)`)
+  .bind(poolId,tid,String(b.poolName||`${name} — estoque compartilhado`),b.poolSku||null,
+   fixed?'g':'un',stockQty,Number(b.lowStockThreshold)||0,time,time));
+ statements.push(db.prepare(`INSERT INTO products
+  (id,tenant_id,category_id,sku,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,
+   min_qty,step_qty,price_cents,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,
+   fixed_options_enabled,created_at,updated_at)
+  VALUES(?,?,?,?,?,?,?,'variants','embalagem',1000,1,1,0,?,?,0,0,0,?,?,?)`)
+  .bind(productId,tid,b.categoryId||null,b.sku||null,name,b.description||'',imageUrl,
+   b.featured?1:0,b.active===false?0:1,fixed?1:0,time,time));
+ for(let i=0;i<normalized.length;i++){
+  const v=normalized[i];
+  statements.push(db.prepare(`INSERT INTO product_variants
+   (id,tenant_id,product_id,sku,name,price_cents,promo_price_cents,stock_pool_id,pool_deduction_qty,
+    physical_qty,reserved_qty,low_stock_threshold,sort_order,is_active,created_at,updated_at)
+   VALUES(?,?,?,?,?,?,?,?,?,?,0,0,?,1,?,?)`)
+   .bind(generateId(),tid,productId,v.sku,v.name,v.price,v.promo,poolId,v.deduction,
+    poolId?0:v.ownStock,i,time,time));
+ }
+ await runConditionalTransaction(db,statements.map(stmt=>({stmt})));
+ return c.json({id:productId,stockPoolId:poolId,photoSource:automaticImage?.source||'manual'},201);
+});
+
+adminRoutes.patch('/products/:id/fixed-stock',async(c)=>{
+ const db=c.get('services').db,tid=c.get('tenantId'),id=c.req.param('id');
+ const body=await c.req.json().catch(()=>({}));
+ const qty=Number(body.physicalQtyGrams);
+ if(!Number.isSafeInteger(qty)||qty<0||qty>1_000_000_000)
+  return c.json({error:'Informe estoque total em gramas, sem valores negativos.'},400);
+ const product=await db.prepare(`SELECT v.stock_pool_id AS pool_id
+  FROM products p JOIN product_variants v ON v.product_id=p.id AND v.tenant_id=p.tenant_id
+  JOIN stock_pools sp ON sp.id=v.stock_pool_id AND sp.tenant_id=p.tenant_id
+  WHERE p.tenant_id=? AND p.id=? AND p.is_deleted=0
+   AND p.fixed_options_enabled=1 AND sp.base_unit='g' LIMIT 1`)
+  .bind(tid,id).first<{pool_id:string}>();
+ if(!product)return c.json({error:'Produto de preço fixo não encontrado.'},404);
+ const now=new Date().toISOString();
+ const result=await db.prepare(`UPDATE stock_pools SET physical_qty=?,updated_at=?
+  WHERE id=? AND tenant_id=? AND reserved_qty<=?`)
+  .bind(qty,now,product.pool_id,tid,qty).run();
+ if(!result.meta.changes)
+  return c.json({error:'O estoque não pode ficar abaixo do volume já reservado.'},409);
+ return c.json({success:true});
+});
 adminRoutes.get('/products',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId');const {results}=await db.prepare(`SELECT p.*,c.name as category_name,(p.physical_qty-p.reserved_qty) as available_internal FROM products p LEFT JOIN categories c ON c.id=p.category_id AND c.tenant_id=p.tenant_id WHERE p.tenant_id=? AND p.is_deleted=0 ORDER BY p.name`).bind(tid).all<Record<string,any>>();for(const p of results){const {results:variants}=await db.prepare(`SELECT v.*,sp.physical_qty AS pool_physical_qty FROM product_variants v LEFT JOIN stock_pools sp ON sp.id=v.stock_pool_id WHERE v.tenant_id=? AND v.product_id=? AND v.is_active=1 ORDER BY v.sort_order,v.name`).bind(tid,p.id).all();p.variants=variants;}return c.json({products:results});});
 adminRoutes.patch('/products/variant-items/:id',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),id=c.req.param('id'),b=await c.req.json();const name=String(b.name||'').trim(),price=Number(b.priceCents),deduction=Number(b.deductionQty);if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(deduction)||deduction<=0)return c.json({error:'Nome, preço e unidades consumidas são obrigatórios.'},400);const r=await db.prepare(`UPDATE product_variants SET name=?,sku=?,price_cents=?,promo_price_cents=?,pool_deduction_qty=?,updated_at=? WHERE id=? AND tenant_id=? AND is_active=1`).bind(name,b.sku||null,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),deduction,new Date().toISOString(),id,tid).run();return r.meta.changes?c.json({success:true}):c.json({error:'Variação não encontrada.'},404);});
 adminRoutes.post('/products/:id/variants',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),productId=c.req.param('id'),b=await c.req.json();const product=await db.prepare(`SELECT id FROM products WHERE id=? AND tenant_id=? AND sale_mode='variants'`).bind(productId,tid).first();if(!product)return c.json({error:'Produto com variações não encontrado.'},404);if(b.stockPoolId&&!await db.prepare(`SELECT id FROM stock_pools WHERE id=? AND tenant_id=?`).bind(b.stockPoolId,tid).first())return c.json({error:'Pool de estoque inválido para este estabelecimento.'},400);const name=String(b.name||'').trim(),price=Number(b.priceCents),deduction=Number(b.deductionQty||1);if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(deduction)||deduction<=0)return c.json({error:'Confira nome, preço e consumo do estoque.'},400);const id=generateId(),time=new Date().toISOString();await db.prepare(`INSERT INTO product_variants(id,tenant_id,product_id,sku,name,price_cents,promo_price_cents,stock_pool_id,pool_deduction_qty,physical_qty,reserved_qty,low_stock_threshold,sort_order,is_active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,0,0,?,1,?,?)`).bind(id,tid,productId,b.sku||null,name,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),b.stockPoolId||null,deduction,b.stockPoolId?0:Number(b.stockQty||0),Number(b.sortOrder)||0,time,time).run();return c.json({id},201);});
