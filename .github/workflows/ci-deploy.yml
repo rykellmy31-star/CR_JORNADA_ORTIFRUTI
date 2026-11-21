@@ -104,4 +104,8 @@ jobs:
             );
           '
 
+          # Cada publicação aplica migrações pendentes ANTES de atualizar o Worker.
+          # Se D1 falhar, o deploy é interrompido e a versão atual continua atendendo.
+          npx wrangler d1 migrations apply cr-jornada-hortifruti-db --remote
+          npx wrangler d1 execute cr-jornada-hortifruti-db --remote --command="SELECT name FROM sqlite_master WHERE type='table' AND name='print_jobs'"
           npx wrangler deploy --secrets-file "$SECRET_FILE"
