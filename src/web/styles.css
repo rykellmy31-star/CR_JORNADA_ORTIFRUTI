@@ -643,3 +643,7 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .custom-product-modal .fixed-price-body{font-size:14px}
 .custom-product-modal .fixed-price-footer{padding-bottom:max(16px,env(safe-area-inset-bottom))}
 @media(max-width:680px){.custom-config-option{grid-template-columns:minmax(0,1fr) 74px auto auto}.custom-product-card-body{padding:10px}}
+
+.product-delete-btn{color:#a33c36!important;border-color:#e8bdb9!important;white-space:nowrap}
+.product-delete-btn:hover{background:#fff0ed}
+.custom-price-check{padding:12px;border:1px solid #d7e8da;border-radius:9px;background:#eef8ef;display:grid;gap:5px;color:#27583a}

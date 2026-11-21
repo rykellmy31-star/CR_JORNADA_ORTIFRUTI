@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {customConfigSchema,resolveCustomSelection,customConfigAvailable,customSelectionKey} from '../src/shared/custom-product';
+import {customConfigSchema,resolveCustomSelection,customConfigAvailable,customSelectionKey,customUnitPrice,minimumCustomPrice} from '../src/shared/custom-product';
 import {removeCartSelection} from '../src/shared/cart';
 import {formatWhatsAppItems} from '../src/shared/order-presentation';
 const config=customConfigSchema.parse({allowNotes:true,groups:[{id:'size',name:'Tamanho',min:1,max:1,options:[{id:'p',name:'P',priceCents:0,active:true},{id:'g',name:'G',priceCents:1000,active:true}]},{id:'protein',name:'Proteína',min:1,max:1,options:[{id:'fish',name:'Peixe',priceCents:300,active:true},{id:'beef',name:'Carne',priceCents:0,active:false}]}]});
@@ -10,6 +10,13 @@ describe('produto personalizável',()=>{
   expect(r.details).toBe('Tamanho: G\nProteína: Peixe\nObservação: Sem cebola');
   for(const optionIds of [[],['g'],['g','p','fish'],['g','beef'],['g','fish','foreign'],['g','fish','fish']])expect(()=>resolveCustomSelection(config,{optionIds,note:''})).toThrow();
   expect(customConfigAvailable(config)).toBe(true);
+ });
+ it('não soma duas vezes o preço integral do tamanho e preserva os adicionais',()=>{
+  const full=customConfigSchema.parse({...config,groups:[{...config.groups[0],priceMode:'final',options:[{id:'p',name:'P',priceCents:2000,active:true},{id:'g',name:'G',priceCents:2200,active:true}]},{...config.groups[1],options:[{id:'fish',name:'Peixe',priceCents:0,active:true}]}]});
+  expect(minimumCustomPrice(full,2200)).toBe(2000);
+  expect(customUnitPrice(2200,resolveCustomSelection(full,{optionIds:['p','fish'],note:''}))).toBe(2000);
+  expect(customUnitPrice(2200,resolveCustomSelection(full,{optionIds:['g','fish'],note:''}))).toBe(2200);
+  expect(customUnitPrice(1800,resolveCustomSelection(config,{optionIds:['g','fish'],note:''}))).toBe(3100);
  });
  it('mantém marmitas com escolhas diferentes separadas e apresenta detalhes no WhatsApp',()=>{
   const a={product:{id:'meal'},purchaseMode:'unit',customization:{optionIds:['p','fish'],note:''}};
@@ -50,5 +57,16 @@ it('cadastra marmita, valida os complementos no checkout real e salva preço e e
   const view=await admin('orders');expect(view.status).toBe(200);
   expect((await view.json() as any).orders.find((o:any)=>o.id===order.id).items[1].customization_snapshot).toContain('Sem cebola');
   const updated=await admin('products/'+productId,'PATCH',{customConfig:{...config,allowNotes:false}});expect(updated.status).toBe(200);
+  const finalConfig={...config,groups:[{...config.groups[0],priceMode:'final',options:[{id:'p',name:'P',priceCents:2000,active:true},{id:'g',name:'G',priceCents:2200,active:true}]},config.groups[1]]};
+  expect((await admin('products/'+productId,'PATCH',{priceCents:2200,customConfig:finalConfig})).status).toBe(200);
+  const fullPriceOrder=await checkout([{productId,quantity:1,customization:{optionIds:['p','fish'],note:''}}]);expect(fullPriceOrder.status).toBe(201);
+  const fullId=(await fullPriceOrder.json() as any).order.id;
+  expect(await db.prepare('SELECT line_total_cents,original_line_total_cents FROM order_items WHERE order_id=?').bind(fullId).first()).toMatchObject({line_total_cents:2300,original_line_total_cents:null});
+  expect((await admin('products/'+productId,'DELETE')).status).toBe(409);
+  expect((await admin('products/'+productId,'PATCH',{active:false})).status).toBe(200);
+  expect((await admin('products/'+productId,'DELETE')).status).toBe(200);
+  expect((await db.prepare('SELECT is_deleted FROM products WHERE id=?').bind(productId).first<any>()).is_deleted).toBe(1);
+  expect((await db.prepare('SELECT COUNT(*) AS total FROM order_items WHERE product_id=?').bind(productId).first<any>()).total).toBe(3);
+  expect((await admin('products/'+productId,'PATCH',{active:true})).status).toBe(404);
  }finally{db.close();}
 });
