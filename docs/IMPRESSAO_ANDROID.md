@@ -32,12 +32,13 @@ O serviço usa notificação persistente para funcionar com o aplicativo em segu
 
 ## Regras de implantação seguras
 
-1. Execute **Preparar banco D1** em GitHub Actions **selecionando a branch da PR**, com a migração `0010_print_jobs.sql`. Confirme o registro `0010_print_jobs.sql ✅` no log.
-2. Depois dos testes da API e do build do APK verdes, faça merge da PR.
-3. Publique o Worker na Cloudflare e confira que o portal de pedidos continua respondendo.
-4. Habilite em **uma loja-piloto** somente após instalar e conectar o Android.
+- As migrações D1 são aplicadas automaticamente **antes** da publicação do Worker a cada merge na branch `main`. Falha de migração bloqueia o deploy.
+- O portal e a vitrine são validados após a publicação pela equipe.
+- O banco D1 já recebeu a migração `0010_print_jobs.sql`; a função continua desligada até configuração do estabelecimento.
+- Homologar primeiro em **uma loja-piloto**, com um Android e uma impressora real.
+- O APK de release é publicado automaticamente pelo workflow após a **configuração única da assinatura**.
 
-**Não publicar o código no Worker antes da migração 0010**, porque o checkout já consulta a tabela de impressão.
+Não há necessidade de pressionar `Run workflow` para cada deploy ou atualização.
 
 ## Arquitetura
 
