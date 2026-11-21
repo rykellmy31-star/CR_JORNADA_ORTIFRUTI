@@ -543,3 +543,45 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
  .fixed-option-editor{grid-template-columns:minmax(0,1fr) minmax(0,.7fr);gap:8px}
  .fixed-option-editor input{min-width:0}
 }
+
+/* Impressão manual: usa o driver e a seleção de impressora do próprio computador.
+   O recibo é um portal fora do aplicativo, sem mostrar menus nem janelas na folha. */
+@media screen{
+ .order-print-receipt{display:none!important}
+}
+@media print{
+ @page{size:auto;margin:3mm}
+ body:has(> .order-print-receipt){margin:0!important;padding:0!important;background:#fff!important}
+ body:has(> .order-print-receipt) > :not(.order-print-receipt){display:none!important}
+ body > .order-print-receipt{
+  display:block!important;position:static!important;width:100%!important;max-width:76mm!important;
+  margin:0!important;padding:0!important;box-sizing:border-box!important;
+  background:#fff!important;color:#000!important;font:10pt/1.4 Arial,sans-serif!important;
+  overflow:visible!important;
+ }
+ .order-print-receipt *{box-sizing:border-box!important;color:#000!important;box-shadow:none!important}
+ .order-print-receipt .order-print-header{text-align:center;padding-bottom:8px}
+ .order-print-receipt h1{margin:0 0 3px;font-size:15pt;line-height:1.2;overflow-wrap:anywhere}
+ .order-print-receipt .order-print-header strong,
+ .order-print-receipt .order-print-header small{display:block;font-size:9pt}
+ .order-print-receipt .order-print-rule,
+ .order-print-receipt .order-print-section,
+ .order-print-receipt .order-print-totals{border-top:1px dashed #000;padding:8px 0}
+ .order-print-receipt p{margin:2px 0;overflow-wrap:anywhere}
+ .order-print-receipt .order-print-rule p,
+ .order-print-receipt .order-print-totals p{display:flex;justify-content:space-between;gap:8px}
+ .order-print-receipt .order-print-rule p span,
+ .order-print-receipt .order-print-totals p span{flex:1}
+ .order-print-receipt .order-print-section > b{display:block;margin-bottom:5px}
+ .order-print-receipt table{width:100%;border-collapse:collapse;font:inherit;table-layout:fixed}
+ .order-print-receipt th{font-size:9pt;text-align:left;border-bottom:1px dotted #444;padding:4px 0}
+ .order-print-receipt th:last-child,
+ .order-print-receipt td:last-child{width:29%;text-align:right}
+ .order-print-receipt td{padding:6px 2px 6px 0;vertical-align:top;overflow-wrap:anywhere}
+ .order-print-receipt td:first-child b,
+ .order-print-receipt td:first-child span{display:block;font-weight:normal}
+ .order-print-receipt td:first-child b{font-weight:700}
+ .order-print-receipt tr{break-inside:avoid}
+ .order-print-receipt .order-print-grand-total{border-top:1px solid #000;padding-top:6px;font-size:12pt}
+ .order-print-receipt .order-print-footer{border-top:1px dashed #000;padding-top:8px;text-align:center;font-size:8pt}
+}
