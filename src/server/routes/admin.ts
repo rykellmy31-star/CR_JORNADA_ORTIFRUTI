@@ -10,6 +10,7 @@ import { parseDataUriImage } from '../storage/r2-media';
 import {runConditionalTransaction} from '../db/adapter';
 import {adjustOrderItems} from '../services/order-adjustments';
 import {autoProductImage,suggestProductImages,importCommonsProductImage,importCuratedProductImage} from '../services/product-images';
+import {pairingCode,hashPairingCode} from '../services/print-jobs';
 
 export const adminRoutes = new Hono<AppHonoEnv>();
 adminRoutes.use('*', requireTenantAdmin());
@@ -24,7 +25,10 @@ adminRoutes.get('/printing',async(c)=>{
   last_error,created_at,updated_at,printed_at
   FROM print_jobs WHERE tenant_id=? ORDER BY created_at DESC LIMIT 50`)
   .bind(tenantId).all();
- return c.json({enabled:store?.auto_print_enabled===1,jobs});
+ const {results:devices}=await db.prepare(`SELECT id,name,last_seen_at,created_at,revoked_at
+  FROM print_devices WHERE tenant_id=? ORDER BY created_at DESC LIMIT 20`)
+  .bind(tenantId).all();
+ return c.json({enabled:store?.auto_print_enabled===1,jobs,devices});
 });
 
 // A fila é opt-in. Ativar sem aplicativo Android conectado não produz impressão.
@@ -41,6 +45,65 @@ adminRoutes.patch('/printing/settings',async(c)=>{
   action:'printing.settings_changed',entityType:'tenant',entityId:tenantId,
   details:{enabled:payload.data.enabled}});
  return c.json({enabled:payload.data.enabled,requiresAndroidBridge:true});
+});
+
+// Código aleatório de 64 bits, válida por 10 minutos e consumido uma única vez.
+adminRoutes.post('/printing/pairing-codes',async(c)=>{
+ const user=c.get('authUser');
+ if(!['owner','manager'].includes(user.role))
+  return c.json({error:'Somente proprietário ou gerente pode parear dispositivos.'},403);
+ const services=c.get('services'),db=services.db,tenantId=c.get('tenantId');
+ const code=pairingCode(),codeHash=await hashPairingCode(tenantId,code,services.jwtSecret);
+ const now=new Date(),expiresAt=new Date(now.getTime()+10*60_000).toISOString();
+ await db.batch([
+  db.prepare(`UPDATE print_pairing_codes SET used_at=?
+   WHERE tenant_id=? AND used_at IS NULL`).bind(now.toISOString(),tenantId),
+  db.prepare(`INSERT INTO print_pairing_codes
+   (id,tenant_id,code_hash,expires_at,created_at) VALUES(?,?,?,?,?)`)
+   .bind(generateId(),tenantId,codeHash,expiresAt,now.toISOString())
+ ]);
+ c.header('Cache-Control','no-store');
+ await logAudit(db,{tenantId,actorUserId:user.sub,actorRole:user.role,
+  action:'printing.pairing_created',entityType:'tenant',entityId:tenantId});
+ return c.json({code,expiresAt});
+});
+
+adminRoutes.delete('/printing/devices/:id',async(c)=>{
+ const user=c.get('authUser');
+ if(!['owner','manager'].includes(user.role))
+  return c.json({error:'Somente proprietário ou gerente pode revogar dispositivos.'},403);
+ const tenantId=c.get('tenantId'),id=c.req.param('id'),db=c.get('services').db;
+ const now=new Date().toISOString();
+ const result=await db.prepare(`UPDATE print_devices SET revoked_at=?,updated_at=?
+  WHERE id=? AND tenant_id=? AND revoked_at IS NULL`)
+  .bind(now,now,id,tenantId).run();
+ if(!result.meta.changes)return c.json({error:'Dispositivo já revogado ou inexistente.'},404);
+ await logAudit(db,{tenantId,actorUserId:user.sub,actorRole:user.role,
+  action:'printing.device_revoked',entityType:'print_device',entityId:id});
+ return c.json({success:true});
+});
+
+adminRoutes.post('/printing/jobs/:id/reprint',async(c)=>{
+ const user=c.get('authUser');
+ if(!['owner','manager'].includes(user.role))
+  return c.json({error:'Somente proprietário ou gerente pode reimprimir.'},403);
+ const db=c.get('services').db,tenantId=c.get('tenantId'),jobId=c.req.param('id');
+ const original=await db.prepare(`SELECT j.id,j.order_id,j.order_number,o.status AS order_status
+  FROM print_jobs j JOIN orders o ON o.id=j.order_id AND o.tenant_id=j.tenant_id
+  WHERE j.id=? AND j.tenant_id=? AND o.deleted_at IS NULL`)
+  .bind(jobId,tenantId).first<{id:string;order_id:string;order_number:number;order_status:string}>();
+ if(!original)return c.json({error:'Comanda não encontrada nesta loja.'},404);
+ if(original.order_status==='cancelled')return c.json({error:'Pedido cancelado não pode ser reimpresso automaticamente.'},409);
+ const time=new Date().toISOString();
+ const id=generateId();
+ await db.prepare(`INSERT INTO print_jobs
+  (id,tenant_id,order_id,order_number,idempotency_key,job_type,created_at,updated_at)
+  VALUES(?,?,?,?,?,'reprint',?,?)`).bind(id,tenantId,original.order_id,original.order_number,
+  'reprint:'+original.order_id+':'+id,time,time).run();
+ await logAudit(db,{tenantId,actorUserId:user.sub,actorRole:user.role,
+  action:'printing.reprint_requested',entityType:'print_job',entityId:id,
+  details:{originalJobId:original.id,orderNumber:original.order_number}});
+ return c.json({success:true,id},201);
 });
 
 adminRoutes.get('/dashboard', async (c) => {
