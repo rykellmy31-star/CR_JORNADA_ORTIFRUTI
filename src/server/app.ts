@@ -6,6 +6,7 @@ import {publicStoreRoutes} from './routes/public-store';
 import {adminRoutes} from './routes/admin';
 import {crmRoutes} from './routes/crm';
 import {superAdminRoutes} from './routes/superadmin';
+import {printingDeviceRoutes} from './routes/printing-device';
 import {timingSafeEqualStr} from './security/crypto';
 import {normalizePhoneBR} from '../shared/pricing';
 import {generateId,hashPassword} from './security/crypto';
@@ -25,6 +26,7 @@ export function createApp(services:AppRuntimeServices){
  app.route('/api/admin',adminRoutes);
  app.route('/api/crm/v1',crmRoutes);
  app.route('/api/superadmin',superAdminRoutes);
+ app.route('/api/printing/device',printingDeviceRoutes);
  app.post('/api/webhooks/evolution',async(c)=>{
   const secret=services.evolution.evolutionWebhookToken||'';
   const received=c.req.header('x-evolution-token')||'';
