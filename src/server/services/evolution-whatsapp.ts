@@ -627,7 +627,7 @@ export async function enqueueAndDispatchOrderWhatsAppNotification(
 
   const { results: items } = await db
     .prepare(
-      `SELECT product_name_snapshot, variant_name_snapshot, quantity_display, line_total_cents, original_line_total_cents
+      `SELECT product_name_snapshot, variant_name_snapshot, quantity_display, line_total_cents, original_line_total_cents, customization_snapshot
        FROM order_items
        WHERE order_id = ? AND tenant_id = ?`
     )
@@ -638,6 +638,7 @@ export async function enqueueAndDispatchOrderWhatsAppNotification(
       line_total_cents: number;
       variant_name_snapshot:string|null;
       original_line_total_cents:number|null;
+      customization_snapshot:string|null;
     }>();
 
   const itemsText=formatWhatsAppItems(items);

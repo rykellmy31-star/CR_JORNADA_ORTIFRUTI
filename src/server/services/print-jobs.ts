@@ -70,6 +70,7 @@ export function formatPrintReceipt(
   const title=clean(item.product_name_snapshot)+(item.variant_name_snapshot?' - '+clean(item.variant_name_snapshot):'');
   lines.push(...wrap(title));
   lines.push(moneyRow(clean(item.quantity_display),money(item.line_total_cents)));
+  if(item.customization_snapshot)for(const detail of String(item.customization_snapshot).split('\n'))lines.push(...wrap(detail));
  }
  lines.push('--------------------------------',
   moneyRow('SUBTOTAL',money(order.subtotal_cents)),
@@ -132,7 +133,7 @@ export async function claimNextPrintJob(db:DbClient,device:AuthorizedPrintDevice
   .bind(claimed.order_id,device.tenant_id).first<Record<string,any>>();
  if(!order)return null; // Exclusão concorrente: lease expira e pedido cancelado não é reimpresso.
  const {results:items}=await db.prepare(`SELECT product_name_snapshot,variant_name_snapshot,
-  quantity_display,line_total_cents FROM order_items WHERE order_id=? AND tenant_id=? ORDER BY rowid`)
+  quantity_display,line_total_cents,customization_snapshot FROM order_items WHERE order_id=? AND tenant_id=? ORDER BY rowid`)
   .bind(claimed.order_id,device.tenant_id).all<Record<string,any>>();
  return {
   id:claimed.id,orderNumber:claimed.order_number,jobType:claimed.job_type,

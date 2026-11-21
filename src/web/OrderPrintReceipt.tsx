@@ -9,6 +9,7 @@ export type PrintableOrderItem={
  quantity_display:string;
  line_total_cents:number;
  original_line_total_cents?:number|null;
+ customization_snapshot?:string|null;
 };
 export type PrintableOrder={
  order_number:number;
@@ -64,6 +65,7 @@ export default function OrderPrintReceipt({order,storeName,footerMessage=''}:{or
     <tbody>{(order.items||[]).map((item,i)=>{const original=originalPromotionTotal(item);return <tr key={i}>
      <td><b>{item.product_name_snapshot}</b>
       <span>{formatReceiptQuantity(item)}</span>
+      {item.customization_snapshot&&<span className="customization-details">{item.customization_snapshot}</span>}
       {original!==null&&<small>EM PROMOÇÃO</small>}
      </td>
      <td>{original!==null?<><s className="order-print-old-price">{formatBRL(original)}</s><b className="order-print-new-price">{formatBRL(item.line_total_cents)}</b></>:formatBRL(item.line_total_cents)}</td>

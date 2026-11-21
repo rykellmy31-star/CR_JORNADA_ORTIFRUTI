@@ -1,3 +1,4 @@
+import {customSelectionSchema,readCustomConfig,customConfigAvailable} from '../../shared/custom-product';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppHonoEnv } from '../context';
@@ -20,7 +21,7 @@ publicStoreRoutes.get('/:slug', async (c) => {
     FROM tenants WHERE slug = ? AND status = 'active'`).bind(c.req.param('slug')).first<Record<string, any>>();
   if (!tenant) return c.json({ error: 'Loja não encontrada ou temporariamente indisponível.' }, 404);
   const { results: categories } = await db.prepare(`SELECT id, name, slug, icon, sort_order FROM categories WHERE tenant_id = ? AND is_active = 1 ORDER BY sort_order, name`).bind(tenant.id).all();
-  const { results: products } = await db.prepare(`SELECT p.id, p.category_id, p.name, p.description, p.image_url, p.sale_mode, p.fixed_options_enabled, p.unit_label, p.pricing_unit_grams, p.min_qty, p.step_qty, p.preset_quantities_json, p.price_cents, p.promo_price_cents, p.unit_price_cents, p.unit_weight_grams, p.is_featured, lib.source_page_url AS photo_source_url, lib.license_name AS photo_license, lib.author AS photo_author,
+  const { results: products } = await db.prepare(`SELECT p.id, p.category_id, p.name, p.description, p.image_url, p.sale_mode, p.fixed_options_enabled, p.custom_config_json, p.unit_label, p.pricing_unit_grams, p.min_qty, p.step_qty, p.preset_quantities_json, p.price_cents, p.promo_price_cents, p.unit_price_cents, p.unit_weight_grams, p.is_featured, lib.source_page_url AS photo_source_url, lib.license_name AS photo_license, lib.author AS photo_author,
     CASE WHEN p.sale_mode='weight' AND p.unit_price_cents IS NOT NULL AND p.unit_weight_grams IS NOT NULL
       AND (CASE WHEN p.stock_pool_id IS NOT NULL THEN (sp.physical_qty-sp.reserved_qty) ELSE (p.physical_qty-p.reserved_qty) END)>=p.unit_weight_grams
       THEN 1 ELSE 0 END AS unit_available,
@@ -51,7 +52,7 @@ publicStoreRoutes.get('/:slug', async (c) => {
     const arr = variantMap.get(variant.product_id) || [];
     arr.push(variant); variantMap.set(variant.product_id, arr);
   }
-  const publicProducts = products.filter((p: any) => p.sale_mode !== 'variants' || (variantMap.get(p.id)?.length || 0) > 0)
+  const publicProducts = products.filter((p:any)=>{if(!p.custom_config_json)return true;try{return customConfigAvailable(readCustomConfig(p.custom_config_json)!);}catch{return false;}}).filter((p: any) => p.sale_mode !== 'variants' || (variantMap.get(p.id)?.length || 0) > 0)
     .map(({ available, ...p }: any) => ({ ...p, variants: (variantMap.get(p.id) || []).map(({ available: _variantAvailable, ...v }: any) => v) }));
   const { results: neighborhoods } = await db.prepare(`SELECT name, delivery_fee_cents, estimated_time FROM neighborhoods WHERE tenant_id = ? AND is_active = 1 ORDER BY name`).bind(tenant.id).all();
   const {results:banners}=await db.prepare(
@@ -116,7 +117,7 @@ const checkoutSchema = z.object({
   needsChange: z.boolean().default(false),
   changeFor: z.union([z.string(), z.number()]).optional(),
   whatsappOptIn: z.boolean().default(false),
-  items: z.array(z.object({ productId: z.string().min(1), variantId: z.string().optional().nullable(), purchaseMode: z.enum(['weight','unit']).optional(), quantity: z.number().int().positive() })).min(1).max(40),
+  items: z.array(z.object({ productId: z.string().min(1), variantId: z.string().optional().nullable(), purchaseMode: z.enum(['weight','unit']).optional(), customization:customSelectionSchema.optional(), quantity: z.number().int().positive() })).min(1).max(40),
 });
 
 publicStoreRoutes.post('/:slug/orders', async (c) => {
@@ -132,7 +133,7 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
   if (!payAllowed[body.paymentMethod]) return c.json({ error: 'Esta forma de pagamento não está disponível nesta loja.' }, 400);
 
   try {
-    const prepared = await validateAndPrepareOrderLines(db, tenant.id, body.items.map((i) => ({ product_id: i.productId, variant_id: i.variantId, purchase_mode: i.purchaseMode, quantity: i.quantity })));
+    const prepared = await validateAndPrepareOrderLines(db, tenant.id, body.items.map((i) => ({ product_id: i.productId, variant_id: i.variantId, purchase_mode: i.purchaseMode, customization:i.customization, quantity: i.quantity })));
     const neighborhood = await db.prepare(`SELECT name, delivery_fee_cents FROM neighborhoods WHERE tenant_id = ? AND lower(name) = lower(?) AND is_active = 1`).bind(tenant.id, body.neighborhood).first<{name:string;delivery_fee_cents:number}>();
     if (!neighborhood) return c.json({ error: 'Este bairro não está cadastrado para entrega.' }, 400);
     const fee = tenant.free_delivery_min_cents !== null && prepared.subtotalCents >= tenant.free_delivery_min_cents ? 0 : neighborhood.delivery_fee_cents;
@@ -159,8 +160,8 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
     statements.push(db.prepare(`INSERT INTO orders (id, tenant_id, customer_id, order_number, status, stock_state, customer_name, customer_phone, whatsapp_opt_in, address_street, address_number, address_neighborhood, address_complement, address_reference, payment_method, needs_change, change_for_cents, change_amount_cents, subtotal_cents, delivery_fee_cents, total_cents, created_at, updated_at) VALUES (?, ?, ?, ?, 'received', 'reserved', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(orderId, tenant.id, customerId, orderNumber, body.customerName, phone, body.whatsappOptIn ? 1 : 0, body.street, body.number, neighborhood.name, body.complement, body.reference, body.paymentMethod, change.needsChange ? 1 : 0, change.changeForCents, change.changeAmountCents, prepared.subtotalCents, fee, total, timestamp, timestamp));
     for (const line of prepared.lines) {
-      statements.push(db.prepare(`INSERT INTO order_items (id, tenant_id, order_id, product_id, variant_id, stock_pool_id, product_name_snapshot, variant_name_snapshot, sku_snapshot, sale_mode, quantity, quantity_display, stock_deducted_qty, unit_price_cents, pricing_unit_label, line_total_cents, original_line_total_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .bind(line.id, tenant.id, orderId, line.product_id, line.variant_id, line.stock_pool_id, line.product_name_snapshot, line.variant_name_snapshot, line.sku_snapshot, line.sale_mode, line.quantity, line.quantity_display, line.stock_deducted_qty, line.unit_price_cents, line.pricing_unit_label, line.line_total_cents,line.original_line_total_cents??null));
+      statements.push(db.prepare(`INSERT INTO order_items (id, tenant_id, order_id, product_id, variant_id, stock_pool_id, product_name_snapshot, variant_name_snapshot, sku_snapshot, sale_mode, quantity, quantity_display, stock_deducted_qty, unit_price_cents, pricing_unit_label, line_total_cents, original_line_total_cents, customization_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(line.id, tenant.id, orderId, line.product_id, line.variant_id, line.stock_pool_id, line.product_name_snapshot, line.variant_name_snapshot, line.sku_snapshot, line.sale_mode, line.quantity, line.quantity_display, line.stock_deducted_qty, line.unit_price_cents, line.pricing_unit_label, line.line_total_cents,line.original_line_total_cents??null,line.customization_snapshot??null));
     }
     // Gera a comanda na MESMA transação do pedido: falha no checkout não cria
     // impressão órfã; cada pedido tem uma única comanda inicial por loja.
@@ -190,7 +191,7 @@ publicStoreRoutes.get('/:slug/orders/:orderNumber', async (c) => {
   if (phone.length < 12) return c.json({ error: 'Informe o telefone usado na compra para consultar o pedido.' }, 400);
   const order = await db.prepare(`SELECT id, order_number, status, subtotal_cents, delivery_fee_cents, total_cents, created_at, updated_at FROM orders WHERE tenant_id = ? AND order_number = ? AND customer_phone = ? AND deleted_at IS NULL`).bind(t.id, Number(c.req.param('orderNumber')), phone).first();
   if (!order) return c.json({ error: 'Pedido não encontrado para este telefone.' }, 404);
-  const { results: items } = await db.prepare(`SELECT product_name_snapshot, variant_name_snapshot, quantity_display, line_total_cents FROM order_items WHERE tenant_id = ? AND order_id = ?`).bind(t.id, (order as any).id).all();
+  const { results: items } = await db.prepare(`SELECT product_name_snapshot, variant_name_snapshot, quantity_display, line_total_cents, customization_snapshot FROM order_items WHERE tenant_id = ? AND order_id = ?`).bind(t.id, (order as any).id).all();
   const {results:adjustments}=await db.prepare(`SELECT id,version,reason,old_total_cents,new_total_cents,
     changes_json,created_at FROM order_adjustments
     WHERE tenant_id=? AND order_id=? ORDER BY version DESC LIMIT 25`)

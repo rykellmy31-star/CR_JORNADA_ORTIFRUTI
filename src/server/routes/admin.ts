@@ -1,3 +1,4 @@
+import {readCustomConfig} from '../../shared/custom-product';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppHonoEnv, logAudit } from '../context';
@@ -119,7 +120,7 @@ adminRoutes.get('/orders', async(c)=>{
  const db=c.get('services').db,tid=c.get('tenantId'); const status=c.req.query('status'); const search=c.req.query('q')||'';
  const {results}=await db.prepare(`SELECT * FROM orders WHERE tenant_id=? AND deleted_at IS NULL AND (?='' OR status=?) AND (?='' OR CAST(order_number AS TEXT) LIKE '%'||?||'%' OR customer_name LIKE '%'||?||'%' OR customer_phone LIKE '%'||?||'%') ORDER BY created_at DESC LIMIT 200`).bind(tid,status||'',status||'',search,search,search,search).all<Record<string,any>>();
  const printSettings=await db.prepare('SELECT receipt_footer FROM tenants WHERE id=?').bind(tid).first<{receipt_footer:string}>();
- const orders=[]; for(const o of results){const {results:items}=await db.prepare(`SELECT id,product_name_snapshot,variant_name_snapshot,sale_mode,quantity,quantity_display,stock_deducted_qty,unit_price_cents,line_total_cents,original_line_total_cents FROM order_items WHERE tenant_id=? AND order_id=? ORDER BY rowid`).bind(tid,o.id).all(); const {results:adjustments}=await db.prepare(`SELECT id,version,reason,old_total_cents,new_total_cents,changes_json,created_at
+ const orders=[]; for(const o of results){const {results:items}=await db.prepare(`SELECT id,product_name_snapshot,variant_name_snapshot,sale_mode,quantity,quantity_display,stock_deducted_qty,unit_price_cents,line_total_cents,original_line_total_cents,customization_snapshot FROM order_items WHERE tenant_id=? AND order_id=? ORDER BY rowid`).bind(tid,o.id).all(); const {results:adjustments}=await db.prepare(`SELECT id,version,reason,old_total_cents,new_total_cents,changes_json,created_at
     FROM order_adjustments WHERE tenant_id=? AND order_id=? ORDER BY version DESC LIMIT 25`)
   .bind(tid,o.id).all<Record<string,any>>();
   orders.push({...o,items,adjustments:adjustments.map(x=>({...x,changes:JSON.parse(x.changes_json||'[]')}))});}
@@ -364,24 +365,32 @@ adminRoutes.post('/products',async(c)=>{
   if(name.length<2)return c.json({error:'Informe o nome do produto.'},400);
   if(b.categoryId&&!await tenantOwnsCategory(db,tid,b.categoryId))return c.json({error:'Categoria inválida para este estabelecimento.'},400);
   const selected=String(b.saleMode||'unit');
-  if(!['weight','unit','dual'].includes(selected))return c.json({error:'Modo de venda inválido.'},400);
-  const isDual=selected==='dual', isWeight=selected!=='unit';
-  const price=Number(b.priceCents), stock=Number(b.stockQty), min=Number(b.minQty??(isWeight?100:1)), step=Number(b.stepQty??(isWeight?50:1));
+  if(!['weight','unit','dual','custom'].includes(selected))return c.json({error:'Modo de venda inválido.'},400);
+  let customConfig:string|null=null;
+  if(selected==='custom'){try{const config=readCustomConfig(b.customConfig);if(!config)throw Error('Cadastre os grupos de opções.');customConfig=JSON.stringify(config);}catch{return c.json({error:'Confira os grupos, preços e limites de complementos.'},400);}}
+  const isDual=selected==='dual', isWeight=selected==='weight'||isDual;
+  const price=Number(b.priceCents), stock=Number(b.stockQty), min=selected==='custom'?1:Number(b.minQty??(isWeight?100:1)), step=selected==='custom'?1:Number(b.stepQty??(isWeight?50:1));
   const unitPrice=isDual?Number(b.unitPriceCents):null, unitWeight=isDual?Number(b.unitWeightGrams):null;
   if(!Number.isInteger(price)||price<0||!Number.isInteger(stock)||stock<0||!Number.isInteger(min)||min<1||!Number.isInteger(step)||step<1)return c.json({error:'Confira preço, estoque, mínimo e incremento do produto.'},400);
   if(isDual&&(!Number.isInteger(unitPrice)||(unitPrice??0)<=0||!Number.isInteger(unitWeight)||(unitWeight??0)<=0))return c.json({error:'Para vender por kg e unidade, informe preço por unidade e peso médio em gramas.'},400);
   const id=generateId(),time=new Date().toISOString();
   const automaticImage=!b.imageUrl?await autoProductImage(db,c.get('services').media,name):null;
   const imageUrl=b.imageUrl||automaticImage?.imageUrl||null;
-  await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,promo_price_cents,unit_price_cents,unit_weight_grams,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)`)
-    .bind(id,tid,b.categoryId||null,b.sku||null,name,b.description||'',imageUrl,isWeight?'weight':'unit',isWeight?'kg':(b.unitLabel||'un'),1000,min,step,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),unitPrice,unitWeight,b.featured?1:0,b.active===false?0:1,stock,Number(b.lowStockThreshold)||0,time,time).run();
+  await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,promo_price_cents,unit_price_cents,unit_weight_grams,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at,custom_config_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)`)
+    .bind(id,tid,b.categoryId||null,b.sku||null,name,b.description||'',imageUrl,isWeight?'weight':'unit',isWeight?'kg':(b.unitLabel||'un'),1000,min,step,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),unitPrice,unitWeight,b.featured?1:0,b.active===false?0:1,stock,Number(b.lowStockThreshold)||0,time,time,customConfig).run();
   return c.json({id,imageUrl,photoSource:automaticImage?.source||'manual'},201);
 });
 adminRoutes.patch('/products/:id',async(c)=>{
   const db=c.get('services').db,tid=c.get('tenantId'),id=c.req.param('id'),b=await c.req.json().catch(()=>({}));
   if(b.categoryId&&!await tenantOwnsCategory(db,tid,b.categoryId))return c.json({error:'Categoria inválida para este estabelecimento.'},400);
-  const current=await db.prepare('SELECT sale_mode,stock_pool_id,image_url,name FROM products WHERE id=? AND tenant_id=? AND is_deleted=0').bind(id,tid).first<{sale_mode:string;stock_pool_id:string|null;image_url:string|null;name:string}>();
+  const current=await db.prepare('SELECT sale_mode,stock_pool_id,image_url,name,custom_config_json FROM products WHERE id=? AND tenant_id=? AND is_deleted=0').bind(id,tid).first<{sale_mode:string;stock_pool_id:string|null;image_url:string|null;name:string;custom_config_json:string|null}>();
   if(!current)return c.json({error:'Produto não encontrado.'},404);
+  let configUpdate:string|undefined;
+  if(b.customConfig!==undefined){
+    if(current.sale_mode!=='unit'||current.stock_pool_id||!current.custom_config_json)return c.json({error:'Complementos só podem ser editados em produtos personalizáveis.'},400);
+    try{const config=readCustomConfig(b.customConfig);if(!config)throw Error('Cadastre grupos.');configUpdate=JSON.stringify(config);}catch{return c.json({error:'Confira os grupos, preços e limites de complementos.'},400);}
+    delete b.customConfig;b.minQty=1;b.stepQty=1;
+  }
   const requestedMode=b.saleMode;
   if(requestedMode!==undefined){
     if(!['weight','dual'].includes(requestedMode)||current.sale_mode!=='weight'||current.stock_pool_id)return c.json({error:'Só é possível alternar peso e peso/unidade em produtos cadastrados por peso, sem estoque compartilhado.'},400);
@@ -403,6 +412,7 @@ adminRoutes.patch('/products/:id',async(c)=>{
   const map:any={imageUrl:'image_url',categoryId:'category_id',unitLabel:'unit_label',pricingUnitGrams:'pricing_unit_grams',minQty:'min_qty',stepQty:'step_qty',priceCents:'price_cents',promoPriceCents:'promo_price_cents',unitPriceCents:'unit_price_cents',unitWeightGrams:'unit_weight_grams',featured:'is_featured',active:'is_active',lowStockThreshold:'low_stock_threshold'};
   const sets:string[]=[],vals:any[]=[];
   for(const[k,v]of Object.entries(b)){const col=map[k]||k;if(allowed.includes(col)){if(['price_cents','unit_price_cents','unit_weight_grams','min_qty','step_qty'].includes(col)&&v!==null&&(!Number.isInteger(Number(v))||Number(v)<(col==='price_cents'?0:1)))return c.json({error:'Preço e quantidades devem ser válidos.'},400);sets.push(`${col}=?`);vals.push(typeof v==='boolean'?Number(v):v);}}
+  if(configUpdate!==undefined){sets.push('custom_config_json=?');vals.push(configUpdate);}
   if(!sets.length)return c.json({error:'Nenhum campo válido.'},400);
   sets.push('updated_at=?');vals.push(new Date().toISOString(),id,tid);
   const r=await db.prepare(`UPDATE products SET ${sets.join(',')} WHERE id=? AND tenant_id=? AND is_deleted=0`).bind(...vals).run();
