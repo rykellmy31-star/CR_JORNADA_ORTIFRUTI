@@ -483,6 +483,11 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 
 /* Escolha de preço fixo por peso, no estilo de catálogo delivery (mobile-first). */
 .fixed-price-card .product-price .current-price{font-size:clamp(15px,2vw,19px)}
+.fixed-price-card{cursor:pointer}
+.fixed-product-photo-trigger{display:block;width:100%;padding:0;border:0;cursor:pointer;text-align:left;font:inherit}
+.fixed-product-name-trigger{border:0;padding:0;margin:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.fixed-product-photo-trigger:focus-visible,.fixed-product-name-trigger:focus-visible{outline:3px solid var(--store-color);outline-offset:-3px}
+.fixed-product-name-trigger:focus-visible{outline-offset:3px;border-radius:3px}
 .fixed-open-button{width:100%;justify-content:center;gap:8px}
 .fixed-price-overlay{position:fixed;inset:0;z-index:20000;background:#17261db3;
  display:flex;align-items:center;justify-content:center;padding:14px}
