@@ -19,6 +19,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -26,7 +27,9 @@ import java.util.Set;
 public final class MainActivity extends Activity {
  private DeviceStore store;
  private final Handler handler=new Handler(Looper.getMainLooper());
- private TextView status,deviceInfo,printerInfo;
+ private TextView status,deviceInfo,printerInfo,updateStatus;
+ private volatile boolean updating=false;
+ private File pendingInstall;
  private EditText slugInput,codeInput,nameInput;
  private final Runnable refresh=new Runnable(){@Override public void run(){
   if(status!=null)status.setText("Estado: "+store.status());
@@ -71,10 +74,24 @@ public final class MainActivity extends Activity {
   button(root,"Parar impressão",view->stopPrint());
   status=text("",13,true);root.addView(status);
   button(root,"Desvincular este Android da loja",view->unpair());
+  root.addView(text("4. ATUALIZAÇÕES DO APLICATIVO",18,true));
+  updateStatus=text("Verificando versão instalada…",12,false);root.addView(updateStatus);
+  button(root,"Buscar atualizações",view->checkUpdates(true));
+  root.addView(text("O aplicativo procura versões novas automaticamente e mostra uma notificação. "+
+   "Quando uma atualização estiver disponível, você poderá baixar e confirmar a instalação sem procurar outro APK.",12,false));
   root.addView(text("O serviço exibe uma notificação permanente enquanto estiver ativo. O celular precisa manter Bluetooth e internet ligados. A impressão física depende do modelo ESC/POS.",12,false));
   askPermissions();refreshDisplay();
  }
- @Override protected void onResume(){super.onResume();refreshDisplay();handler.removeCallbacks(refresh);handler.post(refresh);}
+ @Override protected void onResume(){
+  super.onResume();refreshDisplay();handler.removeCallbacks(refresh);handler.post(refresh);
+  if(pendingInstall!=null && pendingInstall.isFile() &&
+   (Build.VERSION.SDK_INT<26||getPackageManager().canRequestPackageInstalls())){
+   try{
+    AndroidUpdater.requestInstall(this,pendingInstall);pendingInstall=null;
+   }catch(Exception ex){message("Falha ao abrir instalador: "+ex.getMessage());}
+  }
+  checkUpdates(false);
+ }
  @Override protected void onPause(){handler.removeCallbacks(refresh);super.onPause();}
  private void refreshDisplay(){
   if(deviceInfo!=null)deviceInfo.setText(store.token().isEmpty()?"Loja não pareada":"Vinculado: "+store.storeName()+" ("+store.slug()+")");
@@ -154,6 +171,66 @@ public final class MainActivity extends Activity {
  private void stopPrint(){
   Intent intent=new Intent(this,PrintService.class).setAction(PrintService.ACTION_STOP);
   startService(intent);store.setStatus("Impressão parada pelo usuário");refreshDisplay();
+ }
+ private void updateInfo(String value){
+  if(updateStatus!=null)updateStatus.setText(value);
+ }
+ private void checkUpdates(boolean manual){
+  if(updating){if(manual)message("Já existe uma consulta de atualização em andamento.");return;}
+  if(!manual&&System.currentTimeMillis()-store.lastUpdateCheckedAt()<6L*60*60*1000)return;
+  updating=true;
+  updateInfo("Procurando atualização oficial do Express…");
+  new Thread(()->{
+   try{
+    AndroidUpdater.Update latest=AndroidUpdater.check();
+    int current=AndroidUpdater.installedCode(this);
+    String version=AndroidUpdater.installedVersion(this);
+    store.markUpdateChecked();
+    runOnUiThread(()->{
+     updating=false;
+     if(latest==null||latest.versionCode<=current){
+      updateInfo("Versão "+version+" · aplicativo atualizado.");
+      if(manual)message("Você já está usando a versão mais recente disponível.");
+     }else{
+      updateInfo("Nova versão "+latest.versionName+" disponível! Sua versão: "+version);
+      new AlertDialog.Builder(this)
+       .setTitle("Atualização disponível")
+       .setMessage("Nova versão "+latest.versionName+
+        " do CR Jornada Express Impressão. Deseja baixar a atualização agora?")
+       .setPositiveButton("Baixar e atualizar",(dialog,which)->downloadUpdate(latest))
+       .setNegativeButton("Depois",null).show();
+     }
+    });
+   }catch(Exception ex){
+    runOnUiThread(()->{
+     updating=false;updateInfo("Não foi possível consultar atualizações.");
+     if(manual)message("Erro na busca de atualizações: "+ex.getMessage());
+    });
+   }
+  }).start();
+ }
+ private void downloadUpdate(AndroidUpdater.Update latest){
+  if(updating)return;
+  updating=true;updateInfo("Baixando e verificando a atualização…");
+  new Thread(()->{
+   try{
+    File apk=AndroidUpdater.downloadAndVerify(this,latest);
+    runOnUiThread(()->{
+     updating=false;pendingInstall=apk;
+     updateInfo("Atualização verificada. Confirme a instalação no Android.");
+     try{
+      if(AndroidUpdater.requestInstall(this,apk))pendingInstall=null;
+      else message("Autorize a instalação de atualizações deste aplicativo nas configurações. "+
+       "Ao voltar, a instalação será oferecida automaticamente.");
+     }catch(Exception ex){message("Não foi possível abrir o instalador: "+ex.getMessage());}
+    });
+   }catch(Exception ex){
+    runOnUiThread(()->{
+     updating=false;updateInfo("Falha ao baixar ou verificar a atualização.");
+     message("Atualização não instalada: "+ex.getMessage());
+    });
+   }
+  }).start();
  }
  private void unpair(){
   if(store.token().isEmpty()){message("Nenhum dispositivo vinculado.");return;}
