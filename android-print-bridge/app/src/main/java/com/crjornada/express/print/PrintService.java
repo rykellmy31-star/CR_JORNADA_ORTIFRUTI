@@ -42,7 +42,7 @@ public final class PrintService extends Service {
  }
  @Override public int onStartCommand(Intent intent,int flags,int startId){
   if(intent!=null&&ACTION_STOP.equals(intent.getAction())){
-   running=false;store.setStatus("Impressão parada pelo usuário");
+   running=false;store.setShouldResumePrinting(false);store.setStatus("Impressão parada pelo usuário");
    stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY;
   }
   if(store.token().isEmpty()||store.printerAddress().isEmpty()){
@@ -52,6 +52,7 @@ public final class PrintService extends Service {
   if(Build.VERSION.SDK_INT>=34)
    startForeground(101,notification(),ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
   else startForeground(101,notification());
+  store.setShouldResumePrinting(true);
   if(!running){running=true;executor.execute(this::loop);}
   return START_STICKY;
  }
