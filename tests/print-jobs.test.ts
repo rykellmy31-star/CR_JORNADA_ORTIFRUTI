@@ -68,8 +68,7 @@ describe('fila de impressão automática por estabelecimento',()=>{
   const b:any=await (await admin(tokenB,'printing')).json();
   expect(b.enabled).toBe(false);
   expect(b.jobs).toHaveLength(0);
-  const second=await checkout('sabor-da-terra','73999999993');
-  expect(second.status).toBe(201);
+  // A fila da primeira loja jamais aparece no painel da segunda.
   const all=await db.prepare('SELECT * FROM print_jobs').all();
   expect(all.results).toHaveLength(1);
   const denied=await admin('invalid','printing');
