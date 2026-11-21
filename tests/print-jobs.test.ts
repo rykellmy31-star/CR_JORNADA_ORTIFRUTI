@@ -43,7 +43,7 @@ describe('fila de impressão automática por estabelecimento',()=>{
   const {admin,checkout,tokenA}=await setup();
   const config=await admin(tokenA,'printing');
   expect(config.status).toBe(200);
-  expect((await config.json() as any)).toEqual({enabled:false,jobs:[]});
+  expect((await config.json() as any)).toEqual({enabled:false,jobs:[],devices:[]});
   const created=await checkout('verde-vivo','73999999991');
   expect(created.status).toBe(201);
   const rows=await db.prepare('SELECT id FROM print_jobs').all();
