@@ -34,7 +34,7 @@ public final class PrintService extends Service {
   return new Notification.Builder(this,CHANNEL)
    .setContentTitle("CR Jornada Express")
    .setContentText("Impressão automática ativa · aguardando pedidos")
-   .setSmallIcon(android.R.drawable.ic_menu_print)
+   .setSmallIcon(R.drawable.ic_printer)
    .setContentIntent(pending)
    .setOngoing(true)
    .addAction(new Notification.Action.Builder(android.R.drawable.ic_media_pause,"Parar",stopIntent).build())
