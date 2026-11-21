@@ -28,18 +28,11 @@ jobs:
   deploy:
     name: Publicar na Cloudflare
     needs: verify
+    # Cada alteração mesclada em main valida, migra e publica automaticamente.
+    # Pull requests executam apenas os testes; nenhuma mudança vai à produção antes do merge.
     if: >-
       github.ref == 'refs/heads/main' &&
-      (
-        github.event_name == 'workflow_dispatch' ||
-        (
-          github.event_name == 'push' &&
-          (
-            vars.ENABLE_CLOUDFLARE_DEPLOY == 'true' ||
-            contains(github.event.head_commit.message, '[deploy:hortifruti]')
-          )
-        )
-      )
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: production
 
