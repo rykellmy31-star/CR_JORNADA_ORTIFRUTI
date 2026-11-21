@@ -2,7 +2,7 @@ name: APK Android - CR Jornada Express Impressão
 
 on:
   push:
-    branches: [main, feature/express-fila-impressao-20261121]
+    branches: [main]
     paths:
       - 'android-print-bridge/**'
       - '.github/workflows/android-print-bridge.yml'
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   apk:
-    name: Compilar APK de teste Android
+    name: Testar compilação Android
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -33,11 +33,81 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Compilar APK debug (não distribuível em loja de aplicativos)
+      - name: Testar compilação APK debug
         run: gradle -p android-print-bridge :app:assembleDebug --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: cr-jornada-express-impressao-android-beta
+          name: cr-jornada-express-impressao-android-debug
           path: android-print-bridge/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
+
+  publish-ota:
+    name: Publicar atualização Android assinada
+    needs: apk
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.EXPRESS_ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.EXPRESS_ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.EXPRESS_ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.EXPRESS_ANDROID_KEY_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar assinatura estável
+        id: signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_KEYSTORE_PASSWORD" && -n "$ANDROID_KEY_ALIAS" && -n "$ANDROID_KEY_PASSWORD" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release OTA não publicada: configure uma vez os quatro segredos EXPRESS_ANDROID_*; não publicar APK debug com assinatura variável."
+          fi
+      - uses: actions/setup-java@v4
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        if: steps.signing.outputs.ready == 'true'
+      - name: Instalar SDK Android 35
+        if: steps.signing.outputs.ready == 'true'
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          gradle-version: '8.11.1'
+      - name: Compilar versão assinada
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_SIGNING_KEYSTORE_PATH="$RUNNER_TEMP/cr-express-android-release.jks"
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_SIGNING_KEYSTORE_PATH"
+          export APP_VERSION_CODE="$((200000 + GITHUB_RUN_NUMBER))"
+          gradle -p android-print-bridge :app:assembleRelease --no-daemon
+          test -s android-print-bridge/app/build/outputs/apk/release/app-release.apk
+          echo "APP_VERSION_CODE=$APP_VERSION_CODE" >> "$GITHUB_ENV"
+      - name: Publicar APK e SHA256 no GitHub Releases
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT="$RUNNER_TEMP/cr-jornada-express-impressao.apk"
+          cp android-print-bridge/app/build/outputs/apk/release/app-release.apk "$ARTIFACT"
+          HASH="$(sha256sum "$ARTIFACT" | cut -d' ' -f1)"
+          TAG="cr-express-print-v${APP_VERSION_CODE}"
+          gh release create "$TAG" "$ARTIFACT#CR Jornada Express Impressão" \
+            --title "CR Jornada Express Impressão 1.0.${APP_VERSION_CODE}" \
+            --notes "Atualização oficial do aplicativo Android de impressão.
+
+          SHA256: ${HASH}" \
+            --prerelease \
+            --latest=false
