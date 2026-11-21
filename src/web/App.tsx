@@ -48,6 +48,45 @@ const cartLinePrice=(line:CartLine):number=>{
 const cartLineTotal=(line:CartLine)=>calculateLineTotalCents(cartLinePrice(line),line.quantity,line.purchaseMode,line.product.pricing_unit_grams||1000);
 const cartLineKey=(line:CartLine)=>[line.product.id,line.variant?.id||'',line.purchaseMode].join(':');
 
+/** Imagem sem recorte: texto e botão ficam fora da arte, inclusive em celular. */
+function StoreBannerCarousel({store,banners}:{store:any;banners:any[]}){
+ const slides=banners.length?banners:[{id:'default',image_url:'/images/banners/hero-hortifruti.jpg',mobile_image_url:null}];
+ const [index,setIndex]=useState(0);
+ useEffect(()=>setIndex(0),[store.id]);
+ useEffect(()=>{
+  if(slides.length<2||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const timer=window.setInterval(()=>{
+   if(document.visibilityState==='visible')setIndex(i=>(i+1)%slides.length);
+  },6000);
+  return()=>window.clearInterval(timer);
+ },[slides.length,store.id]);
+ const selected=slides[index%slides.length];
+ const go=(delta:number)=>setIndex(i=>(i+delta+slides.length)%slides.length);
+ return <section className="store-banner-carousel" aria-label="Banners da loja">
+  <div className={`store-banner-frame ${selected.mobile_image_url?'has-mobile-banner':''}`}>
+   <picture key={selected.id}>
+    {selected.mobile_image_url&&<source media="(max-width:680px)" srcSet={selected.mobile_image_url}/>}
+    <img className="store-banner-image" src={selected.image_url}
+     alt={`Banner ${index%slides.length+1} de ${store.name}`} loading="eager" decoding="async"/>
+   </picture>
+  </div>
+  <div className="store-banner-bottom">
+   <div className="store-banner-copy">
+    <strong>{store.banner_title||'Fresquinho todo dia'}</strong>
+    <span>{store.banner_subtitle||'Frutas, verduras e legumes selecionados com carinho.'}</span>
+   </div>
+   {slides.length>1&&<div className="store-banner-controls" aria-label="Navegar pelos banners">
+    <button type="button" onClick={()=>go(-1)} aria-label="Banner anterior"><ArrowLeft size={17}/></button>
+    <div className="store-banner-dots" aria-label="Selecionar banner">
+     {slides.map((s:any,i:number)=><button type="button" key={s.id} className={index===i?'active':''}
+      aria-label={`Ver banner ${i+1}`} aria-current={index===i?'true':undefined} onClick={()=>setIndex(i)}/>)}
+    </div>
+    <button type="button" onClick={()=>go(1)} aria-label="Próximo banner"><ArrowRight size={17}/></button>
+   </div>}
+   <a href="#catalogo" className="btn btn-primary store-banner-shop">Ver produtos <ArrowRight size={16}/></a>
+  </div>
+ </section>;
+}
 function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOverride||useLocation().pathname.split('/')[2]||'';const[storeData,setStoreData]=useState<any>(null),[showSignup,setShowSignup]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState(''),[cat,setCat]=useState('all'),[cart,setCart]=useState<CartLine[]>([]),[checkout,setCheckout]=useState(false),[placed,setPlaced]=useState<any>(null),[loading,setLoading]=useState(true),[mobileCart,setMobileCart]=useState(false);const navigate=useNavigate();
  const categoryListRef=useRef<HTMLDivElement>(null);
  const [canScrollCategoriesBack,setCanScrollCategoriesBack]=useState(false);
@@ -106,7 +145,7 @@ function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOve
  const removeLine=(line:CartLine)=>setCart(old=>removeCartSelection(old,line));
  if(loading)return <div className="loading"><span className="spinner"/>Carregando a loja…</div>;if(error||!store)return <div className="center-page"><h2>Não foi possível carregar esta loja</h2><p>{error}</p><button type="button" className="btn btn-primary" onClick={()=>window.location.reload()}>Tentar novamente</button></div>;
  return <div className="storefront" style={{'--store-color':store.primary_color||'#16834b'} as any}><div className="announcement"><Leaf size={14}/> Produtos fresquinhos selecionados todos os dias <span>•</span> Entrega no seu bairro</div><header className="store-header"><div className="store-logo"><span className="store-logo-icon">{store.logo_url?<img src={store.logo_url} alt={`Logomarca de ${store.name}`}/>:<Leaf size={24}/>}</span><span><b>{store.name}</b><small>Fresquinho todo dia</small></span></div><div className="store-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="O que você procura hoje?"/><kbd>⌘ K</kbd></div><div className="store-head-actions"><a className="contact-link" href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank"><MessageCircle size={17}/><span>Fale conosco</span></a><button className="cart-head" onClick={()=>setMobileCart(true)}><ShoppingCart size={19}/><span className="cart-count" aria-label={`${cartItemCount} ${cartItemCount===1?'item':'itens'} na cesta`}>{cartItemCount}</span></button></div></header>
- <main className="store-body"><section className="store-hero" style={{backgroundImage:`linear-gradient(90deg, rgba(7,48,31,.90),rgba(7,48,31,.12)),url(${store.banner_url||'/images/banners/hero-hortifruti.jpg'})`}}><div><span className="hero-badge">🌿 DIRETO DO FRESCOR</span><h1>{store.banner_title||'Fresquinho todo dia'}</h1><p>{store.banner_subtitle||'Frutas, verduras e legumes selecionados com carinho.'}</p><a href="#catalogo" className="btn btn-white">Ver produtos <ArrowRight size={16}/></a></div><div className="hero-leaf">✦</div></section><div className="store-benefits"><span><Truck/> Entrega no mesmo dia</span><span><Check/> Pagamento na entrega</span><span><Clock/> {store.business_hours}</span></div><div className="catalog-layout" id="catalogo"><section className="catalog-main"><div className="catalog-heading"><div><span className="eyebrow">DA NOSSA BANCA PARA SUA CASA</span><h2>Escolha seus fresquinhos</h2></div><span className="result-count">{shown.length} produtos disponíveis</span></div><div className="category-nav" aria-label="Categorias de produtos">
+ <main className="store-body"><StoreBannerCarousel store={store} banners={storeData?.banners||[]}/><div className="store-benefits"><span><Truck/> Entrega no mesmo dia</span><span><Check/> Pagamento na entrega</span><span><Clock/> {store.business_hours}</span></div><div className="catalog-layout" id="catalogo"><section className="catalog-main"><div className="catalog-heading"><div><span className="eyebrow">DA NOSSA BANCA PARA SUA CASA</span><h2>Escolha seus fresquinhos</h2></div><span className="result-count">{shown.length} produtos disponíveis</span></div><div className="category-nav" aria-label="Categorias de produtos">
  <button type="button" className="category-nav-arrow" aria-label="Ver categorias anteriores"
    disabled={!canScrollCategoriesBack} onClick={()=>moveCategories(-1)}><ArrowLeft size={18}/></button>
  <div className="category-chips" ref={categoryListRef} onScroll={updateCategoryArrows}
