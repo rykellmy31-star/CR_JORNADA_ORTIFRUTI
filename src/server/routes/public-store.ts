@@ -20,7 +20,7 @@ publicStoreRoutes.get('/:slug', async (c) => {
     FROM tenants WHERE slug = ? AND status = 'active'`).bind(c.req.param('slug')).first<Record<string, any>>();
   if (!tenant) return c.json({ error: 'Loja não encontrada ou temporariamente indisponível.' }, 404);
   const { results: categories } = await db.prepare(`SELECT id, name, slug, icon, sort_order FROM categories WHERE tenant_id = ? AND is_active = 1 ORDER BY sort_order, name`).bind(tenant.id).all();
-  const { results: products } = await db.prepare(`SELECT p.id, p.category_id, p.name, p.description, p.image_url, p.sale_mode, p.unit_label, p.pricing_unit_grams, p.min_qty, p.step_qty, p.preset_quantities_json, p.price_cents, p.promo_price_cents, p.unit_price_cents, p.unit_weight_grams, p.is_featured, lib.source_page_url AS photo_source_url, lib.license_name AS photo_license, lib.author AS photo_author,
+  const { results: products } = await db.prepare(`SELECT p.id, p.category_id, p.name, p.description, p.image_url, p.sale_mode, p.fixed_options_enabled, p.unit_label, p.pricing_unit_grams, p.min_qty, p.step_qty, p.preset_quantities_json, p.price_cents, p.promo_price_cents, p.unit_price_cents, p.unit_weight_grams, p.is_featured, lib.source_page_url AS photo_source_url, lib.license_name AS photo_license, lib.author AS photo_author,
     CASE WHEN p.sale_mode='weight' AND p.unit_price_cents IS NOT NULL AND p.unit_weight_grams IS NOT NULL
       AND (CASE WHEN p.stock_pool_id IS NOT NULL THEN (sp.physical_qty-sp.reserved_qty) ELSE (p.physical_qty-p.reserved_qty) END)>=p.unit_weight_grams
       THEN 1 ELSE 0 END AS unit_available,
