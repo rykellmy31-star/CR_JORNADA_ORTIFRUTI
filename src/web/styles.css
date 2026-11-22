@@ -677,3 +677,18 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .custom-removal-option:has(input:checked){background:#fff2ed;border-color:#c88c80}
 .custom-removal-option b{color:#7e655e;font-size:12px;white-space:nowrap}
 .custom-removal-option:has(input:checked) b{color:#a23526}
+
+/* Compartilhamento da vitrine: sempre visível no topo, inclusive no celular. */
+.store-share{position:relative;flex-shrink:0;z-index:45}
+.store-share-trigger{border:1px solid #cfe4d5;background:#edf8ef;color:var(--store-color,#16834b);border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 13px;cursor:pointer;font:inherit;font-size:12px;font-weight:700;white-space:nowrap}
+.store-share-trigger:hover{background:#def1e3}
+.store-share-trigger:focus-visible,.store-share-close:focus-visible,.store-share-copy:focus-visible{outline:2px solid var(--store-color,#16834b);outline-offset:2px}
+.store-share-popover{position:absolute;top:calc(100% + 10px);right:0;width:min(300px,calc(100vw - 28px));z-index:80;background:#fff;border:1px solid #dfebdf;border-radius:13px;padding:16px;box-shadow:0 14px 36px #193b2830;color:#25372c;display:grid;gap:7px;font-size:13px}
+.store-share-popover>svg{color:#238148}
+.store-share-popover strong{padding-right:20px}
+.store-share-popover small{color:#697a6f;font-size:12px;line-height:1.4}
+.store-share-popover input{min-width:0;width:100%;font-size:12px;border:1px solid #cfdfd1;border-radius:7px;padding:10px;background:#f7faf8;color:#263c2b}
+.store-share-close{position:absolute;top:9px;right:9px;border:0;background:transparent;color:#5b6e62;cursor:pointer;width:28px;height:28px;display:grid;place-items:center}
+.store-share-copy{border:0;border-radius:7px;padding:10px;background:var(--store-color,#16834b);color:#fff;font-size:12px;font-weight:700;cursor:pointer}
+@media(max-width:680px){.store-share-trigger{width:42px;height:42px;padding:0}.store-share-trigger span{display:none}}
+@media print{.store-share{display:none!important}}
