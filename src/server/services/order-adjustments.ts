@@ -10,6 +10,7 @@ import {
   formatBRL,formatQuantityDisplay,extractFirstName,normalizePhoneBR
 } from '../../shared/pricing';
 import type {EvolutionEnvConfig} from './evolution-whatsapp';
+import {dispatchLoyaltyNotifications} from './loyalty-notifications';
 import {dispatchQueuedMessageById} from './evolution-whatsapp';
 
 interface EditInput {
@@ -247,6 +248,7 @@ export async function adjustOrderItems(params:{
       notificationStatus=(await dispatchQueuedMessageById(db,tenantId,queueId,evolution)).status;
     }catch{notificationStatus='pending';}
   }
+  await dispatchLoyaltyNotifications(db,tenantId,orderId,evolution).catch(()=>undefined);
   return {adjustmentId,version,changes,
     oldTotalCents:order.total_cents,newTotalCents:newTotal,notificationStatus};
 }

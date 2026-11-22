@@ -1,3 +1,4 @@
+import {dispatchLoyaltyNotifications} from '../services/loyalty-notifications';
 import {loyaltyConfigSchema,readLoyalty} from '../../shared/loyalty';
 import {getStoreStatus,readSchedule} from '../../shared/store-hours';
 import {readCustomConfig} from '../../shared/custom-product';
@@ -222,6 +223,7 @@ adminRoutes.patch('/orders/:id/status',async(c)=>{
    const event=status==='accepted'?'order_accepted':status==='preparing'?'order_preparing':status==='out_for_delivery'?'order_out_for_delivery':'order_delivered';
    await enqueueAndDispatchOrderWhatsAppNotification(db,tid,id,event,services.evolution).catch(()=>undefined);
   }
+  await dispatchLoyaltyNotifications(db,tid,id,services.evolution).catch(()=>undefined);
   await logAudit(db,{tenantId:tid,actorUserId:uid,actorRole:c.get('authUser').role,action:'order.status_changed',entityType:'order',entityId:id,details:{from:order.status,to:status}});
   return c.json({success:true});
  }catch(e:any){return c.json({error:e.message||'Não foi possível atualizar o pedido.'},e.statusCode||400);}
@@ -429,7 +431,8 @@ adminRoutes.get('/loyalty',async(c)=>{
  const db=c.get('services').db,tid=c.get('tenantId');
  const tenant=await db.prepare('SELECT loyalty_config_json FROM tenants WHERE id=?').bind(tid).first<{loyalty_config_json:string|null}>();
  const {results:accounts}=await db.prepare(`SELECT a.customer_id,c.name,c.phone,a.progress,a.goal,a.reward_name,
- (SELECT COUNT(*) FROM loyalty_earnings e WHERE e.tenant_id=a.tenant_id AND e.customer_id=a.customer_id) AS total_points
+ (SELECT COUNT(*) FROM loyalty_earnings e WHERE e.tenant_id=a.tenant_id AND e.customer_id=a.customer_id AND e.state!='revoked') AS total_points,
+ (SELECT COUNT(*) FROM loyalty_earnings e WHERE e.tenant_id=a.tenant_id AND e.customer_id=a.customer_id AND e.state='pending') AS pending_points
  FROM loyalty_accounts a JOIN customers c ON c.id=a.customer_id AND c.tenant_id=a.tenant_id
  WHERE a.tenant_id=? ORDER BY a.updated_at DESC LIMIT 500`).bind(tid).all();
  const {results:rewards}=await db.prepare(`SELECT r.id,r.reward_name,r.points_used,r.created_at,r.redeemed_at,c.name,c.phone
