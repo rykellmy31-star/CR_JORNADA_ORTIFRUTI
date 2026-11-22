@@ -12,6 +12,8 @@ type EditableNumberProps=Omit<InputHTMLAttributes<HTMLInputElement>,'value'|'def
  */
 export function parseEditableNumber(raw:string,min?:number,max?:number,step?:number|string):number|null{
  if(raw.trim()==='')return null;
+ // Não converter o campo vazio em 0 nem aceitar notação científica em quantidades e preços.
+ if(!/^-?\d+(?:\.\d+)?$/.test(raw.trim()))return null;
  const parsed=Number(raw);
  if(!Number.isFinite(parsed)||parsed<=(Number.MAX_SAFE_INTEGER*-1)||parsed>Number.MAX_SAFE_INTEGER)return null;
  if(min!==undefined&&parsed<min||max!==undefined&&parsed>max)return null;
