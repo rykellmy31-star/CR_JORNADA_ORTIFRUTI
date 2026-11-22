@@ -1,3 +1,5 @@
+import {dispatchLoyaltyNotifications} from '../services/loyalty-notifications';
+import {loyaltyConfigSchema,readLoyalty} from '../../shared/loyalty';
 import {getStoreStatus,readSchedule} from '../../shared/store-hours';
 import {readCustomConfig} from '../../shared/custom-product';
 import { Hono } from 'hono';
@@ -221,6 +223,7 @@ adminRoutes.patch('/orders/:id/status',async(c)=>{
    const event=status==='accepted'?'order_accepted':status==='preparing'?'order_preparing':status==='out_for_delivery'?'order_out_for_delivery':'order_delivered';
    await enqueueAndDispatchOrderWhatsAppNotification(db,tid,id,event,services.evolution).catch(()=>undefined);
   }
+  await dispatchLoyaltyNotifications(db,tid,id,services.evolution).catch(()=>undefined);
   await logAudit(db,{tenantId:tid,actorUserId:uid,actorRole:c.get('authUser').role,action:'order.status_changed',entityType:'order',entityId:id,details:{from:order.status,to:status}});
   return c.json({success:true});
  }catch(e:any){return c.json({error:e.message||'Não foi possível atualizar o pedido.'},e.statusCode||400);}
@@ -423,6 +426,34 @@ adminRoutes.delete('/products/:id',async(c)=>{const db=c.get('services').db,tid=
 
 adminRoutes.post('/stock/adjust',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId'),b=await c.req.json();const target=String(b.targetType),id=String(b.targetId),qty=Number(b.quantity);if(!Number.isInteger(qty)||qty===0)return c.json({error:'Informe ajuste inteiro diferente de zero.'},400);const tables:any={product:'products',variant:'product_variants',pool:'stock_pools'};const table=tables[target];if(!table)return c.json({error:'Tipo de estoque inválido.'},400);const row=await db.prepare(`SELECT * FROM ${table} WHERE id=? AND tenant_id=?`).bind(id,tid).first<Record<string,any>>();if(!row)return c.json({error:'Item não encontrado.'},404);if(row.physical_qty+qty<row.reserved_qty)return c.json({error:'O ajuste não pode reduzir estoque abaixo do já reservado.'},409);const time=new Date().toISOString();await db.prepare(`UPDATE ${table} SET physical_qty=physical_qty+?,updated_at=? WHERE id=? AND tenant_id=?`).bind(qty,time,id,tid).run();await db.prepare(`INSERT INTO stock_movements(id,tenant_id,target_type,product_id,variant_id,stock_pool_id,target_name,movement_type,delta_physical,delta_reserved,physical_after,reserved_after,unit,actor_user_id,reason,created_at) VALUES(?,?,?,?,?, ?,?,'manual_adjust',?,0,?,?,?, ?,?,?)`).bind(generateId(),tid,target,target==='product'?id:null,target==='variant'?id:null,target==='pool'?id:null,row.name||row.title||'Estoque',qty,row.physical_qty+qty,row.reserved_qty,row.base_unit|| (row.sale_mode==='weight'?'g':'un'),c.get('authUser').sub,String(b.reason||'Ajuste manual'),time).run();return c.json({success:true});});
 adminRoutes.get('/stock',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId');const [products,variants,pools,movements]=await Promise.all([db.prepare(`SELECT id,name,sale_mode,unit_label,physical_qty,reserved_qty,low_stock_threshold FROM products WHERE tenant_id=? AND is_deleted=0 AND sale_mode!='variants'`).bind(tid).all(),db.prepare(`SELECT v.id,v.product_id,p.name AS product_name,v.name,v.physical_qty,v.reserved_qty,v.low_stock_threshold,v.stock_pool_id FROM product_variants v JOIN products p ON p.id=v.product_id AND p.tenant_id=v.tenant_id WHERE v.tenant_id=? AND v.stock_pool_id IS NULL`).bind(tid).all(),db.prepare(`SELECT * FROM stock_pools WHERE tenant_id=?`).bind(tid).all(),db.prepare(`SELECT * FROM stock_movements WHERE tenant_id=? ORDER BY created_at DESC LIMIT 100`).bind(tid).all()]);return c.json({products:products.results,variants:variants.results,pools:pools.results,movements:movements.results});});
+// Fidelidade: dados de clientes e resgates somente no painel autenticado.
+adminRoutes.get('/loyalty',async(c)=>{
+ const db=c.get('services').db,tid=c.get('tenantId');
+ const tenant=await db.prepare('SELECT loyalty_config_json FROM tenants WHERE id=?').bind(tid).first<{loyalty_config_json:string|null}>();
+ const {results:accounts}=await db.prepare(`SELECT a.customer_id,c.name,c.phone,a.progress,a.goal,a.reward_name,
+ (SELECT COUNT(*) FROM loyalty_earnings e WHERE e.tenant_id=a.tenant_id AND e.customer_id=a.customer_id AND e.state!='revoked') AS total_points,
+ (SELECT COUNT(*) FROM loyalty_earnings e WHERE e.tenant_id=a.tenant_id AND e.customer_id=a.customer_id AND e.state='pending') AS pending_points
+ FROM loyalty_accounts a JOIN customers c ON c.id=a.customer_id AND c.tenant_id=a.tenant_id
+ WHERE a.tenant_id=? ORDER BY a.updated_at DESC LIMIT 500`).bind(tid).all();
+ const {results:rewards}=await db.prepare(`SELECT r.id,r.reward_name,r.points_used,r.created_at,r.redeemed_at,c.name,c.phone
+ FROM loyalty_rewards r JOIN customers c ON c.id=r.customer_id AND c.tenant_id=r.tenant_id
+ WHERE r.tenant_id=? ORDER BY r.redeemed_at IS NOT NULL,r.created_at DESC LIMIT 500`).bind(tid).all();
+ return c.json({config:readLoyalty(tenant?.loyalty_config_json),accounts,rewards});
+});
+adminRoutes.put('/loyalty',async(c)=>{
+ if(!['owner','manager'].includes(c.get('authUser').role))return c.json({error:'Somente proprietário ou gerente pode editar o programa.'},403);
+ const config=loyaltyConfigSchema.safeParse(await c.req.json().catch(()=>null));
+ if(!config.success)return c.json({error:'Informe valor mínimo maior que zero, meta de 1 a 100 e nome do prêmio.'},400);
+ const db=c.get('services').db,tid=c.get('tenantId');
+ await db.prepare('UPDATE tenants SET loyalty_config_json=?,updated_at=? WHERE id=?').bind(JSON.stringify(config.data),new Date().toISOString(),tid).run();
+ return c.json({success:true,config:config.data});
+});
+adminRoutes.post('/loyalty/rewards/:id/redeem',async(c)=>{
+ if(!['owner','manager'].includes(c.get('authUser').role))return c.json({error:'Somente proprietário ou gerente pode registrar resgates.'},403);
+ const r=await c.get('services').db.prepare('UPDATE loyalty_rewards SET redeemed_at=?,redeemed_by_user_id=? WHERE id=? AND tenant_id=? AND redeemed_at IS NULL')
+ .bind(new Date().toISOString(),c.get('authUser').sub,c.req.param('id'),c.get('tenantId')).run();
+ return r.meta.changes?c.json({success:true}):c.json({error:'Prêmio não encontrado ou já resgatado.'},409);
+});
 adminRoutes.get('/customers',async(c)=>{const {results}=await c.get('services').db.prepare(`SELECT * FROM customers WHERE tenant_id=? ORDER BY last_order_at DESC LIMIT 300`).bind(c.get('tenantId')).all();return c.json({customers:results});});
 adminRoutes.get('/reports',async(c)=>{const db=c.get('services').db,tid=c.get('tenantId');const from=c.req.query('from')||'2000-01-01',to=c.req.query('to')||'2999-12-31';const {results:summary}=await db.prepare(`SELECT COUNT(*) orders_count,COALESCE(SUM(CASE WHEN status!='cancelled' THEN total_cents ELSE 0 END),0) sales_cents,COALESCE(AVG(CASE WHEN status!='cancelled' THEN total_cents END),0) avg_ticket_cents FROM orders WHERE tenant_id=? AND deleted_at IS NULL AND date(created_at)>=date(?) AND date(created_at)<=date(?)`).bind(tid,from,to).all();const {results:top}=await db.prepare(`SELECT oi.product_name_snapshot, SUM(oi.quantity) quantity, SUM(oi.line_total_cents) sales_cents FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.tenant_id=? AND o.status!='cancelled' AND o.deleted_at IS NULL AND date(o.created_at)>=date(?) AND date(o.created_at)<=date(?) GROUP BY oi.product_id ORDER BY sales_cents DESC LIMIT 10`).bind(tid,from,to).all();return c.json({summary:summary[0],topProducts:top});});
 

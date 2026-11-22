@@ -1,3 +1,5 @@
+import {dispatchLoyaltyNotifications} from '../services/loyalty-notifications';
+import {readLoyalty} from '../../shared/loyalty';
 import {getStoreStatus} from '../../shared/store-hours';
 import {customSelectionSchema,readCustomConfig,customConfigAvailable} from '../../shared/custom-product';
 import { Hono } from 'hono';
@@ -22,7 +24,7 @@ publicStoreRoutes.get('/:slug', async (c) => {
   const db = c.get('services').db;
   const tenant = await db.prepare(`SELECT id, slug, name, logo_url, banner_url, banner_title, banner_subtitle,
     primary_color, accent_color, whatsapp_public, instagram_url, address_text, business_hours, delivery_info,
-    default_delivery_fee_cents, free_delivery_min_cents, min_order_cents, is_open,opening_schedule_json,
+    default_delivery_fee_cents, free_delivery_min_cents, min_order_cents, is_open,opening_schedule_json,loyalty_config_json,
     accepts_cash, accepts_pix_delivery, accepts_debit_delivery, accepts_credit_delivery,
     signup_popup_enabled, signup_popup_title, signup_popup_description, signup_popup_button
     FROM tenants WHERE slug = ? AND status = 'active'`).bind(c.req.param('slug')).first<Record<string, any>>();
@@ -66,8 +68,9 @@ publicStoreRoutes.get('/:slug', async (c) => {
     'SELECT id,image_url,mobile_image_url,sort_order FROM store_banners WHERE tenant_id=? AND is_active=1 ORDER BY sort_order,created_at LIMIT 10'
   ).bind(tenant.id).all();
   const storeStatus=getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json);
-  const {opening_schedule_json,...publicTenant}=tenant;
-  return c.json({ store: {...publicTenant,is_open:storeStatus.open?1:0,store_status:storeStatus}, categories, products: publicProducts, neighborhoods, banners });
+  const {opening_schedule_json,loyalty_config_json,...publicTenant}=tenant;
+  const loyalty=readLoyalty(loyalty_config_json);
+  return c.json({ store: {...publicTenant,is_open:storeStatus.open?1:0,store_status:storeStatus,loyalty:loyalty.enabled?loyalty:null}, categories, products: publicProducts, neighborhoods, banners });
 });
 
 // Cadastro voluntário — não cria pedidos, cupons ou envios automáticos.
@@ -166,8 +169,9 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
     } else {
       statements.push(db.prepare(`INSERT INTO customers (id, tenant_id, name, phone, default_street, default_number, default_neighborhood, default_complement, default_reference, whatsapp_opt_in, orders_count, total_spent_cents, last_order_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`).bind(customerId, tenant.id, body.customerName, phone, body.street, body.number, neighborhood.name, body.complement, body.reference, body.whatsappOptIn ? 1 : 0, timestamp, timestamp, timestamp));
     }
-    statements.push(db.prepare(`INSERT INTO orders (id, tenant_id, customer_id, order_number, status, stock_state, customer_name, customer_phone, whatsapp_opt_in, address_street, address_number, address_neighborhood, address_complement, address_reference, payment_method, needs_change, change_for_cents, change_amount_cents, subtotal_cents, delivery_fee_cents, total_cents, created_at, updated_at) VALUES (?, ?, ?, ?, 'received', 'reserved', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(orderId, tenant.id, customerId, orderNumber, body.customerName, phone, body.whatsappOptIn ? 1 : 0, body.street, body.number, neighborhood.name, body.complement, body.reference, body.paymentMethod, change.needsChange ? 1 : 0, change.changeForCents, change.changeAmountCents, prepared.subtotalCents, fee, total, timestamp, timestamp));
+    const loyalty=readLoyalty(tenant.loyalty_config_json);
+    statements.push(db.prepare(`INSERT INTO orders (id, tenant_id, customer_id, order_number, status, stock_state, customer_name, customer_phone, whatsapp_opt_in, address_street, address_number, address_neighborhood, address_complement, address_reference, payment_method, needs_change, change_for_cents, change_amount_cents, subtotal_cents, delivery_fee_cents, total_cents, created_at, updated_at, loyalty_minimum_cents, loyalty_goal, loyalty_reward_name) VALUES (?, ?, ?, ?, 'received', 'reserved', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(orderId, tenant.id, customerId, orderNumber, body.customerName, phone, body.whatsappOptIn ? 1 : 0, body.street, body.number, neighborhood.name, body.complement, body.reference, body.paymentMethod, change.needsChange ? 1 : 0, change.changeForCents, change.changeAmountCents, prepared.subtotalCents, fee, total, timestamp, timestamp,loyalty.enabled?loyalty.minimumCents:null,loyalty.enabled?loyalty.goal:null,loyalty.enabled?loyalty.reward:null));
     for (const line of prepared.lines) {
       statements.push(db.prepare(`INSERT INTO order_items (id, tenant_id, order_id, product_id, variant_id, stock_pool_id, product_name_snapshot, variant_name_snapshot, sku_snapshot, sale_mode, quantity, quantity_display, stock_deducted_qty, unit_price_cents, pricing_unit_label, line_total_cents, original_line_total_cents, customization_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(line.id, tenant.id, orderId, line.product_id, line.variant_id, line.stock_pool_id, line.product_name_snapshot, line.variant_name_snapshot, line.sku_snapshot, line.sale_mode, line.quantity, line.quantity_display, line.stock_deducted_qty, line.unit_price_cents, line.pricing_unit_label, line.line_total_cents,line.original_line_total_cents??null,line.customization_snapshot??null));
@@ -184,6 +188,7 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
     await runConditionalTransaction(db, [...statements.map((stmt) => ({ stmt })), ...stockSteps]);
     await db.prepare(`UPDATE customers SET total_spent_cents = total_spent_cents + ? WHERE id = ? AND tenant_id = ?`).bind(total, customerId, tenant.id).run();
     await enqueueAndDispatchOrderWhatsAppNotification(db, tenant.id, orderId, 'order_received', services.evolution).catch(() => undefined);
+    await dispatchLoyaltyNotifications(db,tenant.id,orderId,services.evolution).catch(()=>undefined);
     return c.json({ success: true, order: { id: orderId, number: orderNumber, status: 'received', subtotalCents: prepared.subtotalCents, deliveryFeeCents: fee, totalCents: total, changeForCents: change.changeForCents, changeAmountCents: change.changeAmountCents } }, 201);
   } catch (e: any) {
     const status = e?.statusCode || 400;

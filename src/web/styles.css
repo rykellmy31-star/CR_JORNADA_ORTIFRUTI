@@ -660,3 +660,8 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .store-schedule-day{border-bottom:1px solid #e4ece6;padding-bottom:9px;display:grid;gap:6px}
 .store-schedule-times{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .store-schedule-times input{width:100%;min-width:0}
+
+.loyalty-notice{display:flex;gap:10px;align-items:flex-start;background:#eff9ed;border:1px solid #d0e8d1;color:#23673a;border-radius:12px;padding:13px;margin:12px 0;line-height:1.4}
+.loyalty-notice>svg{flex:none}.loyalty-notice>div{flex:1;min-width:0}.loyalty-notice b{display:block;font-size:13px}.loyalty-notice small{display:block;font-size:11px;margin:4px 0}
+.loyalty-progress{height:6px;background:#d7e9d7;border-radius:8px;overflow:hidden;margin:8px 0}.loyalty-progress span{display:block;height:100%;background:#218749}
+.loyalty-page{display:grid;gap:16px}.loyalty-page .settings-card{display:grid;gap:14px}
