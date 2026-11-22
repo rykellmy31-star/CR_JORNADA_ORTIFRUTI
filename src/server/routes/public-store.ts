@@ -70,7 +70,7 @@ publicStoreRoutes.get('/:slug', async (c) => {
   const storeStatus=getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json);
   const {opening_schedule_json,loyalty_config_json,...publicTenant}=tenant;
   const loyalty=readLoyalty(loyalty_config_json);
-  return c.json({ store: {...publicTenant,is_open:storeStatus.open?1:0,store_status:storeStatus,loyalty:loyalty.enabled?loyalty:null}, categories, products: publicProducts, neighborhoods, banners });
+  return c.json({ store: {...publicTenant,is_open:storeStatus.open?1:0,store_status:storeStatus,loyalty:loyalty.enabled?{...loyalty,reward:loyalty.showReward?loyalty.reward:''}:null}, categories, products: publicProducts, neighborhoods, banners });
 });
 
 // Cadastro voluntário — não cria pedidos, cupons ou envios automáticos.
