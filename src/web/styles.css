@@ -713,3 +713,9 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .store-hours-hint,.store-hours-warning{display:block;padding:9px 11px;border-radius:8px;font-size:12px;line-height:1.5}
 .store-hours-hint{background:#eaf7ee;color:#246841;border:1px solid #bfe4c9}
 .store-hours-warning{background:#fff7e8;color:#805b21;border:1px solid #eddbb6}
+
+/* Botão de remoção da logomarca nas configurações da loja. */
+.brand-logo-removal{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:-4px}
+.brand-logo-removal small{font-size:11px;color:#6c7c70;line-height:1.4;flex:1;min-width:180px}
+.brand-logo-removal button:disabled{opacity:.6;cursor:not-allowed}
+@media(max-width:640px){.brand-logo-removal{align-items:flex-start;flex-direction:column}.brand-logo-removal small{min-width:0}}

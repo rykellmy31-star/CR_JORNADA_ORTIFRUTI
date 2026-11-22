@@ -70,5 +70,26 @@ describe('imagens da marca e banner na vitrine',()=>{
    const image=await app.fetch(new Request('http://local'+logo.url));
    expect(image.status).toBe(200);
    expect(image.headers.get('content-type')).toBe('image/png');
+   // Remover a logomarca deve deixar o campo realmente vazio no banco e na vitrine.
+   const remove=await app.fetch(new Request('http://local/api/admin/settings',{
+     method:'PATCH',headers:{authorization:'Bearer '+token,'content-type':'application/json'},
+     body:JSON.stringify({logoUrl:null})
+   }));
+   expect(remove.status).toBe(200);
+   const settingsAfter:any=await (await app.fetch(new Request('http://local/api/admin/settings',{
+     headers:{authorization:'Bearer '+token}
+   }))).json();
+   expect(settingsAfter.settings.logo_url).toBeNull();
+   const storeAfter:any=await (await app.fetch(new Request('http://local/api/store/verde-vivo'))).json();
+   expect(storeAfter.store.logo_url).toBeNull();
+   expect(storeAfter.store.banner_url).toBe(banner.url);
+   const printAfter:any=await (await app.fetch(new Request('http://local/api/admin/orders',{
+     headers:{authorization:'Bearer '+token}
+   }))).json();
+   expect(printAfter.receiptLogoUrl).toBeNull(); // comanda usa o nome da loja como fallback.
+   const otherAfter:any=await (await app.fetch(new Request('http://local/api/store/sabor-da-terra'))).json();
+   expect(otherAfter.store.logo_url).not.toBe(logo.url);
+   // A imagem continua no armazenamento, sem apagar arquivos físicos usados em outros lugares.
+   expect((await app.fetch(new Request('http://local'+logo.url))).status).toBe(200);
  });
 });
