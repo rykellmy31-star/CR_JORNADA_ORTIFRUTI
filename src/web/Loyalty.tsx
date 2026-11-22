@@ -9,7 +9,7 @@ export function LoyaltyNotice({config,subtotal}:{config?:LoyaltyConfig|null;subt
  <b>{gap>0?'Faltam '+formatBRL(gap)+' para ganhar 1 ponto fidelidade!':'Você ganhará 1 ponto fidelidade nesta compra!'}</b>
  <small>{gap>0?'Adicione mais produtos e fique mais perto do seu prêmio.':'O ponto entra ao finalizar; cancelamentos recalculam seu saldo.'}</small>
  <div className="loyalty-progress" aria-hidden="true"><span style={{width:Math.min(100,subtotal/config.minimumCents*100)+'%'}}/></div>
- <small>{config.goal} ponto(s) = {config.reward} 🎁</small>
+ <small>{config.showReward?`${config.goal} ponto(s) = ${config.reward} 🎁`:`${config.goal} ponto(s) para conquistar um prêmio 🎁`}</small>
  </div></div>;
 }
 type Account={customer_id:string;name:string;phone:string;progress:number;goal:number;reward_name:string;total_points:number;pending_points:number};
@@ -30,6 +30,7 @@ export function LoyaltyPanel({request}:{request:(path:string,options?:RequestIni
  <div className="form-grid"><label>Valor mínimo por compra (R$)<input required value={minimum} inputMode="decimal" onChange={e=>setMinimum(e.target.value)}/></label>
  <label>Pontos para ganhar prêmio<input required type="number" min={1} max={100} value={config.goal} onChange={e=>setConfig({...config,goal:Number(e.target.value)})}/></label>
  <label className="full">Qual é o prêmio?<input required maxLength={150} value={config.reward} onChange={e=>setConfig({...config,reward:e.target.value})}/></label></div>
+ <div className="settings-toggle"><span><b>Mostrar o nome do prêmio ao cliente</b><small>{config.showReward?'O WhatsApp e a vitrine mostram qual é o prêmio.':'O WhatsApp e a vitrine mostram apenas a quantidade de pontos e a meta.'} O prêmio continua visível no painel.</small></span><label className="switch"><input type="checkbox" aria-label="Mostrar o nome do prêmio ao cliente" checked={config.showReward} onChange={e=>setConfig({...config,showReward:e.target.checked})}/><span/></label></div>
  <small>1 ponto ao finalizar cada compra que atinja o mínimo nos produtos, após descontos e sem frete. Cancelamentos e reduções abaixo do mínimo estornam o ponto. Prêmios liberados após a confirmação das entregas. O ciclo em andamento mantém a meta e o prêmio prometidos. Pausar o programa não apaga pontos nem prêmios.</small>
  <button type="submit" className="btn btn-primary" disabled={busy||!data}><Check size={16}/> Salvar regras</button>
  </form>
