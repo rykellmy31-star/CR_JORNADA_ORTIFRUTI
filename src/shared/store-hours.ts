@@ -25,7 +25,7 @@ const normalizeTime=(timeText:string):string|null=>{
  if(hour>23||minute>59)return null;
  return String(hour).padStart(2,'0')+':'+String(minute).padStart(2,'0');
 };
-/** Interpreta apenas formatos explícitos: "Seg a Sáb: 07h às 19h • Dom: 07h às 13h". */
+/** Interpreta somente horários semanais explícitos: "Seg a Sáb: 07h às 19h • Dom: 07h às 13h". */
 export function parseBusinessHours(value:unknown):StoreSchedule|null{
  if(typeof value!=='string'||!value.trim()||value.length>600)return null;
  const input=value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[–—]/g,'-');
@@ -33,30 +33,7 @@ export function parseBusinessHours(value:unknown):StoreSchedule|null{
  if(!sections.length)return null;
  const result=defaultSchedule(),used=new Set<number>();
  const pattern='(\\d{1,2}(?:h\\d{2}|h|:\\d{2})?)';
- const interval=new RegExp('^'+pattern+'\\s*(?:as|a|ate|-)\\s*'+pattern+'
-export type StoreStatus={open:boolean;label:string;reason:'open'|'manual'|'schedule';nextOpening:string|null};
-export function getStoreStatus(manualOpen:boolean,raw:unknown,now=new Date(),businessHours?:unknown):StoreStatus{
- if(!manualOpen)return {open:false,label:'Fechado no momento',reason:'manual',nextOpening:null};
- let schedule:StoreSchedule;
- try{schedule=effectiveSchedule(raw,businessHours);}catch{return {open:false,label:'Fechado no momento',reason:'schedule',nextOpening:null};}
- if(!schedule.enabled)return {open:true,label:'Aberto agora',reason:'open',nextOpening:null};
- const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Bahia',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);
- const get=(type:string)=>parts.find(p=>p.type===type)?.value||'';
- const day=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(get('weekday'));
- const current=Number(get('hour'))*60+Number(get('minute'));
- const today=schedule.days[day],yesterday=schedule.days[(day+6)%7];
- const active=(d:StoreSchedule['days'][number],m:number)=>d.enabled&&m>=minutes(d.open)&&(minutes(d.close)<minutes(d.open)||m<minutes(d.close));
- if(active(today,current)||(yesterday.enabled&&minutes(yesterday.close)<minutes(yesterday.open)&&current<minutes(yesterday.close)))return {open:true,label:'Aberto agora',reason:'open',nextOpening:null};
- for(let offset=0;offset<=7;offset++){
-  const index=(day+offset)%7,d=schedule.days[index];
-  if(d.enabled&&(offset>0||minutes(d.open)>current)){
-   const nextOpening=(offset===0?'hoje':WEEKDAYS[index])+' às '+d.open;
-   return {open:false,label:'Fechado, abriremos '+nextOpening,reason:'schedule',nextOpening};
-  }
- }
- return {open:false,label:'Fechado no momento',reason:'schedule',nextOpening:null};
-}
-);
+ const interval=new RegExp('^'+pattern+'\\s*(?:as|a|ate|-)\\s*'+pattern+'$');
  for(const section of sections){
   const divider=section.indexOf(':');
   if(divider<0)return null;
@@ -112,10 +89,10 @@ export function effectiveSchedule(raw:unknown,businessHours?:unknown):StoreSched
 
 const minutes=(v:string)=>Number(v.slice(0,2))*60+Number(v.slice(3));
 export type StoreStatus={open:boolean;label:string;reason:'open'|'manual'|'schedule';nextOpening:string|null};
-export function getStoreStatus(manualOpen:boolean,raw:unknown,now=new Date()):StoreStatus{
+export function getStoreStatus(manualOpen:boolean,raw:unknown,now=new Date(),businessHours?:unknown):StoreStatus{
  if(!manualOpen)return {open:false,label:'Fechado no momento',reason:'manual',nextOpening:null};
  let schedule:StoreSchedule;
- try{schedule=readSchedule(raw);}catch{return {open:false,label:'Fechado no momento',reason:'schedule',nextOpening:null};}
+ try{schedule=effectiveSchedule(raw,businessHours);}catch{return {open:false,label:'Fechado no momento',reason:'schedule',nextOpening:null};}
  if(!schedule.enabled)return {open:true,label:'Aberto agora',reason:'open',nextOpening:null};
  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Bahia',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);
  const get=(type:string)=>parts.find(p=>p.type===type)?.value||'';
