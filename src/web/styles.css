@@ -665,3 +665,15 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .loyalty-notice>svg{flex:none}.loyalty-notice>div{flex:1;min-width:0}.loyalty-notice b{display:block;font-size:13px}.loyalty-notice small{display:block;font-size:11px;margin:4px 0}
 .loyalty-progress{height:6px;background:#d7e9d7;border-radius:8px;overflow:hidden;margin:8px 0}.loyalty-progress span{display:block;height:100%;background:#218749}
 .loyalty-page{display:grid;gap:16px}.loyalty-page .settings-card{display:grid;gap:14px}
+
+/* Ingredientes que já vêm no produto: informar composição e remover sem precisar selecioná-los. */
+.custom-config-create{display:flex;gap:8px;flex-wrap:wrap}
+.custom-included-price{font-size:12px;font-weight:700;color:#397c4b;text-align:center}
+.custom-included-summary{line-height:1.5;color:#536f5b;font-size:12px;overflow-wrap:anywhere}
+.custom-included-summary b{color:#27583a}
+.custom-included-in-modal{margin:10px 0 8px;padding:11px;background:#f1f9f1;border:1px solid #dcebdc;border-radius:10px;font-size:13px}
+.custom-removal-option{border-color:#d9e7dc}
+.custom-removal-option input{accent-color:#a54b39}
+.custom-removal-option:has(input:checked){background:#fff2ed;border-color:#c88c80}
+.custom-removal-option b{color:#7e655e;font-size:12px;white-space:nowrap}
+.custom-removal-option:has(input:checked) b{color:#a23526}
