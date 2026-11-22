@@ -1,3 +1,4 @@
+import {getStoreStatus} from '../../shared/store-hours';
 import {customSelectionSchema,readCustomConfig,customConfigAvailable} from '../../shared/custom-product';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -11,11 +12,17 @@ import {curatedProductImage} from '../services/product-images';
 
 export const publicStoreRoutes = new Hono<AppHonoEnv>();
 
+publicStoreRoutes.get('/:slug/status',async(c)=>{
+ const tenant=await c.get('services').db.prepare("SELECT is_open,opening_schedule_json FROM tenants WHERE slug=? AND status='active'").bind(c.req.param('slug')).first<{is_open:number;opening_schedule_json:string|null}>();
+ c.header('Cache-Control','no-store');
+ return tenant?c.json(getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json)):c.json({error:'Loja indisponível.'},404);
+});
+
 publicStoreRoutes.get('/:slug', async (c) => {
   const db = c.get('services').db;
   const tenant = await db.prepare(`SELECT id, slug, name, logo_url, banner_url, banner_title, banner_subtitle,
     primary_color, accent_color, whatsapp_public, instagram_url, address_text, business_hours, delivery_info,
-    default_delivery_fee_cents, free_delivery_min_cents, min_order_cents, is_open,
+    default_delivery_fee_cents, free_delivery_min_cents, min_order_cents, is_open,opening_schedule_json,
     accepts_cash, accepts_pix_delivery, accepts_debit_delivery, accepts_credit_delivery,
     signup_popup_enabled, signup_popup_title, signup_popup_description, signup_popup_button
     FROM tenants WHERE slug = ? AND status = 'active'`).bind(c.req.param('slug')).first<Record<string, any>>();
@@ -58,7 +65,9 @@ publicStoreRoutes.get('/:slug', async (c) => {
   const {results:banners}=await db.prepare(
     'SELECT id,image_url,mobile_image_url,sort_order FROM store_banners WHERE tenant_id=? AND is_active=1 ORDER BY sort_order,created_at LIMIT 10'
   ).bind(tenant.id).all();
-  return c.json({ store: tenant, categories, products: publicProducts, neighborhoods, banners });
+  const storeStatus=getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json);
+  const {opening_schedule_json,...publicTenant}=tenant;
+  return c.json({ store: {...publicTenant,is_open:storeStatus.open?1:0,store_status:storeStatus}, categories, products: publicProducts, neighborhoods, banners });
 });
 
 // Cadastro voluntário — não cria pedidos, cupons ou envios automáticos.
@@ -128,7 +137,7 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
   const body = parsed.data;
   const tenant = await db.prepare(`SELECT * FROM tenants WHERE slug = ? AND status = 'active'`).bind(c.req.param('slug')).first<Record<string, any>>();
   if (!tenant) return c.json({ error: 'Loja indisponível.' }, 404);
-  if (!tenant.is_open) return c.json({ error: 'A loja está fechada no momento e não está aceitando pedidos.' }, 409);
+  if (!getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json).open) return c.json({ error: 'A loja está fechada no momento e não está aceitando pedidos.' }, 409);
   const payAllowed = { cash: tenant.accepts_cash, pix_delivery: tenant.accepts_pix_delivery, debit_card: tenant.accepts_debit_delivery, credit_card: tenant.accepts_credit_delivery } as Record<string, number>;
   if (!payAllowed[body.paymentMethod]) return c.json({ error: 'Esta forma de pagamento não está disponível nesta loja.' }, 400);
 
