@@ -1,6 +1,6 @@
 import {dispatchLoyaltyNotifications} from '../services/loyalty-notifications';
 import {readLoyalty} from '../../shared/loyalty';
-import {getStoreStatus} from '../../shared/store-hours';
+import {getStoreStatus,readSchedule,formatScheduleHours} from '../../shared/store-hours';
 import {customSelectionSchema,readCustomConfig,customConfigAvailable} from '../../shared/custom-product';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -15,9 +15,9 @@ import {curatedProductImage} from '../services/product-images';
 export const publicStoreRoutes = new Hono<AppHonoEnv>();
 
 publicStoreRoutes.get('/:slug/status',async(c)=>{
- const tenant=await c.get('services').db.prepare("SELECT is_open,opening_schedule_json FROM tenants WHERE slug=? AND status='active'").bind(c.req.param('slug')).first<{is_open:number;opening_schedule_json:string|null}>();
+ const tenant=await c.get('services').db.prepare("SELECT is_open,opening_schedule_json,business_hours FROM tenants WHERE slug=? AND status='active'").bind(c.req.param('slug')).first<{is_open:number;opening_schedule_json:string|null;business_hours:string|null}>();
  c.header('Cache-Control','no-store');
- return tenant?c.json(getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json)):c.json({error:'Loja indisponível.'},404);
+ return tenant?c.json(getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json,new Date(),tenant.business_hours)):c.json({error:'Loja indisponível.'},404);
 });
 
 publicStoreRoutes.get('/:slug', async (c) => {
@@ -67,10 +67,12 @@ publicStoreRoutes.get('/:slug', async (c) => {
   const {results:banners}=await db.prepare(
     'SELECT id,image_url,mobile_image_url,sort_order FROM store_banners WHERE tenant_id=? AND is_active=1 ORDER BY sort_order,created_at LIMIT 10'
   ).bind(tenant.id).all();
-  const storeStatus=getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json);
+  const storeStatus=getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json,new Date(),tenant.business_hours);
+  let visibleHours=tenant.business_hours;
+  try{const detailed=readSchedule(tenant.opening_schedule_json);if(detailed.enabled)visibleHours=formatScheduleHours(detailed);}catch{}
   const {opening_schedule_json,loyalty_config_json,...publicTenant}=tenant;
   const loyalty=readLoyalty(loyalty_config_json);
-  return c.json({ store: {...publicTenant,is_open:storeStatus.open?1:0,store_status:storeStatus,loyalty:loyalty.enabled?{...loyalty,reward:loyalty.showReward?loyalty.reward:''}:null}, categories, products: publicProducts, neighborhoods, banners });
+  return c.json({ store: {...publicTenant,is_open:storeStatus.open?1:0,store_status:storeStatus,business_hours:visibleHours,loyalty:loyalty.enabled?{...loyalty,reward:loyalty.showReward?loyalty.reward:''}:null}, categories, products: publicProducts, neighborhoods, banners });
 });
 
 // Cadastro voluntário — não cria pedidos, cupons ou envios automáticos.
@@ -140,7 +142,7 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
   const body = parsed.data;
   const tenant = await db.prepare(`SELECT * FROM tenants WHERE slug = ? AND status = 'active'`).bind(c.req.param('slug')).first<Record<string, any>>();
   if (!tenant) return c.json({ error: 'Loja indisponível.' }, 404);
-  if (!getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json).open) return c.json({ error: 'A loja está fechada no momento e não está aceitando pedidos.' }, 409);
+  if (!getStoreStatus(!!tenant.is_open,tenant.opening_schedule_json,new Date(),tenant.business_hours).open) return c.json({ error: 'A loja está fechada no momento e não está aceitando pedidos.' }, 409);
   const payAllowed = { cash: tenant.accepts_cash, pix_delivery: tenant.accepts_pix_delivery, debit_card: tenant.accepts_debit_delivery, credit_card: tenant.accepts_credit_delivery } as Record<string, number>;
   if (!payAllowed[body.paymentMethod]) return c.json({ error: 'Esta forma de pagamento não está disponível nesta loja.' }, 400);
 
