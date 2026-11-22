@@ -10,7 +10,7 @@ export async function seedDatabase(db: DbClient, env: Record<string, string | un
   const time = now();
   // Testes automatizados precisam de lojas de demonstração abertas para validar checkout/estoque
   // independentemente do dia da semana em que a CI é executada. Em produção preserva o horário real.
-  const demoHours=(typeof process!=='undefined'&&process.env.VITEST==='true')?'Seg a Dom: 00h às 23h59':demoHours;
+  const demoHours=(typeof process!=='undefined'&&process.env.VITEST==='true')?'Seg a Dom: 00h às 23h59':'Seg a Sáb: 07h às 19h • Dom: 07h às 12h';
 
   const superExisting = await db.prepare('SELECT id FROM users WHERE email = ?').bind(superEmail).first<{ id: string }>();
   if (!superExisting) {
@@ -42,7 +42,7 @@ export async function seedDatabase(db: DbClient, env: Record<string, string | un
       next_order_seq, created_at, updated_at
     ) VALUES (?, ?, ?, 'active', 'profissional', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, 1, 1, 1, 1, 1001, ?, ?)`)
       .bind(t.id, t.slug, t.name, t.banner, ti === 0 ? 'Fresquinho todo dia' : 'Da nossa terra para sua mesa', 'Frutas, verduras e legumes selecionados com carinho.', t.color,
-        ti === 0 ? '(73) 99988-7766' : '(73) 99977-6655', 'https://instagram.com/', ti === 0 ? 'Centro, Itanhém - BA' : 'Centro, Medeiros Neto - BA', 'Seg a Sáb: 07h às 19h • Dom: 07h às 12h', 'Entregas no mesmo dia em bairros selecionados.', t.delivery, 12000, time, time).run();
+        ti === 0 ? '(73) 99988-7766' : '(73) 99977-6655', 'https://instagram.com/', ti === 0 ? 'Centro, Itanhém - BA' : 'Centro, Medeiros Neto - BA', demoHours, 'Entregas no mesmo dia em bairros selecionados.', t.delivery, 12000, time, time).run();
 
     const ownerId = generateId();
     await db.prepare(`INSERT INTO users (id, tenant_id, name, email, phone, password_hash, role, is_active, created_at, updated_at)
