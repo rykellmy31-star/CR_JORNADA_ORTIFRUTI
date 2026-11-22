@@ -18,6 +18,26 @@ describe('produto personalizável',()=>{
   expect(customUnitPrice(2200,resolveCustomSelection(full,{optionIds:['g','fish'],note:''}))).toBe(2200);
   expect(customUnitPrice(1800,resolveCustomSelection(config,{optionIds:['g','fish'],note:''}))).toBe(3100);
  });
+ it('já inclui ingredientes de lanche, só registra os que o cliente deseja retirar e não altera preço',()=>{
+  const ingredients=customConfigSchema.parse({allowNotes:true,groups:[
+   {id:'included',name:'Ingredientes inclusos',kind:'included',min:0,max:3,options:[
+    {id:'hamburguer',name:'Hambúrguer',priceCents:0,active:true},
+    {id:'queijo',name:'Queijo',priceCents:0,active:true},
+    {id:'presunto',name:'Presunto',priceCents:0,active:true}]},
+   {id:'extra',name:'Adicionais',min:0,max:1,options:[{id:'bacon-extra',name:'Bacon extra',priceCents:300,active:true}]}
+  ]});
+  expect(minimumCustomPrice(ingredients,2200)).toBe(2200);
+  expect(resolveCustomSelection(ingredients,{optionIds:[],note:''})).toMatchObject({
+   extrasCents:0,details:'Ingredientes inclusos: Hambúrguer, Queijo, Presunto'});
+  const removed=resolveCustomSelection(ingredients,{optionIds:['queijo','bacon-extra'],note:''});
+  expect(removed.extrasCents).toBe(300);
+  expect(removed.details).toBe('Ingredientes inclusos: Hambúrguer, Presunto\\nRETIRAR: Queijo\\nAdicionais: Bacon extra'.replace(/\\n/g,'\\n'));
+  expect(customUnitPrice(2200,removed)).toBe(2500);
+  expect(customSelectionKey({optionIds:['queijo'],note:''})).not.toBe(customSelectionKey({optionIds:[],note:''}));
+  expect(()=>resolveCustomSelection(ingredients,{optionIds:['invalid'],note:''})).toThrow();
+  expect(customConfigSchema.safeParse({...ingredients,groups:[{...ingredients.groups[0],options:ingredients.groups[0].options.map((o,i)=>i===0?{...o,priceCents:100}:o)},ingredients.groups[1]]}).success).toBe(false);
+  expect(formatWhatsAppItems([{product_name_snapshot:'X-Tudo',quantity_display:'1 un',line_total_cents:2500,customization_snapshot:removed.details}])).toContain('RETIRAR: Queijo');
+ });
  it('mantém marmitas com escolhas diferentes separadas e apresenta detalhes no WhatsApp',()=>{
   const a={product:{id:'meal'},purchaseMode:'unit',customization:{optionIds:['p','fish'],note:''}};
   const b={...a,customization:{optionIds:['g','fish'],note:''}};
