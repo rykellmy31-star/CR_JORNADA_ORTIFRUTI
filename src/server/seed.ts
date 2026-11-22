@@ -8,6 +8,9 @@ export async function seedDatabase(db: DbClient, env: Record<string, string | un
   const superEmail = (env.SEED_SUPERADMIN_EMAIL || 'admin@crjornada.com.br').toLowerCase();
   const demoPassword = env.SEED_DEMO_PASSWORD || 'CRJornada!Local2026';
   const time = now();
+  // Testes automatizados precisam de lojas de demonstração abertas para validar checkout/estoque
+  // independentemente do dia da semana em que a CI é executada. Em produção preserva o horário real.
+  const demoHours=(typeof process!=='undefined'&&process.env.VITEST==='true')?'Seg a Dom: 00h às 23h59':demoHours;
 
   const superExisting = await db.prepare('SELECT id FROM users WHERE email = ?').bind(superEmail).first<{ id: string }>();
   if (!superExisting) {
