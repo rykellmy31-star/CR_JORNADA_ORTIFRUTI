@@ -31,7 +31,7 @@ describe('produto personalizável',()=>{
    extrasCents:0,details:'Ingredientes inclusos: Hambúrguer, Queijo, Presunto'});
   const removed=resolveCustomSelection(ingredients,{optionIds:['queijo','bacon-extra'],note:''});
   expect(removed.extrasCents).toBe(300);
-  expect(removed.details).toBe('Ingredientes inclusos: Hambúrguer, Presunto\\nRETIRAR: Queijo\\nAdicionais: Bacon extra'.replace(/\\n/g,'\\n'));
+  expect(removed.details).toBe(['Ingredientes inclusos: Hambúrguer, Presunto','RETIRAR: Queijo','Adicionais: Bacon extra'].join(String.fromCharCode(10)));
   expect(customUnitPrice(2200,removed)).toBe(2500);
   expect(customSelectionKey({optionIds:['queijo'],note:''})).not.toBe(customSelectionKey({optionIds:[],note:''}));
   expect(()=>resolveCustomSelection(ingredients,{optionIds:['invalid'],note:''})).toThrow();
