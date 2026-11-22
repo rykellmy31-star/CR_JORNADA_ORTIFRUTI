@@ -2,6 +2,7 @@ import {useState} from 'react';
 import {createPortal} from 'react-dom';
 import {Plus,X,Trash2} from 'lucide-react';
 import {formatBRL} from '../shared/pricing';
+import EditableNumberInput from './EditableNumberInput';
 import {readCustomConfig,resolveCustomSelection,customUnitPrice,minimumCustomPrice,type CustomConfig,type CustomSelection} from '../shared/custom-product';
 const uid=()=>crypto.randomUUID();
 const makeOption=(name='',priceCents=0)=>({id:uid(),name,priceCents,active:true});
@@ -27,11 +28,11 @@ export function CustomConfigEditor({value,onChange,baseCents=0}:{value:CustomCon
    }}><option value="choice">Escolhas e adicionais (cliente seleciona)</option><option value="included">Ingredientes que já vêm no produto (cliente pode retirar)</option></select></label>
    {g.kind==='included'?<small>Todos os ingredientes disponíveis já vêm no produto. O cliente só marca o que deseja retirar, sem alterar o valor.</small>:<label>Forma de cobrança do grupo<select value={g.priceMode||'additional'} onChange={e=>{const priceMode=e.target.value as 'additional'|'final';update(i,priceMode==='final'?{priceMode,min:1,max:1}:{priceMode});}}><option value="additional">Adicional ao preço base (+ R$)</option><option value="final" disabled={value.groups.some(x=>x.id!==g.id&&x.priceMode==='final')}>Preço final do tamanho (substitui o preço base)</option></select></label>}
    {g.kind==='included'?<small>Cadastre os nomes originais: Hambúrguer, Queijo, Presunto... O cliente verá a composição e poderá marcar o que não quer.</small>:g.priceMode==='final'?<small>Uma escolha obrigatória. Informe o preço integral, por exemplo R$ 20,00. A promoção do preço base não é aplicada a este grupo.</small>:<small>Informe R$ 0,00 quando a escolha não tiver custo extra. Opções sem custo ainda precisam ser selecionadas pelo cliente.</small>}
-   {g.kind!=='included'&&<div className="custom-config-row"><label>Mínimo (0 = opcional)<input type="number" min={0} max={g.options.length} disabled={g.priceMode==='final'} value={g.min} onChange={e=>update(i,{min:Number(e.target.value)})}/></label><label>Máximo<input type="number" min={1} max={g.options.length} disabled={g.priceMode==='final'} value={g.max} onChange={e=>update(i,{max:Number(e.target.value)})}/></label></div>}
+   {g.kind!=='included'&&<div className="custom-config-row"><label>Mínimo (0 = opcional)<EditableNumberInput aria-label={'Quantidade mínima '+g.name} min={0} max={g.options.length} step={1} disabled={g.priceMode==='final'} value={g.min} onValueChange={min=>update(i,{min})}/></label><label>Máximo<EditableNumberInput aria-label={'Quantidade máxima '+g.name} min={1} max={g.options.length} step={1} disabled={g.priceMode==='final'} value={g.max} onValueChange={max=>update(i,{max})}/></label></div>}
    <small>{g.kind==='included'?'Ingrediente · Já incluso · Disponível':'Nome · '+(g.priceMode==='final'?'Preço final (R$)':'Adicional (R$)')+' · Disponível'}</small>
    {g.options.map((o,j)=><div className="custom-config-option" key={o.id}>
     <input required aria-label="Nome da opção" maxLength={100} value={o.name} onChange={e=>update(i,{options:g.options.map((x,k)=>k===j?{...x,name:e.target.value}:x)})}/>
-    {g.kind==='included'?<span className="custom-included-price">Incluso</span>:<input aria-label={g.priceMode==='final'?'Preço final em reais':'Preço adicional em reais'} type="number" min={0} max={100000} step="0.01" value={o.priceCents/100} onChange={e=>update(i,{options:g.options.map((x,k)=>k===j?{...x,priceCents:Math.round(Number(e.target.value)*100)}:x)})}/>}
+    {g.kind==='included'?<span className="custom-included-price">Incluso</span>:<EditableNumberInput aria-label={g.priceMode==='final'?'Preço final em reais':'Preço adicional em reais'} min={0} max={100000} step="0.01" value={o.priceCents/100} onValueChange={value=>update(i,{options:g.options.map((x,k)=>k===j?{...x,priceCents:Math.round(value*100)}:x)})}/>}
     <input type="checkbox" aria-label={'Disponível: '+o.name} checked={o.active} onChange={e=>update(i,{options:g.options.map((x,k)=>k===j?{...x,active:e.target.checked}:x)})}/>
     <button type="button" className="icon-btn" aria-label="Excluir opção" disabled={g.options.length<=1} onClick={()=>{const options=g.options.filter(x=>x.id!==o.id);update(i,{options,max:g.kind==='included'?options.length:Math.min(g.max,options.length),min:g.kind==='included'?0:Math.min(g.min,options.length)});}}><X size={15}/></button>
    </div>)}
@@ -47,16 +48,18 @@ export function CustomConfigEditor({value,onChange,baseCents=0}:{value:CustomCon
 }
 export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:string)=>string;onAdd:(choice:CustomSelection,quantity:number)=>void}){
  const config=readCustomConfig(product.custom_config_json)!;
- const [open,setOpen]=useState(false),[ids,setIds]=useState<string[]>([]),[note,setNote]=useState(''),[quantity,setQuantity]=useState(1);
+ const [open,setOpen]=useState(false),[ids,setIds]=useState<string[]>([]),[note,setNote]=useState(''),[quantityInput,setQuantityInput]=useState('1');
  const original=Number(product.price_cents);
  const base=typeof product.promo_price_cents==='number'&&product.promo_price_cents>=0&&product.promo_price_cents<original?product.promo_price_cents:original;
  const cheapest=minimumCustomPrice(config,base);
  const hasFinal=config.groups.some(g=>g.priceMode==='final');
  const includedGroups=config.groups.filter(g=>g.kind==='included');
  const includedNames=includedGroups.flatMap(g=>g.options.filter(o=>o.active).map(o=>o.name));
+ const quantity=Number(quantityInput);
+ const quantityValid=quantityInput.trim()!==''&&/^\d+$/.test(quantityInput.trim())&&Number.isSafeInteger(quantity)&&quantity>=1&&quantity<=99;
  let valid=false,unitTotal=cheapest;
  try{const selection=resolveCustomSelection(config,{optionIds:ids,note});unitTotal=customUnitPrice(base,selection);valid=true;}catch{}
- function start(){setIds([]);setNote('');setQuantity(1);setOpen(true)}
+ function start(){setIds([]);setNote('');setQuantityInput('1');setOpen(true)}
  function toggle(g:Group,id:string){setIds(old=>{
   if(old.includes(id))return old.filter(x=>x!==id);
   const own=new Set(g.options.map(o=>o.id));
@@ -86,7 +89,7 @@ export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:str
      </section>}
      {config.allowNotes&&<label>Observações / retirar ingredientes<textarea rows={3} maxLength={300} placeholder="Ex.: sem cebola" value={note} onChange={e=>setNote(e.target.value)}/></label>}
     </div>
-    <footer className="fixed-price-footer custom-product-footer"><input aria-label="Quantidade" type="number" min={1} max={99} value={quantity} onChange={e=>setQuantity(Math.max(1,Math.min(99,Math.floor(Number(e.target.value)||1))))}/><button type="button" className="btn btn-primary" disabled={!valid} onClick={()=>{onAdd({optionIds:ids,note},quantity);setOpen(false);}}>Adicionar · {formatBRL(unitTotal*quantity)}</button></footer>
+    <footer className="fixed-price-footer custom-product-footer"><input aria-label="Quantidade" type="number" inputMode="numeric" min={1} max={99} step={1} value={quantityInput} onChange={e=>setQuantityInput(e.target.value)} onBlur={()=>{if(quantityInput==='')setQuantityInput('1');}}/><button type="button" className="btn btn-primary" disabled={!valid||!quantityValid} onClick={()=>{if(!quantityValid||!valid)return;onAdd({optionIds:ids,note},quantity);setOpen(false);}}>Adicionar · {quantityValid?formatBRL(unitTotal*quantity):'—'}</button></footer>
    </div></div>,document.body)}
  </article>;
 }
