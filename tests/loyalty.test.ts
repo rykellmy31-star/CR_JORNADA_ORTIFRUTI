@@ -53,7 +53,7 @@ describe('fidelidade',()=>{
   const hiddenMessage=(await db.prepare("SELECT rendered_message FROM whatsapp_message_queue WHERE order_id=? AND event_type='loyalty_earned'").bind(second).first<any>()).rendered_message as string;
   expect(hiddenMessage).not.toContain('Marmita grátis');
   expect(hiddenMessage).toContain('2 de 2 pontos');
-  expect(hiddenMessage).toContain('⭕');
+  expect(hiddenMessage).toContain('✅✅ = 🎁'); // Meta atingida: nenhum círculo pendente.
   expect(hiddenMessage).not.toContain('🔴');
   await deliver(first);await deliver(second);
   expect((await admin('orders/'+second+'/status','PATCH',{status:'delivered'})).status).toBe(409);
