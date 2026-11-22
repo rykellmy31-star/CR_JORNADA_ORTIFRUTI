@@ -32,7 +32,7 @@ describe('fidelidade',()=>{
   now=await (await admin('loyalty')).json() as any;expect(now.accounts[0].progress).toBe(2);expect(now.rewards).toHaveLength(0);
   expect((await admin('orders/'+cancelled+'/status','PATCH',{status:'cancelled'})).status).toBe(200);
   now=await (await admin('loyalty')).json() as any;expect(now.accounts[0]).toMatchObject({progress:1,total_points:1});
-  const reversal=await db.prepare("SELECT rendered_message FROM whatsapp_message_queue WHERE order_id=? AND event_type='loyalty_recalculated'").bind(cancelled).first<any>();expect(reversal.rendered_message).toContain('1 de 2 pontos');expect(reversal.rendered_message).toContain('foi cancelado');
+  const reversal=await db.prepare("SELECT rendered_message FROM whatsapp_message_queue WHERE order_id=? AND event_type='loyalty_recalculated'").bind(cancelled).first<any>();expect(reversal.rendered_message).toContain('Saldo anterior: *2 de 2 pontos*');expect(reversal.rendered_message).toContain('Saldo atual: *1 de 2 pontos*');expect(reversal.rendered_message).toContain('foi cancelado');
   const second=await checkout();
   await deliver(first);await deliver(second);
   expect((await admin('orders/'+second+'/status','PATCH',{status:'delivered'})).status).toBe(409);
