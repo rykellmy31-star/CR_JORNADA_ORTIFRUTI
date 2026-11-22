@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react';
 import {Gift,Check,Search} from 'lucide-react';
 import {formatBRL,parseBRLToCents} from '../shared/pricing';
 import {defaultLoyalty,loyaltyGap,type LoyaltyConfig} from '../shared/loyalty';
+import EditableNumberInput from './EditableNumberInput';
 export function LoyaltyNotice({config,subtotal}:{config?:LoyaltyConfig|null;subtotal:number}){
  if(!config?.enabled)return null;
  const gap=loyaltyGap(config,subtotal)!;
@@ -28,7 +29,7 @@ export function LoyaltyPanel({request}:{request:(path:string,options?:RequestIni
  <form className="panel-card settings-card" onSubmit={save}>
  <div className="settings-toggle"><span><b>Programa de fidelidade {config.enabled?'ativo':'desativado'}</b><small>Ative para divulgar o programa e pontuar novas compras.</small></span><label className="switch"><input type="checkbox" checked={config.enabled} onChange={e=>setConfig({...config,enabled:e.target.checked})}/><span/></label></div>
  <div className="form-grid"><label>Valor mínimo por compra (R$)<input required value={minimum} inputMode="decimal" onChange={e=>setMinimum(e.target.value)}/></label>
- <label>Pontos para ganhar prêmio<input required type="number" min={1} max={100} value={config.goal} onChange={e=>setConfig({...config,goal:Number(e.target.value)})}/></label>
+ <label>Pontos para ganhar prêmio<EditableNumberInput min={1} max={100} step={1} value={config.goal} onValueChange={goal=>setConfig({...config,goal})}/></label>
  <label className="full">Qual é o prêmio?<input required maxLength={150} value={config.reward} onChange={e=>setConfig({...config,reward:e.target.value})}/></label></div>
  <div className="settings-toggle"><span><b>Mostrar o nome do prêmio ao cliente</b><small>{config.showReward?'O WhatsApp e a vitrine mostram qual é o prêmio.':'O WhatsApp e a vitrine mostram apenas a quantidade de pontos e a meta.'} O prêmio continua visível no painel.</small></span><label className="switch"><input type="checkbox" aria-label="Mostrar o nome do prêmio ao cliente" checked={config.showReward} onChange={e=>setConfig({...config,showReward:e.target.checked})}/><span/></label></div>
  <small>1 ponto ao finalizar cada compra que atinja o mínimo nos produtos, após descontos e sem frete. Cancelamentos e reduções abaixo do mínimo estornam o ponto. Prêmios liberados após a confirmação das entregas. O ciclo em andamento mantém a meta e o prêmio prometidos. Pausar o programa não apaga pontos nem prêmios.</small>
