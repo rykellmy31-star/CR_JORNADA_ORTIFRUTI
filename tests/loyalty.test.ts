@@ -44,7 +44,7 @@ describe('fidelidade',()=>{
   expect((await admin('loyalty/rewards/'+state.rewards[0].id+'/redeem','POST',{})).status).toBe(409);
   expect((await admin('loyalty','PUT',{enabled:false,minimumCents:4000,goal:2,reward:'Marmita grátis'})).status).toBe(200);
   await deliver(await checkout());
-  expect((await db.prepare('SELECT COUNT(*) n FROM loyalty_earnings WHERE tenant_id=? AND state!='revoked'').bind(tenant.id).first<any>()).n).toBe(2);
+  expect((await db.prepare("SELECT COUNT(*) n FROM loyalty_earnings WHERE tenant_id=? AND state!='revoked'").bind(tenant.id).first<any>()).n).toBe(2);
  }finally{db.close();}
  });
 });
