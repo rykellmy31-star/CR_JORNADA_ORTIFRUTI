@@ -88,5 +88,29 @@ it('cadastra marmita, valida os complementos no checkout real e salva preço e e
   expect((await db.prepare('SELECT is_deleted FROM products WHERE id=?').bind(productId).first<any>()).is_deleted).toBe(1);
   expect((await db.prepare('SELECT COUNT(*) AS total FROM order_items WHERE product_id=?').bind(productId).first<any>()).total).toBe(3);
   expect((await admin('products/'+productId,'PATCH',{active:true})).status).toBe(404);
+
+  // Integração real: ingredientes vêm automaticamente no lanche; o cliente marca apenas os que retira.
+  const xTudoConfig=customConfigSchema.parse({allowNotes:true,groups:[
+   {id:'ingredientes',name:'Ingredientes inclusos',kind:'included',min:0,max:3,options:[
+    {id:'hamb',name:'Hambúrguer',priceCents:0,active:true},
+    {id:'queijo',name:'Queijo',priceCents:0,active:true},
+    {id:'bacon',name:'Bacon',priceCents:0,active:true}]},
+   {id:'adicionais',name:'Adicionais',min:0,max:1,options:[
+    {id:'ovo-extra',name:'Ovo extra',priceCents:300,active:true}]}]});
+  const lancheResponse=await admin('products','POST',{name:'X-Tudo',saleMode:'custom',priceCents:2200,stockQty:10,customConfig:xTudoConfig,imageUrl:'/images/products/placeholder.svg'});
+  expect(lancheResponse.status).toBe(201);
+  const lancheId=(await lancheResponse.json() as any).id;
+  const lancheOrder=await checkout([
+   {productId:lancheId,quantity:1,customization:{optionIds:[],note:''}},
+   {productId:lancheId,quantity:1,customization:{optionIds:['queijo','ovo-extra'],note:''}}
+  ]);
+  expect(lancheOrder.status).toBe(201);
+  const lancheOrderId=(await lancheOrder.json() as any).order.id;
+  const lancheRows=(await db.prepare('SELECT line_total_cents,customization_snapshot FROM order_items WHERE order_id=? ORDER BY rowid').bind(lancheOrderId).all<any>()).results;
+  expect(lancheRows).toHaveLength(2);
+  expect(lancheRows[0]).toMatchObject({line_total_cents:2200,customization_snapshot:'Ingredientes inclusos: Hambúrguer, Queijo, Bacon'});
+  expect(lancheRows[1]).toMatchObject({line_total_cents:2500,customization_snapshot:['Ingredientes inclusos: Hambúrguer, Bacon','RETIRAR: Queijo','Adicionais: Ovo extra'].join(String.fromCharCode(10))});
+  expect((await db.prepare("SELECT rendered_message FROM whatsapp_message_queue WHERE order_id=? AND event_type='order_received'").bind(lancheOrderId).first<any>()).rendered_message).toContain('RETIRAR: Queijo');
+
  }finally{db.close();}
 });
