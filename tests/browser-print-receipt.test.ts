@@ -66,6 +66,23 @@ describe('comanda para impressão direta do navegador',()=>{
   for(const label of ['R$ 18,00','EM PROMOÇÃO','VOCÊ ECONOMIZOU R$ 3,00!','GRÁTIS','Volte sempre!','CR Jornada Express · Documento não fiscal'])expect(html).toContain(label);
   expect(html).not.toContain('Desconto promocional');
  });
+ it('mantém a comanda original e adiciona apenas a marca discreta ao fim, usando a logomarca da loja',()=>{
+  const data=order();
+  const html=renderToStaticMarkup(createElement(OrderPrintReceipt,{
+   order:data,storeName:'Verdurão Braga',footerMessage:'Volte sempre!',storeLogoUrl:'/uploads/logo-verdurao.webp'
+  }));
+  expect(html).toContain('<h1>Verdurão Braga</h1>');
+  expect(html).toContain('COMANDA DE PEDIDO');
+  expect(html).toContain('Documento não fiscal');
+  expect(html).toContain('order-print-watermark');
+  expect(html).toContain('src="/uploads/logo-verdurao.webp"');
+  expect(html).toContain('aria-hidden="true"');
+  expect(html.indexOf('order-print-footer')).toBeLessThan(html.indexOf('order-print-watermark'));
+  expect(html).not.toContain('Obrigado pela preferência');
+  const original=renderToStaticMarkup(createElement(OrderPrintReceipt,{order:data,storeName:'Verdurão Braga'}));
+  expect(original).toContain('<span>Verdurão Braga</span>'); // fallback sem logo cadastrada
+  expect(original).toContain('order-print-watermark');
+ });
  it('identifica pedidos cancelados para evitar comanda de venda incorreta',()=>{
   const data=order();data.status='cancelled';
   const html=renderToStaticMarkup(createElement(OrderPrintReceipt,{order:data,storeName:'Loja'}));

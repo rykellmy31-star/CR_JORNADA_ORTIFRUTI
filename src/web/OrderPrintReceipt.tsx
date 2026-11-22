@@ -33,7 +33,7 @@ export type PrintableOrder={
 };
 
 /** Comanda não fiscal para a janela de impressão nativa do navegador. */
-export default function OrderPrintReceipt({order,storeName,footerMessage=''}:{order:PrintableOrder;storeName:string;footerMessage?:string}){
+export default function OrderPrintReceipt({order,storeName,footerMessage='',storeLogoUrl=null}:{order:PrintableOrder;storeName:string;footerMessage?:string;storeLogoUrl?:string|null}){
  const savings=orderSavings(order.items||[]);
  const payment=PAYMENT_METHOD_LABELS[order.payment_method as keyof typeof PAYMENT_METHOD_LABELS]||order.payment_method;
  const status=ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS]||order.status;
@@ -86,5 +86,9 @@ export default function OrderPrintReceipt({order,storeName,footerMessage=''}:{or
    </>}
   </div>
   {footerMessage.trim()&&<footer className="order-print-footer">{footerMessage}</footer>}
+  {/* Marca-d'água discreta na parte inferior, atrás da comanda, sem acrescentar campos nem papel. */}
+  <div className="order-print-watermark" aria-hidden="true">
+   {storeLogoUrl?<img src={storeLogoUrl} alt="" decoding="sync"/>:<span>{storeName}</span>}
+  </div>
  </section>;
 }

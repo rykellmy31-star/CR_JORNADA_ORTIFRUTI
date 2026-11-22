@@ -485,6 +485,7 @@ function Orders({token,user}:any){
  const[notice,setNotice]=useState(''),[success,setSuccess]=useState('');
  const[printTarget,setPrintTarget]=useState<any>(null);
  const[receiptFooter,setReceiptFooter]=useState('');
+ const[receiptLogoUrl,setReceiptLogoUrl]=useState<string|null>(null);
  // Monta a comanda antes de chamar window.print, sem popup e sem aplicativo auxiliar.
  function printOrder(order:any){
   if(!order)return;
@@ -494,7 +495,8 @@ function Orders({token,user}:any){
  async function load(selectedId?:string){
    try{
      const x=await req('/admin/orders',{},token),orders=x.orders||[];
-     setData(orders);setReceiptFooter(x.receiptFooter||'');
+     setData(orders);setReceiptFooter(x.receiptFooter||'');setReceiptLogoUrl(x.receiptLogoUrl||null);
+     if(x.receiptLogoUrl){const preload=new Image();preload.src=x.receiptLogoUrl;}
      if(selectedId)setSelected(orders.find((o:any)=>o.id===selectedId)||null);
      return orders;
    }catch(e:any){setError(e.message);return [];}
@@ -735,7 +737,7 @@ function Orders({token,user}:any){
      </div>
    </div>}
    {printTarget&&createPortal(<OrderPrintReceipt order={printTarget}
-     storeName={user?.tenantName||'Hortifruti'} footerMessage={receiptFooter}/>,document.body)}
+     storeName={user?.tenantName||'Hortifruti'} footerMessage={receiptFooter} storeLogoUrl={receiptLogoUrl}/>,document.body)}
  </>;
 }
 function Products({token}:any){const[items,setItems]=useState<any[]>([]),[categories,setCategories]=useState<any[]>([]),[modal,setModal]=useState(false),[editing,setEditing]=useState<any>(null),[error,setError]=useState(''),[photoSuggestions,setPhotoSuggestions]=useState<any[]>([]),[findingPhotos,setFindingPhotos]=useState(false),[photoMessage,setPhotoMessage]=useState(''),[uploadingPhoto,setUploadingPhoto]=useState(false),[backfilling,setBackfilling]=useState(false),[photoBatchNotice,setPhotoBatchNotice]=useState(''),[form,setForm]=useState<any>({name:'',saleMode:'weight',unitLabel:'kg',price:'',promoPrice:'',unitPrice:'',unitWeightGrams:'',stock:'',categoryId:'',minQty:100,stepQty:50,sharedPool:true,poolStock:360,variants:[{name:'Cartela com 30 ovos',sku:'',price:'23,90',promoPrice:'',deductionQty:30},{name:'Dúzia (12 ovos)',sku:'',price:'10,90',promoPrice:'',deductionQty:12},{name:'Meia dúzia (6 ovos)',sku:'',price:'5,90',promoPrice:'',deductionQty:6}]});async function load(){const[x,y]=await Promise.all([req('/admin/products',{},token),req('/admin/categories',{},token)]);setItems(x.products);setCategories(y.categories);}useEffect(()=>{load().catch(e=>setError(e.message));},[]);function openEdit(p:any){setPhotoSuggestions([]);setPhotoMessage('');setEditing(p);setForm({name:p.name,saleMode:p.custom_config_json?'custom':p.fixed_options_enabled?'fixed':productIsDual(p)?'dual':p.sale_mode,customConfig:readCustomConfig(p.custom_config_json)||newCustomConfig(),unitLabel:p.unit_label,unitPrice:p.unit_price_cents!=null?(p.unit_price_cents/100).toFixed(2).replace('.',','):'',unitWeightGrams:p.unit_weight_grams||'',price:(Number(p.price_cents||0)/100).toFixed(2).replace('.',','),promoPrice:p.promo_price_cents?(Number(p.promo_price_cents)/100).toFixed(2).replace('.',','):'',stock:p.sale_mode==='weight'?Number(p.physical_qty||0)/1000:p.physical_qty,categoryId:p.category_id||'',minQty:p.min_qty,stepQty:p.step_qty,featured:!!p.is_featured,description:p.description||'',imageUrl:p.image_url||'',sharedPool:!!p.variants?.[0]?.stock_pool_id,poolStock:p.fixed_options_enabled?(Number(p.variants?.[0]?.pool_physical_qty||0)/1000):(p.variants?.[0]?.pool_physical_qty||0),variants:(p.variants||[]).map((v:any)=>({...v,price:(Number(v.price_cents)/100).toFixed(2).replace('.',','),promoPrice:v.promo_price_cents?(Number(v.promo_price_cents)/100).toFixed(2).replace('.',','):'',deductionQty:v.pool_deduction_qty,stockQty:v.physical_qty}))});setError('');setModal(true);}

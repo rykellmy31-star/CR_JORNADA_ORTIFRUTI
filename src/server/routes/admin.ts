@@ -122,12 +122,12 @@ adminRoutes.get('/dashboard', async (c) => {
 adminRoutes.get('/orders', async(c)=>{
  const db=c.get('services').db,tid=c.get('tenantId'); const status=c.req.query('status'); const search=c.req.query('q')||'';
  const {results}=await db.prepare(`SELECT * FROM orders WHERE tenant_id=? AND deleted_at IS NULL AND (?='' OR status=?) AND (?='' OR CAST(order_number AS TEXT) LIKE '%'||?||'%' OR customer_name LIKE '%'||?||'%' OR customer_phone LIKE '%'||?||'%') ORDER BY created_at DESC LIMIT 200`).bind(tid,status||'',status||'',search,search,search,search).all<Record<string,any>>();
- const printSettings=await db.prepare('SELECT receipt_footer FROM tenants WHERE id=?').bind(tid).first<{receipt_footer:string}>();
+ const printSettings=await db.prepare('SELECT receipt_footer,logo_url FROM tenants WHERE id=?').bind(tid).first<{receipt_footer:string;logo_url:string|null}>();
  const orders=[]; for(const o of results){const {results:items}=await db.prepare(`SELECT id,product_name_snapshot,variant_name_snapshot,sale_mode,quantity,quantity_display,stock_deducted_qty,unit_price_cents,line_total_cents,original_line_total_cents,customization_snapshot FROM order_items WHERE tenant_id=? AND order_id=? ORDER BY rowid`).bind(tid,o.id).all(); const {results:adjustments}=await db.prepare(`SELECT id,version,reason,old_total_cents,new_total_cents,changes_json,created_at
     FROM order_adjustments WHERE tenant_id=? AND order_id=? ORDER BY version DESC LIMIT 25`)
   .bind(tid,o.id).all<Record<string,any>>();
   orders.push({...o,items,adjustments:adjustments.map(x=>({...x,changes:JSON.parse(x.changes_json||'[]')}))});}
- return c.json({orders,receiptFooter:printSettings?.receipt_footer||''});
+ return c.json({orders,receiptFooter:printSettings?.receipt_footer||'',receiptLogoUrl:printSettings?.logo_url||null});
 });
 
 // Atualizar pedido recebido/aceito/em preparação sem alterar pedidos de outras lojas.
