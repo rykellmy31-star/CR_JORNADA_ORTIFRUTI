@@ -16,6 +16,8 @@ describe('edição livre de valores, quantidade e unidades',()=>{
   expect(parseEditableNumber('2.50',0,1000,'0.01')).toBe(2.5);
   expect(parseEditableNumber('5',0,1000,'0.01')).toBe(5);
   expect(parseEditableNumber('1000',1,100,1)).toBeNull();
+  expect(parseEditableNumber('1e2',1,999,1)).toBeNull();
+  expect(parseEditableNumber('-',1,999,1)).toBeNull();
  });
  it('gera campo editável com valor inicial correto sem sobrescrever entrada parcial',()=>{
   const field=renderToStaticMarkup(createElement(EditableNumberInput,{value:1,onValueChange:()=>{},min:1,max:99,step:1,'aria-label':'Quantidade de itens'}));
