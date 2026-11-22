@@ -53,6 +53,18 @@ export default function PrintingPanel({token,user}: {token:string;user:any}){
   if(!window.confirm('Revogar o Android '+name+'? Ele deixará de receber pedidos.'))return;
   return action('revoke',async()=>{await api('/devices/'+encodeURIComponent(id),token,'DELETE');setNotice('Dispositivo revogado.');});
  };
+ const removePrintJob=(job:PrintJob)=>{
+  if(job.status==='leased')return;
+  const pending=job.status==='queued';
+  const question=pending
+   ?'Apagar a comanda #'+job.order_number+' da fila? Ela não será impressa automaticamente. O pedido e os dados do cliente serão mantidos.'
+   :'Apagar a comanda #'+job.order_number+' do histórico de impressão? O pedido e os dados do cliente serão mantidos.';
+  if(!window.confirm(question))return;
+  return action('delete-'+job.id,async()=>{
+   await api('/jobs/'+encodeURIComponent(job.id),token,'DELETE');
+   setNotice('Comanda #'+job.order_number+' removida da lista de impressão. O pedido foi preservado.');
+  });
+ };
  const reprint=(job:PrintJob)=>{
   if(!window.confirm('Gerar uma nova comanda do pedido #'+job.order_number+'?'))return;
   return action('reprint',async()=>{
@@ -111,7 +123,7 @@ export default function PrintingPanel({token,user}: {token:string;user:any}){
   </section>
   <section className="panel-card print-card">
    <div className="print-card-header"><div><h2>Comandas recentes</h2>
-    <p>Histórico de impressão apenas deste estabelecimento, atualizado automaticamente.</p></div><Check size={20}/></div>
+    <p>Histórico de impressão apenas deste estabelecimento, atualizado automaticamente. Você pode apagar comandas de teste sem excluir o pedido.</p></div><Check size={20}/></div>
    <div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Tipo</th><th>Data</th><th>Status</th><th>Tentativas</th><th></th></tr></thead>
     <tbody>{(data?.jobs||[]).map(job=><tr key={job.id}>
      <td><b>#{job.order_number}</b>{job.last_error&&<small className="cell-sub">{job.last_error}</small>}</td>
@@ -119,7 +131,10 @@ export default function PrintingPanel({token,user}: {token:string;user:any}){
      <td>{prettyDate(job.created_at)}</td>
      <td><span className={'print-status '+job.status}>{statusLabel[job.status]}</span></td>
      <td>{job.attempts}</td>
-     <td>{canManage&&<button type="button" className="btn btn-xs btn-outline" disabled={!!busy} onClick={()=>reprint(job)}>Reimprimir</button>}</td>
+     <td>{canManage&&<div className="print-job-actions">
+      <button type="button" className="btn btn-xs btn-outline" disabled={!!busy} onClick={()=>reprint(job)}>Reimprimir</button>
+      <button type="button" className="btn btn-xs btn-danger-soft" disabled={!!busy||job.status==='leased'} title={job.status==='leased'?'Aguarde o Android finalizar a impressão para excluir.':'Excluir apenas a comanda da fila ou histórico, sem apagar o pedido.'} aria-label={'Excluir comanda do pedido '+job.order_number} onClick={()=>removePrintJob(job)}><Trash2 size={14}/> Excluir</button>
+     </div>}</td>
     </tr>)}</tbody></table>
     {data&&data.jobs.length===0&&<p className="print-hint">Sem comandas. A impressão começa nos pedidos novos após ativar a função.</p>}
    </div>

@@ -87,6 +87,28 @@ adminRoutes.delete('/printing/devices/:id',async(c)=>{
  return c.json({success:true});
 });
 
+// Apaga somente o registro da fila/histórico, nunca o pedido. Comanda em processamento
+// não pode ser excluída: um Android já pode ter recebido o conteúdo para imprimir.
+adminRoutes.delete('/printing/jobs/:id',async(c)=>{
+ const user=c.get('authUser');
+ if(!['owner','manager'].includes(user.role))
+  return c.json({error:'Somente proprietário ou gerente pode excluir comandas da fila.'},403);
+ const db=c.get('services').db,tenantId=c.get('tenantId'),id=c.req.param('id');
+ const found=await db.prepare('SELECT id,order_id,order_number,status,job_type FROM print_jobs WHERE id=? AND tenant_id=?')
+  .bind(id,tenantId).first<{id:string;order_id:string;order_number:number;status:string;job_type:string}>();
+ if(!found)return c.json({error:'Comanda não encontrada nesta loja.'},404);
+ if(found.status==='leased')
+  return c.json({error:'Esta comanda já foi enviada ao Android. Aguarde a impressão terminar ou falhar antes de excluí-la.'},409);
+ // Filtra o status novamente para impedir a exclusão se outro processo a retirar da fila.
+ const result=await db.prepare("DELETE FROM print_jobs WHERE id=? AND tenant_id=? AND status!='leased'")
+  .bind(id,tenantId).run();
+ if(result.meta.changes!==1)return c.json({error:'A comanda está sendo enviada para impressão. Atualize a fila e tente novamente.'},409);
+ await logAudit(db,{tenantId,actorUserId:user.sub,actorRole:user.role,
+  action:'printing.job_deleted',entityType:'print_job',entityId:id,
+  details:{orderId:found.order_id,orderNumber:found.order_number,jobType:found.job_type,status:found.status}});
+ return c.json({success:true,orderNumber:found.order_number});
+});
+
 adminRoutes.post('/printing/jobs/:id/reprint',async(c)=>{
  const user=c.get('authUser');
  if(!['owner','manager'].includes(user.role))

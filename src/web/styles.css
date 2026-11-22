@@ -719,3 +719,9 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .brand-logo-removal small{font-size:11px;color:#6c7c70;line-height:1.4;flex:1;min-width:180px}
 .brand-logo-removal button:disabled{opacity:.6;cursor:not-allowed}
 @media(max-width:640px){.brand-logo-removal{align-items:flex-start;flex-direction:column}.brand-logo-removal small{min-width:0}}
+
+/* Ações dos registros de impressão: reimpressão e exclusão de comanda de teste. */
+.print-job-actions{display:flex;gap:7px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.print-job-actions .btn{min-height:31px;padding:6px 10px;white-space:nowrap}
+.print-job-actions .btn:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:680px){.print-job-actions{justify-content:flex-start}}
