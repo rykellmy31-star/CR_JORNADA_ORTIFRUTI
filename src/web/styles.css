@@ -692,3 +692,9 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .store-share-copy{border:0;border-radius:7px;padding:10px;background:var(--store-color,#16834b);color:#fff;font-size:12px;font-weight:700;cursor:pointer}
 @media(max-width:680px){.store-share-trigger{width:42px;height:42px;padding:0}.store-share-trigger span{display:none}}
 @media print{.store-share{display:none!important}}
+
+/* Mantém os horários da vitrine e o controle automático sincronizados. */
+.hours-source-hint{display:block;font-size:11px;line-height:1.5;color:#627968;margin-top:5px}
+.store-hours-hint,.store-hours-warning{display:block;padding:9px 11px;border-radius:8px;font-size:12px;line-height:1.5}
+.store-hours-hint{background:#eaf7ee;color:#246841;border:1px solid #bfe4c9}
+.store-hours-warning{background:#fff7e8;color:#805b21;border:1px solid #eddbb6}
