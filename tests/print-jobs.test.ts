@@ -74,7 +74,50 @@ describe('fila de impressão automática por estabelecimento',()=>{
   const denied=await admin('invalid','printing');
   expect(denied.status).toBe(401);
  });
- it('não enfileira pedido rejeitado; desativar impede novas comandas',async()=>{
+ it('permite excluir comanda da fila para testes sem apagar o pedido, com isolamento por loja',async()=>{
+  const {admin,checkout,tokenA,tokenB}=await setup();
+  expect((await admin(tokenA,'printing/settings','PATCH',{enabled:true})).status).toBe(200);
+  const created=await checkout('verde-vivo','73999999993');
+  expect(created.status).toBe(201);
+  const {order}=await created.json() as any;
+  const queue:any=await (await admin(tokenA,'printing')).json();
+  expect(queue.jobs).toHaveLength(1);
+  const id=queue.jobs[0].id as string;
+  // Outra loja não pode sequer saber se o registro existe.
+  const forbidden=await admin(tokenB,'printing/jobs/'+id,'DELETE');
+  expect(forbidden.status).toBe(404);
+  expect((await admin('invalid','printing/jobs/'+id,'DELETE')).status).toBe(401);
+  expect((await admin(tokenA,'printing/jobs/'+id,'DELETE')).status).toBe(200);
+  expect((await admin(tokenA,'printing/jobs/'+id,'DELETE')).status).toBe(404);
+  expect((await (await admin(tokenA,'printing')).json() as any).jobs).toHaveLength(0);
+  expect((await db.prepare('SELECT id FROM print_jobs WHERE id=?').bind(id).first())).toBeNull();
+  // O cliente, o pedido, os itens e os totais continuam no sistema.
+  const saved=await db.prepare('SELECT id,status,total_cents,customer_id FROM orders WHERE id=?')
+   .bind(order.id).first<any>();
+  expect(saved?.id).toBe(order.id);
+  expect(saved?.customer_id).toBeTruthy();
+  const items=await db.prepare('SELECT id FROM order_items WHERE order_id=?').bind(order.id).all();
+  expect(items.results.length).toBeGreaterThan(0);
+  const audits=await db.prepare("SELECT action,entity_id FROM audit_logs WHERE action='printing.job_deleted' AND entity_id=?")
+   .bind(id).all<any>();
+  expect(audits.results).toHaveLength(1);
+ });
+ it('bloqueia excluir comanda já enviada ao Android e permite apagar após imprimir',async()=>{
+  const {admin,checkout,tokenA}=await setup();
+  await admin(tokenA,'printing/settings','PATCH',{enabled:true});
+  expect((await checkout('verde-vivo','73999999996')).status).toBe(201);
+  const queue:any=await (await admin(tokenA,'printing')).json();
+  const id=queue.jobs[0].id as string;
+  await db.prepare("UPDATE print_jobs SET status='leased',attempts=1 WHERE id=?").bind(id).run();
+  const blocked=await admin(tokenA,'printing/jobs/'+id,'DELETE');
+  expect(blocked.status).toBe(409);
+  expect((await blocked.json() as any).error).toContain('Android');
+  expect(await db.prepare('SELECT id FROM print_jobs WHERE id=?').bind(id).first()).toBeTruthy();
+  await db.prepare("UPDATE print_jobs SET status='printed' WHERE id=?").bind(id).run();
+  expect((await admin(tokenA,'printing/jobs/'+id,'DELETE')).status).toBe(200);
+  expect((await (await admin(tokenA,'printing')).json() as any).jobs).toHaveLength(0);
+ });
+  it('não enfileira pedido rejeitado; desativar impede novas comandas',async()=>{
   const {admin,checkout,tokenA}=await setup();
   expect((await admin(tokenA,'printing/settings','PATCH',{enabled:true})).status).toBe(200);
   const failed=await checkout('verde-vivo','73999999994','forma-invalida');
