@@ -20,12 +20,14 @@ export async function prepareBrandImage(file:File,kind:'logo'|'banner'):Promise<
  const objectUrl=URL.createObjectURL(file);
  const image=new Image();
  try{
+   let loadTimer:number|undefined;
    const loaded=new Promise<void>((resolve,reject)=>{
      image.onload=()=>resolve();
      image.onerror=()=>reject(new Error('O navegador não conseguiu abrir essa imagem. Converta-a para PNG ou JPG e tente novamente.'));
+     loadTimer=window.setTimeout(()=>reject(new Error('A preparação da imagem demorou mais de 30 segundos. Tente uma imagem JPG ou PNG menor.')),30000);
    });
    image.src=objectUrl;
-   await loaded;
+   try{await loaded;}finally{if(loadTimer!==undefined)window.clearTimeout(loadTimer);}
    if(!image.naturalWidth||!image.naturalHeight)throw new Error('Imagem sem dimensões válidas.');
    const maxEdge=kind==='logo'?1200:2600;
    const fit=Math.min(1,maxEdge/Math.max(image.naturalWidth,image.naturalHeight));
@@ -52,6 +54,7 @@ export async function prepareBrandImage(file:File,kind:'logo'|'banner'):Promise<
    }
    throw new Error('A imagem continua muito grande. Escolha uma imagem mais leve.');
  }finally{
+   image.src='';
    URL.revokeObjectURL(objectUrl);
  }
 }
