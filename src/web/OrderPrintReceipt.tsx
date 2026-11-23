@@ -88,7 +88,7 @@ export default function OrderPrintReceipt({order,storeName,footerMessage='',stor
   {footerMessage.trim()&&<footer className="order-print-footer">{footerMessage}</footer>}
   {/* Marca-d'água discreta na parte inferior, atrás da comanda, sem acrescentar campos nem papel. */}
   <div className={`order-print-watermark watermark-${['horizontal','diagonal','vertical'].includes(watermarkOrientation)?watermarkOrientation:'diagonal'}`}
-   style={{opacity:Math.max(0,Math.min(35,watermarkOpacity))/100,'--watermark-font-size':`${Math.max(10,Math.min(48,watermarkFontSize))}pt` } as React.CSSProperties} aria-hidden="true">
+   style={{opacity:Math.max(0,Math.min(35,watermarkOpacity))/100,...({'--watermark-font-size':`${Math.max(10,Math.min(48,watermarkFontSize))}pt`} as any)}} aria-hidden="true">
    {watermarkText.trim()?<span>{watermarkText.trim()}</span>:storeLogoUrl?<img src={storeLogoUrl} alt="" decoding="sync"/>:<span>{storeName}</span>}
   </div>
  </section>;
