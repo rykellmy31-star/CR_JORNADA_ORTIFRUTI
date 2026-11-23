@@ -83,6 +83,19 @@ describe('comanda para impressão direta do navegador',()=>{
   expect(original).toContain('<span>Verdurão Braga</span>'); // fallback sem logo cadastrada
   expect(original).toContain('order-print-watermark');
  });
+ it('permite texto próprio e orientações horizontal, diagonal e vertical na marca-d\'água',()=>{
+  for(const orientation of ['horizontal','diagonal','vertical'] as const){
+   const html=renderToStaticMarkup(createElement(OrderPrintReceipt,{
+    order:order(),storeName:'Loja',watermarkText:'PEDIDO CONFERIDO',
+    watermarkOrientation:orientation,watermarkOpacity:18,watermarkFontSize:26
+   }));
+   expect(html).toContain('PEDIDO CONFERIDO');
+   expect(html).toContain('watermark-'+orientation);
+   expect(html).toContain('opacity:0.18');
+   expect(html).toContain('--watermark-font-size:26pt');
+   expect(html).not.toContain('src=');
+  }
+ });
  it('identifica pedidos cancelados para evitar comanda de venda incorreta',()=>{
   const data=order();data.status='cancelled';
   const html=renderToStaticMarkup(createElement(OrderPrintReceipt,{order:data,storeName:'Loja'}));
