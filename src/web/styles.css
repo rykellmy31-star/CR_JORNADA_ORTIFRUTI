@@ -599,6 +599,10 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   opacity:.10;filter:grayscale(1);pointer-events:none;overflow:hidden;
   transform:rotate(-9deg);break-inside:avoid
  }
+ .order-print-receipt .order-print-watermark.watermark-horizontal{transform:rotate(0deg)}
+ .order-print-receipt .order-print-watermark.watermark-diagonal{transform:rotate(-9deg)}
+ .order-print-receipt .order-print-watermark.watermark-vertical{transform:rotate(90deg)}
+ .order-print-receipt .order-print-watermark span{font-size:var(--watermark-font-size,21pt)}
  .order-print-receipt .order-print-watermark img{
   display:block;max-width:100%;max-height:100%;object-fit:contain
  }
@@ -725,3 +729,10 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .print-job-actions .btn{min-height:31px;padding:6px 10px;white-space:nowrap}
 .print-job-actions .btn:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:680px){.print-job-actions{justify-content:flex-start}}
+
+/* Prévia das configurações de marca-d'água, sem interferir no layout impresso. */
+.receipt-watermark-preview{height:112px;border:1px dashed #d5dfd7;border-radius:12px;background:linear-gradient(135deg,#fff,#f7faf7);display:flex;align-items:center;justify-content:center;overflow:hidden;margin-top:8px}
+.receipt-watermark-preview span{font-weight:800;color:#64796a;white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis}
+.receipt-watermark-preview .preview-horizontal{transform:rotate(0)}
+.receipt-watermark-preview .preview-diagonal{transform:rotate(-18deg)}
+.receipt-watermark-preview .preview-vertical{transform:rotate(90deg)}

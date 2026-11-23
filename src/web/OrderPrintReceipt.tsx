@@ -33,7 +33,7 @@ export type PrintableOrder={
 };
 
 /** Comanda não fiscal para a janela de impressão nativa do navegador. */
-export default function OrderPrintReceipt({order,storeName,footerMessage='',storeLogoUrl=null}:{order:PrintableOrder;storeName:string;footerMessage?:string;storeLogoUrl?:string|null}){
+export default function OrderPrintReceipt({order,storeName,footerMessage='',storeLogoUrl=null,watermarkText='',watermarkOrientation='diagonal',watermarkOpacity=10,watermarkFontSize=21}:{order:PrintableOrder;storeName:string;footerMessage?:string;storeLogoUrl?:string|null;watermarkText?:string;watermarkOrientation?:'horizontal'|'diagonal'|'vertical';watermarkOpacity?:number;watermarkFontSize?:number}){
  const savings=orderSavings(order.items||[]);
  const payment=PAYMENT_METHOD_LABELS[order.payment_method as keyof typeof PAYMENT_METHOD_LABELS]||order.payment_method;
  const status=ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS]||order.status;
@@ -87,8 +87,9 @@ export default function OrderPrintReceipt({order,storeName,footerMessage='',stor
   </div>
   {footerMessage.trim()&&<footer className="order-print-footer">{footerMessage}</footer>}
   {/* Marca-d'água discreta na parte inferior, atrás da comanda, sem acrescentar campos nem papel. */}
-  <div className="order-print-watermark" aria-hidden="true">
-   {storeLogoUrl?<img src={storeLogoUrl} alt="" decoding="sync"/>:<span>{storeName}</span>}
+  <div className={`order-print-watermark watermark-${['horizontal','diagonal','vertical'].includes(watermarkOrientation)?watermarkOrientation:'diagonal'}`}
+   style={{opacity:Math.max(0,Math.min(35,watermarkOpacity))/100,...({'--watermark-font-size':`${Math.max(10,Math.min(48,watermarkFontSize))}pt`} as any)}} aria-hidden="true">
+   {watermarkText.trim()?<span>{watermarkText.trim()}</span>:storeLogoUrl?<img src={storeLogoUrl} alt="" decoding="sync"/>:<span>{storeName}</span>}
   </div>
  </section>;
 }
