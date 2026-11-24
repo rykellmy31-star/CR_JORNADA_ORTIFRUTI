@@ -757,3 +757,28 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .storefront .store-footer a:hover,.storefront .text-link:hover{color:var(--store-color)}
 .color-setting-hint{display:block;color:#89958d;font-size:8px;font-weight:400;line-height:1.5;margin-top:5px}
 .color-settings-note{margin:0!important;padding:10px 12px;background:#f5f9f5;border:1px solid #e5eee6;border-radius:8px;color:#65766a;font-size:9px;line-height:1.6}
+
+
+/* Paleta completa da vitrine: cada estabelecimento controla seus próprios tokens. */
+.storefront{background:var(--store-page-bg,#fff);color:var(--store-text,#25372c)}
+.storefront .announcement{background:color-mix(in srgb,var(--store-color) 9%,var(--store-page-bg,#fff));color:var(--store-color)}
+.storefront .store-header,.storefront .store-benefits,.storefront .store-footer,.storefront .store-body{background:var(--store-page-bg,#fff)}
+.storefront .store-logo b,.storefront .catalog-heading h2,.storefront .product-info h3,.storefront .store-footer b{color:var(--store-text,#25372c)}
+.storefront .store-search,.storefront .product-card,.storefront .cart-box,.storefront .checkout-modal,.storefront .form-modal,.storefront .order-modal,.storefront .success-modal{background:var(--store-surface,#fff)}
+.storefront .product-card,.storefront .cart-box{border-color:color-mix(in srgb,var(--store-text,#25372c) 12%,var(--store-surface,#fff))}
+.storefront .product-info,.storefront .cart-box,.storefront .cart-title,.storefront .cart-line{color:var(--store-text,#25372c)}
+.storefront .product-price,.storefront .cart-line-meta strong,.storefront .cart-calcs .cart-total b,.storefront .checkout-total b{color:var(--store-color)}
+.storefront .cart-head,.storefront .cart-title-icon,.storefront .store-logo-icon{background:color-mix(in srgb,var(--store-color) 10%,var(--store-surface,#fff));color:var(--store-color)}
+.storefront .category-chips button.active,.storefront .category-chips button:hover{background:var(--store-color);border-color:var(--store-color);color:#fff}
+.storefront .btn-primary,.storefront button.btn-primary,.storefront .add-btn,.storefront .checkout-cta,.storefront .store-hero .btn-primary,.storefront .fixed-price-add,.storefront .mobile-bag-button,.storefront .checkout-foot .btn-primary,.storefront .success-modal .btn-primary{background:var(--store-button);border-color:var(--store-button);color:#fff}
+.storefront .add-btn:hover,.storefront .checkout-cta:hover,.storefront .fixed-price-add:hover,.storefront .mobile-bag-button:hover{filter:brightness(.92)}
+.storefront .add-btn span{color:inherit;opacity:.8}
+.storefront .weight-controls button,.storefront .cart-line-qty button,.storefront .purchase-mode-buttons button.selected,.storefront .fixed-price-option.selected{color:var(--store-color);border-color:var(--store-color)}
+.storefront .cart-count,.storefront .fresh-pill,.storefront .featured-tag,.storefront .product-discount-badge{background:var(--store-accent);color:#fff}
+.storefront .store-benefits svg,.storefront .contact-link:hover,.storefront .store-footer a:hover{color:var(--store-color)}
+.storefront .payment-option.selected{border-color:var(--store-color);background:color-mix(in srgb,var(--store-color) 8%,var(--store-surface,#fff));color:var(--store-color)}
+.storefront .payment-option input,.storefront .check-row input{accent-color:var(--store-color)}
+.storefront .success-icon{background:color-mix(in srgb,var(--store-color) 12%,var(--store-surface,#fff));color:var(--store-color)}
+.storefront .checkout-total{background:color-mix(in srgb,var(--store-color) 8%,var(--store-surface,#fff));color:var(--store-text,#25372c)}
+.storefront .cart-calcs .cart-total{border-color:color-mix(in srgb,var(--store-text,#25372c) 15%,var(--store-surface,#fff))}
+.storefront .store-search input,.storefront .weight-controls input{color:var(--store-text,#25372c)}
