@@ -770,7 +770,7 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .storefront .product-price,.storefront .cart-line-meta strong,.storefront .cart-calcs .cart-total b,.storefront .checkout-total b{color:var(--store-color)}
 .storefront .cart-head,.storefront .cart-title-icon,.storefront .store-logo-icon{background:color-mix(in srgb,var(--store-color) 10%,var(--store-surface,#fff));color:var(--store-color)}
 .storefront .category-chips button.active,.storefront .category-chips button:hover{background:var(--store-color);border-color:var(--store-color);color:#fff}
-.storefront .add-btn,.storefront .checkout-cta,.storefront .store-hero .btn-primary,.storefront .fixed-price-add,.storefront .mobile-bag-button,.storefront .checkout-foot .btn-primary,.storefront .success-modal .btn-primary{background:var(--store-button);border-color:var(--store-button);color:#fff}
+.storefront .btn-primary,.storefront button.btn-primary,.storefront .add-btn,.storefront .checkout-cta,.storefront .store-hero .btn-primary,.storefront .fixed-price-add,.storefront .mobile-bag-button,.storefront .checkout-foot .btn-primary,.storefront .success-modal .btn-primary{background:var(--store-button);border-color:var(--store-button);color:#fff}
 .storefront .add-btn:hover,.storefront .checkout-cta:hover,.storefront .fixed-price-add:hover,.storefront .mobile-bag-button:hover{filter:brightness(.92)}
 .storefront .add-btn span{color:inherit;opacity:.8}
 .storefront .weight-controls button,.storefront .cart-line-qty button,.storefront .purchase-mode-buttons button.selected,.storefront .fixed-price-option.selected{color:var(--store-color);border-color:var(--store-color)}
