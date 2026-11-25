@@ -8,7 +8,7 @@ import type { AppHonoEnv } from '../context';
 import { generateId } from '../security/crypto';
 import { calculateChangeCents, normalizePhoneBR, parseBRLToCents } from '../../shared/pricing';
 import { buildAtomicStockReservationSteps, validateAndPrepareOrderLines } from '../services/inventory';
-import { enqueueAndDispatchOrderWhatsAppNotification } from '../services/evolution-whatsapp';
+import { enqueueAndDispatchOrderWhatsAppNotification, enqueueAndDispatchStaffOrderNotification } from '../services/evolution-whatsapp';
 import { runConditionalTransaction } from '../db/adapter';
 import {curatedProductImage} from '../services/product-images';
 
@@ -190,6 +190,7 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
     await runConditionalTransaction(db, [...statements.map((stmt) => ({ stmt })), ...stockSteps]);
     await db.prepare(`UPDATE customers SET total_spent_cents = total_spent_cents + ? WHERE id = ? AND tenant_id = ?`).bind(total, customerId, tenant.id).run();
     await enqueueAndDispatchOrderWhatsAppNotification(db, tenant.id, orderId, 'order_received', services.evolution).catch(() => undefined);
+    await enqueueAndDispatchStaffOrderNotification(db,tenant.id,orderId,services.evolution).catch(()=>undefined);
     await dispatchLoyaltyNotifications(db,tenant.id,orderId,services.evolution).catch(()=>undefined);
     return c.json({ success: true, order: { id: orderId, number: orderNumber, status: 'received', subtotalCents: prepared.subtotalCents, deliveryFeeCents: fee, totalCents: total, changeForCents: change.changeForCents, changeAmountCents: change.changeAmountCents } }, 201);
   } catch (e: any) {

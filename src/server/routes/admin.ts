@@ -9,7 +9,7 @@ import { requireTenantAdmin } from '../context';
 import { generateId, hashPassword } from '../security/crypto';
 import { ORDER_NEXT_STATUS } from '../../shared/pricing';
 import { cancelOrderAndRestoreStock, commitOrderStockOnDelivery } from '../services/inventory';
-import { checkWhatsAppConnectionStatus, connectOrRefreshWhatsAppQr, confirmHomologationQrScan, disconnectWhatsAppInstance, dispatchQueuedMessageById, enqueueAndDispatchOrderWhatsAppNotification, DEFAULT_WHATSAPP_TEMPLATES } from '../services/evolution-whatsapp';
+import { checkWhatsAppConnectionStatus, connectOrRefreshWhatsAppQr, confirmHomologationQrScan, disconnectWhatsAppInstance, dispatchQueuedMessageById, enqueueAndDispatchOrderWhatsAppNotification, enqueueAndDispatchStaffOrderNotification, DEFAULT_WHATSAPP_TEMPLATES } from '../services/evolution-whatsapp';
 import { parseDataUriImage } from '../storage/r2-media';
 import {runConditionalTransaction} from '../db/adapter';
 import {adjustOrderItems} from '../services/order-adjustments';
@@ -583,6 +583,26 @@ adminRoutes.patch('/settings',async(c)=>{const db=c.get('services').db,tid=c.get
   }
 }if(!sets.length)return c.json({error:'Nenhuma configuração válida.'},400);sets.push('updated_at=?');vals.push(new Date().toISOString(),tid);await db.prepare(`UPDATE tenants SET ${sets.join(',')} WHERE id=?`).bind(...vals).run();return c.json({success:true});});
 
+adminRoutes.get('/whatsapp/order-recipient',async(c)=>{
+ const row=await c.get('services').db.prepare('SELECT whatsapp_order_recipient_phone FROM tenants WHERE id=?')
+  .bind(c.get('tenantId')).first<{whatsapp_order_recipient_phone:string|null}>();
+ return c.json({phone:row?.whatsapp_order_recipient_phone||''});
+});
+adminRoutes.put('/whatsapp/order-recipient',async(c)=>{
+ const user=c.get('authUser');
+ if(!['owner','manager'].includes(user.role))return c.json({error:'Apenas proprietário ou gerente pode configurar o destinatário dos pedidos.'},403);
+ const body=await c.req.json().catch(()=>({}));
+ const raw=String(body.phone||'').trim();
+ const digits=raw.replace(/\\D/g,'');
+ if(raw&& (digits.length<10||digits.length>13))return c.json({error:'Informe um WhatsApp válido com DDD e código do país, se necessário.'},400);
+ const phone=raw?digits:null,tid=c.get('tenantId'),now=new Date().toISOString();
+ await c.get('services').db.prepare('UPDATE tenants SET whatsapp_order_recipient_phone=?,updated_at=? WHERE id=?')
+  .bind(phone,now,tid).run();
+ await logAudit(c.get('services').db,{tenantId:tid,actorUserId:user.sub,actorRole:user.role,
+  action:'whatsapp.order_recipient_updated',entityType:'tenant',entityId:tid,
+  details:{configured:!!phone}});
+ return c.json({success:true,phone:phone||''});
+});
 adminRoutes.get('/whatsapp/status',async(c)=>c.json(await checkWhatsAppConnectionStatus(c.get('services').db,c.get('tenantId'),c.get('tenantSlug'),c.get('services').evolution)));
 adminRoutes.post('/whatsapp/connect',async(c)=>{try{return c.json(await connectOrRefreshWhatsAppQr(c.get('services').db,c.get('tenantId'),c.get('tenantSlug'),c.get('services').evolution));}catch(e:any){return c.json({error:e.message},502);}});
 adminRoutes.post('/whatsapp/refresh-qr',async(c)=>{try{return c.json(await connectOrRefreshWhatsAppQr(c.get('services').db,c.get('tenantId'),c.get('tenantSlug'),c.get('services').evolution));}catch(e:any){return c.json({error:e.message},502);}});
