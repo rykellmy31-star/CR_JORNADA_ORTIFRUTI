@@ -959,7 +959,8 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
  }
  const {results}=await db.prepare("SELECT id,title,intent,keywords_json,reply_text,priority FROM whatsapp_auto_replies WHERE tenant_id=? AND is_enabled=1 ORDER BY priority DESC,created_at ASC").bind(tenantId).all<any>();
  let chosen:any=null,bestScore=.69;
- for(const rule of results){let keywords:string[]=[];try{keywords=JSON.parse(rule.keywords_json||'[]');}catch{}const score=incomingRuleScore(text,keywords);if(score>bestScore){bestScore=score;chosen=rule;}}
+ const intentPhrases:Record<string,string[]>={greeting:['oi','ola','bom dia','boa tarde','boa noite','tudo bem','como vai'],order:['quero pedir','fazer compra','quero encomendar','quero comprar','como comprar','como faco pedido','gostaria de pedir','quero fazer uma encomenda','me manda o link da loja'],order_status:['cadê meu pedido','onde esta meu pedido','meu pedido ja saiu','acompanhar compra','consultar pedido','ver meu pedido','status da entrega','previsao do pedido'],human:['atendente','falar com pessoa','falar com alguem','quero falar com funcionario','atendimento humano','pessoa de verdade']};
+ for(const rule of results){let keywords:string[]=[];try{keywords=JSON.parse(rule.keywords_json||'[]');}catch{}const expanded=[...keywords,...(intentPhrases[String(rule.intent||'')]||[])];const score=incomingRuleScore(text,expanded);if(score>bestScore){bestScore=score;chosen=rule;}}
  let dynamicOrderReply='';
  if(chosen?.intent==='order_status'){
   const normalizedPhone=normalizePhoneBR(customerPhone);
