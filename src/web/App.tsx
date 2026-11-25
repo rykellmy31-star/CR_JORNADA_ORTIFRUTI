@@ -1030,7 +1030,7 @@ function SuperAdmin(){
   setModal(true);
  }
  async function saveTenant(e:React.FormEvent){
-  e.preventDefault();if(creating)return;setCreating(true);setError('');
+  e.preventDefault();if(creating)return;if(!form.saleModes.length){setError('Selecione ao menos uma modalidade de venda.');return;}setCreating(true);setError('');
   try{
    if(editingId){await req('/superadmin/tenants/'+editingId,{method:'PATCH',body:JSON.stringify(form)},token);setNotice('Estabelecimento atualizado.');setModal(false);setEditingId(null);await load();}
    else await create(e);
@@ -1121,9 +1121,9 @@ function SuperAdmin(){
       onChange={e=>setForm({...form,ownerName:e.target.value})}/></label>
      <label>E-mail de login do proprietário<input type="email" required value={form.ownerEmail}
       onChange={e=>setForm({...form,ownerEmail:e.target.value})}/></label>
-     <label>Senha inicial (opcional)<input minLength={12} autoComplete="new-password" type="password"
+     {!editingId&&<label>Senha inicial (opcional)<input minLength={12} autoComplete="new-password" type="password"
       value={form.temporaryPassword} onChange={e=>setForm({...form,temporaryPassword:e.target.value})}
-      placeholder="Deixar vazio para gerar automaticamente"/></label>}
+      placeholder="Deixar vazio para gerar automaticamente"/></label> }
     </div>
     <div className="panel-card" style={{marginTop:12}}>
      <b>Modalidades de venda permitidas</b>
