@@ -942,8 +942,8 @@ async function removeBrandLogo(){
  if(!window.confirm('Remover a logomarca desta loja? A vitrine e a comanda passarão a usar o nome do estabelecimento.'))return;
  setSaved(false);setError('');setMediaNotice('');setUploading('logo_url');
  try{
-  await req('/admin/settings',{method:'PATCH',body:JSON.stringify({logoUrl:null})},token);
-  setData((old:any)=>({...old,logo_url:null}));
+  await req('/admin/settings',{method:'PATCH',body:JSON.stringify({logoUrl:null,useLogoColors:false,logoPalette:null})},token);
+  setData((old:any)=>({...old,logo_url:null,use_logo_colors:0,logo_palette_json:null}));
   setMediaNotice('Logomarca removida da loja. A vitrine já foi atualizada e a comanda usará o nome do estabelecimento.');
  }catch(err:any){setError(err.message||'Não foi possível remover a logomarca.');}
  finally{setUploading('');}
