@@ -302,6 +302,9 @@ adminRoutes.post('/products/image-import',async(c)=>{
 });
 adminRoutes.post('/products/with-variants',async(c)=>{
  const db=c.get('services').db,tid=c.get('tenantId'),b=await c.req.json().catch(()=>({}));
+ const tenantModes=await db.prepare('SELECT sale_modes_json FROM tenants WHERE id=?').bind(tid).first<{sale_modes_json:string|null}>();
+ if(!new Set<string>(JSON.parse(tenantModes?.sale_modes_json||'["weight","unit","dual","variants","custom"]')).has('variants'))
+  return c.json({error:'Embalagens e variações não estão habilitadas para este estabelecimento.'},403);
  const name=String(b.name||'').trim(),options=Array.isArray(b.variants)?b.variants:[];
  const fixed=b.fixedOptionsEnabled===true;
  if(name.length<2||name.length>140||options.length<1||options.length>20)
@@ -392,6 +395,10 @@ adminRoutes.post('/products',async(c)=>{
   if(b.categoryId&&!await tenantOwnsCategory(db,tid,b.categoryId))return c.json({error:'Categoria inválida para este estabelecimento.'},400);
   const selected=String(b.saleMode||'unit');
   if(!['weight','unit','dual','custom'].includes(selected))return c.json({error:'Modo de venda inválido.'},400);
+  const tenantModes=await db.prepare('SELECT sale_modes_json FROM tenants WHERE id=?').bind(tid).first<{sale_modes_json:string|null}>();
+  const enabledModes=new Set<string>(JSON.parse(tenantModes?.sale_modes_json||'["weight","unit","dual","variants","custom"]'));
+  const requiredModes=selected==='dual'?['weight','unit']:[selected];
+  if(requiredModes.some(mode=>!enabledModes.has(mode)))return c.json({error:'Esta modalidade de venda não está habilitada para seu estabelecimento. Solicite ao Super Admin.'},403);
   let customConfig:string|null=null;
   if(selected==='custom'){try{const config=readCustomConfig(b.customConfig);if(!config)throw Error('Cadastre os grupos de opções.');customConfig=JSON.stringify(config);}catch{return c.json({error:'Confira os grupos, preços e limites de complementos.'},400);}}
   const isDual=selected==='dual', isWeight=selected==='weight'||isDual;
