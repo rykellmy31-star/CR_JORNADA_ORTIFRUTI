@@ -54,3 +54,19 @@ describe('integrações isoladas e outbox WhatsApp',()=>{
  it('bootstrap do Super-Admin é de uso único e exige segredo temporário',async()=>{db=new SqliteD1Adapter(':memory:');db.execMigrations('./migrations');const app=createApp({...services(),bootstrapSecret:'one-time-bootstrap-secret'});const payload={name:'CR Jornada Admin',email:'admin-prod@example.test',password:'A-strong-one-time-password-2026'};const denied=await app.fetch(new Request('http://local/api/system/bootstrap-superadmin',{method:'POST',headers:{'content-type':'application/json','x-bootstrap-secret':'wrong'},body:JSON.stringify(payload)}));expect(denied.status).toBe(401);const created=await app.fetch(new Request('http://local/api/system/bootstrap-superadmin',{method:'POST',headers:{'content-type':'application/json','x-bootstrap-secret':'one-time-bootstrap-secret'},body:JSON.stringify(payload)}));expect(created.status).toBe(201);const again=await app.fetch(new Request('http://local/api/system/bootstrap-superadmin',{method:'POST',headers:{'content-type':'application/json','x-bootstrap-secret':'one-time-bootstrap-secret'},body:JSON.stringify(payload)}));expect(again.status).toBe(409);});
  it('CRM exige credencial e cria tenant/owner com isolamento',async()=>{await setup();const app=createApp(services());const unauthorized=await app.fetch(new Request('http://local/api/crm/v1/establishments'));expect(unauthorized.status).toBe(401);const response=await app.fetch(new Request('http://local/api/crm/v1/establishments',{method:'POST',headers:{'content-type':'application/json','X-CRM-API-Key':'test-crm-key'},body:JSON.stringify({externalId:'crm-abc-01',name:'Hortifruti CRM',slug:'hortifruti-crm',ownerName:'Loja Proprietária',ownerEmail:'crm-owner@example.test'})}));expect(response.status).toBe(201);const body:any=await response.json();expect(body.data.externalId).toBe('crm-abc-01');const count=await db.prepare(`SELECT COUNT(*) c FROM users WHERE tenant_id=?`).bind(body.data.id).first<any>();expect(count.c).toBe(1);});
 });
+
+describe('configuração de respostas automáticas WhatsApp',()=>{
+ it('salva regras por loja e mantém isolamento entre estabelecimentos',async()=>{
+  await setup();const app=createApp(services());
+  const login=await app.fetch(new Request('http://local/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'dono@verdevivo.local',password:'CRJornada!Local2026'})}));
+  const {token}=await login.json() as any;
+  const payload={settings:{enabled:true,fallbackMessage:'Olá!',storeUrl:'https://loja.test',businessHoursOnly:false,startTime:'08:00',endTime:'18:00',pauseOnHuman:true},rules:[{id:'preset-example',title:'Saudação',intent:'greeting',keywords:['oi','bom dia'],replyText:'Olá, {nome_cliente}!',enabled:true,priority:100}]};
+  const saved=await app.fetch(new Request('http://local/api/admin/whatsapp/auto-replies',{method:'PUT',headers:{'content-type':'application/json','authorization':`Bearer ${token}`},body:JSON.stringify(payload)}));
+  expect(saved.status).toBe(200);
+  const own:any=await (await app.fetch(new Request('http://local/api/admin/whatsapp/auto-replies',{headers:{authorization:`Bearer ${token}`}}))).json();
+  expect(own.settings.enabled).toBe(true);expect(own.rules[0].keywords).toEqual(['oi','bom dia']);
+  const other=await db.prepare('SELECT id FROM tenants WHERE slug=?').bind('sabor-da-terra').first<any>();
+  const foreign=await db.prepare('SELECT COUNT(*) total FROM whatsapp_auto_replies WHERE tenant_id=?').bind(other.id).first<any>();
+  expect(foreign.total).toBe(0);
+ });
+});
