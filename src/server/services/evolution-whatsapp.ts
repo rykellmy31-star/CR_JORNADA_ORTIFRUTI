@@ -535,6 +535,55 @@ export function renderWhatsAppOrderTemplate(
  * Enfileira (com chave de idempotência anti-duplicação) e dispara imediatamente
  * a notificação transacional do ciclo do pedido via WhatsApp.
  */
+/** Notifica o responsável interno por novos pedidos, sem depender do opt-in do cliente. */
+export async function enqueueAndDispatchStaffOrderNotification(
+  db: DbClient,
+  tenantId: string,
+  orderId: string,
+  envCfg: EvolutionEnvConfig
+): Promise<{queued:boolean;status:string;queueId?:string}> {
+  const tenant=await db.prepare(`SELECT name,whatsapp_order_recipient_phone FROM tenants WHERE id=?`)
+    .bind(tenantId).first<{name:string;whatsapp_order_recipient_phone:string|null}>();
+  const recipient=normalizePhoneBR(String(tenant?.whatsapp_order_recipient_phone||''));
+  if(!tenant||!recipient)return {queued:false,status:'recipient_not_configured'};
+  const order=await db.prepare(`SELECT * FROM orders WHERE id=? AND tenant_id=? AND deleted_at IS NULL`)
+    .bind(orderId,tenantId).first<Record<string,any>>();
+  if(!order)return {queued:false,status:'order_not_found'};
+  const {results:items}=await db.prepare(`SELECT product_name_snapshot,variant_name_snapshot,quantity_display,line_total_cents,customization_snapshot FROM order_items WHERE order_id=? AND tenant_id=? ORDER BY rowid`)
+    .bind(orderId,tenantId).all<any>();
+  const itemsText=formatWhatsAppItems(items);
+  const address=[`${order.address_street}, nº ${order.address_number}`,order.address_neighborhood,order.address_complement,order.address_reference?`Ref.: ${order.address_reference}`:null].filter(Boolean).join(', ');
+  const payment=PAYMENT_METHOD_LABELS[order.payment_method as PaymentMethod]||order.payment_method;
+  const change=order.payment_method==='cash'&&order.needs_change&&order.change_for_cents
+    ? `\\nTroco para: ${formatBRL(order.change_for_cents)}` : '';
+  const message=[
+    `🛎️ *NOVO PEDIDO — ${tenant.name}*`,
+    `Pedido: *#${order.order_number}*`,
+    `Cliente: ${order.customer_name}`,
+    `WhatsApp: ${formatPhoneBR(order.customer_phone)}`,
+    '',
+    '*ITENS DO PEDIDO*',
+    itemsText,
+    '',
+    `Subtotal: ${formatBRL(order.subtotal_cents)}`,
+    `Entrega: ${order.delivery_fee_cents===0?'GRÁTIS':formatBRL(order.delivery_fee_cents)}`,
+    `*TOTAL: ${formatBRL(order.total_cents)}*`,
+    `Pagamento: ${payment}${change}`,
+    '',
+    `Endereço: ${address}`,
+  ].join('\\n');
+  const idempotencyKey=`${orderId}:staff_order_received:${recipient}`;
+  const existing=await db.prepare(`SELECT id,status FROM whatsapp_message_queue WHERE tenant_id=? AND idempotency_key=?`)
+    .bind(tenantId,idempotencyKey).first<{id:string;status:string}>();
+  if(existing)return {queued:false,status:`duplicate_prevented:${existing.status}`,queueId:existing.id};
+  const now=new Date().toISOString(),queueId=generateId();
+  await db.prepare(`INSERT INTO whatsapp_message_queue(id,tenant_id,order_id,event_type,idempotency_key,recipient_phone,recipient_name,rendered_message,status,attempts,max_attempts,next_retry_at,created_at,updated_at)
+    VALUES(?,?,?,'staff_order_received',?,?,?,?, 'pending',0,3,?,?,?)`)
+    .bind(queueId,tenantId,orderId,idempotencyKey,recipient,'Responsável pelos pedidos',message,now,now,now).run();
+  const sent=await dispatchQueuedMessageById(db,tenantId,queueId,envCfg);
+  return {queued:true,status:sent.status,queueId};
+}
+
 export async function enqueueAndDispatchOrderWhatsAppNotification(
   db: DbClient,
   tenantId: string,
