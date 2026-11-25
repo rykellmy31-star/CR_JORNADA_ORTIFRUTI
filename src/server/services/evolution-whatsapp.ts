@@ -199,7 +199,7 @@ const evolutionWebhook = (cfg: EvolutionEnvConfig) => {
     byEvents:false,
     base64:true,
     headers:{'x-evolution-token':cfg.evolutionWebhookToken},
-    events:['QRCODE_UPDATED','CONNECTION_UPDATE']
+    events:['QRCODE_UPDATED','CONNECTION_UPDATE','MESSAGES_UPSERT']
   };
 };
 async function configureEvolutionWebhook(baseUrl:string,instance:string,headers:Record<string,string>,cfg:EvolutionEnvConfig){
@@ -907,4 +907,22 @@ export async function processPendingWhatsAppQueue(
     if (res.status === 'sent') sent++;
   }
   return { processed: results.length, sent };
+}
+
+function normalizeIncomingWhatsAppText(value:string):string{return value.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9\\s]/g,' ').replace(/\\s+/g,' ').trim();}
+function incomingMessageText(data:any):string{const m=data?.message||{};return String(m.conversation||m.extendedTextMessage?.text||m.imageMessage?.caption||m.videoMessage?.caption||m.documentMessage?.caption||m.buttonsResponseMessage?.selectedDisplayText||m.listResponseMessage?.title||'').trim();}
+function incomingRuleScore(message:string,keywords:string[]):number{const normalized=normalizeIncomingWhatsAppText(message);if(!normalized)return 0;let best=0;for(const keyword of keywords){const k=normalizeIncomingWhatsAppText(keyword);if(!k)continue;if(normalized===k)return 1;if(normalized.includes(k))best=Math.max(best,.96);else{const words=k.split(' ').filter(w=>w.length>2);if(words.length>=2){const messageWords=new Set(normalized.split(' '));const hits=words.filter(w=>messageWords.has(w)).length;best=Math.max(best,hits/words.length*.82);}}}return best;}
+export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:string,data:any,envCfg:EvolutionEnvConfig):Promise<{handled:boolean;reason?:string}>{
+ const key=data?.key||{},jid=String(key.remoteJid||data?.remoteJid||'');if(key.fromMe===true||!jid||jid.endsWith('@g.us')||jid==='status@broadcast')return{handled:false,reason:'ignored_sender'};
+ const text=incomingMessageText(data),providerId=String(key.id||data?.messageId||'');if(!text||!providerId)return{handled:false,reason:'no_text_or_id'};
+ const inst=await db.prepare('SELECT instance_name,status FROM whatsapp_instances WHERE tenant_id=?').bind(tenantId).first<any>();if(!inst||inst.status!=='connected'||!isLiveEvolutionConfigured(envCfg))return{handled:false,reason:'not_connected'};
+ const settings=await db.prepare('SELECT * FROM whatsapp_auto_reply_settings WHERE tenant_id=?').bind(tenantId).first<any>();if(!settings||settings.enabled!==1)return{handled:false,reason:'disabled'};
+ if(settings.business_hours_only===1){const clock=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());if(clock<settings.start_time||clock>settings.end_time)return{handled:false,reason:'outside_business_hours'};}
+ const now=new Date().toISOString(),eventId=generateId();const inserted=await db.prepare("INSERT OR IGNORE INTO whatsapp_auto_reply_events(id,tenant_id,provider_message_id,status,created_at,updated_at) VALUES(?,?,?,'pending',?,?)").bind(eventId,tenantId,providerId,now,now).run();
+ if(!inserted.meta.changes){const old=await db.prepare('SELECT status FROM whatsapp_auto_reply_events WHERE tenant_id=? AND provider_message_id=?').bind(tenantId,providerId).first<any>();if(old?.status==='sent')return{handled:false,reason:'duplicate'};}
+ const {results}=await db.prepare("SELECT id,title,keywords_json,reply_text,priority FROM whatsapp_auto_replies WHERE tenant_id=? AND is_enabled=1 ORDER BY priority DESC,created_at ASC").bind(tenantId).all<any>();
+ let chosen:any=null,score=.69;for(const rule of results){let words:string[]=[];try{words=JSON.parse(rule.keywords_json||'[]');}catch{}const current=incomingRuleScore(text,words);if(current>score){score=current;chosen=rule;}}
+ const template=chosen?.reply_text||settings.fallback_message;if(!template){await db.prepare("UPDATE whatsapp_auto_reply_events SET status='ignored',updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(now,tenantId,providerId).run();return{handled:false,reason:'no_match'};}
+ const phone=jid.split('@')[0],name=String(data?.pushName||'').trim(),reply=String(template).replace(/\\{nome_cliente\\}/g,name).replace(/\\{link_loja\\}/g,String(settings.store_url||''));
+ try{const base=envCfg.evolutionApiUrl!.replace(/\\/+$/,'');const response=await fetch(base+'/message/sendText/'+encodeURIComponent(inst.instance_name),{method:'POST',headers:{'Content-Type':'application/json',apikey:envCfg.evolutionApiKey!},body:JSON.stringify({number:phone,text:reply,delay:500})});if(!response.ok)throw new Error('Evolution sendText HTTP '+response.status);await db.prepare("UPDATE whatsapp_auto_reply_events SET status='sent',matched_rule_id=?,error_message=NULL,updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(chosen?.id||null,new Date().toISOString(),tenantId,providerId).run();return{handled:true,reason:chosen?'matched_rule':'fallback'};}catch(error:any){await db.prepare("UPDATE whatsapp_auto_reply_events SET status='failed',matched_rule_id=?,error_message=?,updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(chosen?.id||null,String(error?.message||'send_failed').slice(0,180),new Date().toISOString(),tenantId,providerId).run();return{handled:false,reason:'send_failed'};}
 }
