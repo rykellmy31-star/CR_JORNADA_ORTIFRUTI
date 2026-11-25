@@ -262,7 +262,7 @@ export async function connectOrRefreshWhatsAppQr(
     // Em caso de instância criada anteriormente, atualiza o webhook apenas dela.
     try{
       if(!evolutionWebhook(envCfg))webhookWarning='Configure a chave de webhook para sincronizar o status automaticamente.';
-      else await configureEvolutionWebhook(baseUrl,instanceName,headers,envCfg);
+      else {await configureEvolutionWebhook(baseUrl,instanceName,headers,envCfg);await db.prepare('UPDATE whatsapp_instances SET webhook_events_version=2 WHERE tenant_id=?').bind(tenantId).run();}
     }catch(e:any){webhookWarning=sanitizeEvolutionError(String(e?.message||'Falha de webhook'),envCfg);}
     const state=String(data?.instance?.state||data?.state||'').toLowerCase();
     const connected=state==='open';
@@ -305,6 +305,9 @@ export async function checkWhatsAppConnectionStatus(
     const headers: Record<string, string> = {
       apikey: envCfg.evolutionApiKey!,
     };
+    if(inst.status==='connected'&&Number(inst.webhook_events_version||0)<2&&envCfg.publicWebhookUrl&&envCfg.evolutionWebhookToken){
+      try{await configureEvolutionWebhook(baseUrl,inst.instance_name,{'Content-Type':'application/json',...headers},envCfg);await db.prepare('UPDATE whatsapp_instances SET webhook_events_version=2 WHERE tenant_id=?').bind(tenantId).run();}catch{/* a próxima consulta tentará novamente */}
+    }
     try {
       const stateResp = await fetch(
         `${baseUrl}/instance/connectionState/${encodeURIComponent(inst.instance_name)}`,
