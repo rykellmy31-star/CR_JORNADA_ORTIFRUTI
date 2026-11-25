@@ -11,7 +11,7 @@ import {latestAndroidUpdate} from './services/android-updates';
 import {timingSafeEqualStr} from './security/crypto';
 import {normalizePhoneBR} from '../shared/pricing';
 import {generateId,hashPassword} from './security/crypto';
-import {normalizeEvolutionQrImage} from './services/evolution-whatsapp';
+import {normalizeEvolutionQrImage,handleIncomingWhatsAppAutoReply} from './services/evolution-whatsapp';
 import {recordWhatsAppDisconnection,processPendingTelegramAlerts} from './services/telegram-alerts';
 import {z} from 'zod';
 
@@ -51,7 +51,7 @@ export function createApp(services:AppRuntimeServices){
   if(!inst)return c.json({error:'Instância não encontrada.'},404);
   const event=String(body.event||'').toLowerCase().replace(/[.\s-]/g,'_');
   const data=body.data||{},time=new Date().toISOString();
-  if(event.includes('qrcode')){
+  if(event.includes('messages_upsert')){\n    const messageData=data?.messages?.[0]||data;\n    await handleIncomingWhatsAppAutoReply(services.db,inst.tenant_id,messageData,services.evolution).catch(()=>undefined);\n  }else if(event.includes('qrcode')){
     const qr=await normalizeEvolutionQrImage(data);
     const code=String(data.qrcode?.code||data.code||'')||null;
     await services.db.prepare(`UPDATE whatsapp_instances
