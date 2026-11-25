@@ -33,4 +33,3 @@ CREATE TABLE IF NOT EXISTS whatsapp_auto_reply_sessions (
  PRIMARY KEY(tenant_id,customer_phone)
 );
 
-CREATE TABLE IF NOT EXISTS whatsapp_auto_reply_sessions (tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE, customer_phone TEXT NOT NULL, paused_until TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(tenant_id,customer_phone));
