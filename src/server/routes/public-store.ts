@@ -23,7 +23,7 @@ publicStoreRoutes.get('/:slug/status',async(c)=>{
 publicStoreRoutes.get('/:slug', async (c) => {
   const db = c.get('services').db;
   const tenant = await db.prepare(`SELECT id, slug, name, logo_url, banner_url, banner_title, banner_subtitle,
-    primary_color, accent_color, button_color, page_background_color, surface_color, text_color, whatsapp_public, instagram_url, address_text, business_hours, delivery_info,
+    primary_color, accent_color, button_color, page_background_color, surface_color, text_color, use_logo_colors, logo_palette_json, whatsapp_public, instagram_url, address_text, business_hours, delivery_info,
     default_delivery_fee_cents, free_delivery_min_cents, min_order_cents, is_open,opening_schedule_json,loyalty_config_json,
     accepts_cash, accepts_pix_delivery, accepts_debit_delivery, accepts_credit_delivery,
     signup_popup_enabled, signup_popup_title, signup_popup_description, signup_popup_button
