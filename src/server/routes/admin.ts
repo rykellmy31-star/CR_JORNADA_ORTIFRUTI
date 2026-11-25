@@ -398,6 +398,7 @@ adminRoutes.post('/products',async(c)=>{
   const name=String(b.name||'').trim();
   if(name.length<2)return c.json({error:'Informe o nome do produto.'},400);
   if(b.categoryId&&!await tenantOwnsCategory(db,tid,b.categoryId))return c.json({error:'Categoria inválida para este estabelecimento.'},400);
+  const ean=b.ean==null||b.ean===''?null:String(b.ean).trim();if(ean!==null&&(!/^\\d{8}$|^\\d{12,14}$/.test(ean)))return c.json({error:'O EAN deve conter 8, 12, 13 ou 14 dígitos.'},400);
   const selected=String(b.saleMode||'unit');
   if(!['weight','unit','dual','custom'].includes(selected))return c.json({error:'Modo de venda inválido.'},400);
   const tenantModes=await db.prepare('SELECT sale_modes_json FROM tenants WHERE id=?').bind(tid).first<{sale_modes_json:string|null}>();
@@ -414,8 +415,8 @@ adminRoutes.post('/products',async(c)=>{
   const id=generateId(),time=new Date().toISOString();
   const automaticImage=!b.imageUrl?await autoProductImage(db,c.get('services').media,name):null;
   const imageUrl=b.imageUrl||automaticImage?.imageUrl||null;
-  await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,promo_price_cents,unit_price_cents,unit_weight_grams,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at,custom_config_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)`)
-    .bind(id,tid,b.categoryId||null,b.sku||null,name,b.description||'',imageUrl,isWeight?'weight':'unit',isWeight?'kg':(b.unitLabel||'un'),1000,min,step,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),unitPrice,unitWeight,b.featured?1:0,b.active===false?0:1,stock,Number(b.lowStockThreshold)||0,time,time,customConfig).run();
+  await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,ean,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,promo_price_cents,unit_price_cents,unit_weight_grams,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at,custom_config_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)`)
+    .bind(id,tid,b.categoryId||null,b.sku||null,selected==='unit'||selected==='dual'?ean:null,name,b.description||'',imageUrl,isWeight?'weight':'unit',isWeight?'kg':(b.unitLabel||'un'),1000,min,step,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),unitPrice,unitWeight,b.featured?1:0,b.active===false?0:1,stock,Number(b.lowStockThreshold)||0,time,time,customConfig).run();
   return c.json({id,imageUrl,photoSource:automaticImage?.source||'manual'},201);
 });
 adminRoutes.patch('/products/:id',async(c)=>{
@@ -446,7 +447,7 @@ adminRoutes.patch('/products/:id',async(c)=>{
     const automatic=await autoProductImage(db,c.get('services').media,String(b.name));
     if(automatic.imageUrl)b.imageUrl=automatic.imageUrl;
   }
-  const allowed=['name','description','image_url','category_id','sku','unit_label','pricing_unit_grams','min_qty','step_qty','price_cents','promo_price_cents','unit_price_cents','unit_weight_grams','is_featured','is_active','low_stock_threshold'];
+  const allowed=['name','description','image_url','category_id','sku','ean','unit_label','pricing_unit_grams','min_qty','step_qty','price_cents','promo_price_cents','unit_price_cents','unit_weight_grams','is_featured','is_active','low_stock_threshold'];
   const map:any={imageUrl:'image_url',categoryId:'category_id',unitLabel:'unit_label',pricingUnitGrams:'pricing_unit_grams',minQty:'min_qty',stepQty:'step_qty',priceCents:'price_cents',promoPriceCents:'promo_price_cents',unitPriceCents:'unit_price_cents',unitWeightGrams:'unit_weight_grams',featured:'is_featured',active:'is_active',lowStockThreshold:'low_stock_threshold'};
   const sets:string[]=[],vals:any[]=[];
   for(const[k,v]of Object.entries(b)){const col=map[k]||k;if(allowed.includes(col)){if(['price_cents','unit_price_cents','unit_weight_grams','min_qty','step_qty'].includes(col)&&v!==null&&(!Number.isInteger(Number(v))||Number(v)<(col==='price_cents'?0:1)))return c.json({error:'Preço e quantidades devem ser válidos.'},400);sets.push(`${col}=?`);vals.push(typeof v==='boolean'?Number(v):v);}}
