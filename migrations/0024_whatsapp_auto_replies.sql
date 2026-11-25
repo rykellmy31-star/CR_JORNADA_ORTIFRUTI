@@ -24,3 +24,11 @@ CREATE TABLE IF NOT EXISTS whatsapp_auto_reply_events (
  UNIQUE(tenant_id,provider_message_id)
 );
 CREATE INDEX IF NOT EXISTS idx_whatsapp_auto_reply_events_tenant ON whatsapp_auto_reply_events(tenant_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS whatsapp_auto_reply_sessions (
+ tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ customer_phone TEXT NOT NULL,
+ paused_until TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ PRIMARY KEY(tenant_id,customer_phone)
+);
