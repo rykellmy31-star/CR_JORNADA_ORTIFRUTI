@@ -1,3 +1,7 @@
+adminRoutes.get('/sales-modes',async(c)=>{
+ const row=await c.get('services').db.prepare('SELECT sale_modes_json FROM tenants WHERE id=?').bind(c.get('tenantId')).first<{sale_modes_json:string|null}>();
+ return c.json({saleModes:JSON.parse(row?.sale_modes_json||'["weight","unit","dual","variants","custom"]')});
+});
 import {dispatchLoyaltyNotifications} from '../services/loyalty-notifications';
 import {loyaltyConfigSchema,readLoyalty} from '../../shared/loyalty';
 import {getStoreStatus,readSchedule} from '../../shared/store-hours';
