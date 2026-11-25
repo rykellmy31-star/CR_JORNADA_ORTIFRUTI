@@ -39,17 +39,17 @@ superAdminRoutes.get('/dashboard',async(c)=>{
 superAdminRoutes.get('/tenants',async(c)=>{
  const q=c.req.query('q')||'';
  const {results}=await c.get('services').db.prepare(`
-  SELECT t.id,t.crm_external_id,t.slug,t.name,t.status,t.plan,t.created_at,
+  SELECT t.id,t.crm_external_id,t.slug,t.name,t.status,t.plan,t.created_at,t.sale_modes_json,
    COUNT(DISTINCT u.id) users,COUNT(DISTINCT o.id) orders,
    d.status AS domain_status,d.hostname
   FROM tenants t
   LEFT JOIN users u ON u.tenant_id=t.id
   LEFT JOIN orders o ON o.tenant_id=t.id AND o.deleted_at IS NULL
   LEFT JOIN tenant_store_domains d ON d.tenant_id=t.id
-  WHERE (?='' OR t.name LIKE '%'||?||'%' OR t.slug LIKE '%'||?||'%')
+  WHERE t.is_archived=0 AND (?='' OR t.name LIKE '%'||?||'%' OR t.slug LIKE '%'||?||'%')
   GROUP BY t.id ORDER BY t.created_at DESC`
  ).bind(q,q,q).all<any>();
- return c.json({tenants:results.map(row=>({...row,...domainInfo(row)}))});
+ return c.json({tenants:results.map(row=>({...row,saleModes:JSON.parse(row.sale_modes_json||'["weight","unit","dual","variants","custom"]'),...domainInfo(row)}))});
 });
 
 /** Cadastro exclusivo no sistema CR Jornada Express (Worker legado). Nunca edita a zona de outro serviço.
@@ -62,6 +62,9 @@ superAdminRoutes.post('/tenants',async(c)=>{
  if(!body||typeof body!=='object'||Array.isArray(body))
   return c.json({error:'Preencha os dados do estabelecimento.'},400);
  const name=typeof body.name==='string'?body.name.trim():'';
+ const allowedModes=['weight','unit','dual','variants','custom'];
+ const saleModes=Array.isArray(body.saleModes)?[...new Set(body.saleModes.filter(v=>typeof v==='string'&&allowedModes.includes(v)))]:allowedModes;
+ if(!saleModes.length)return c.json({error:'Selecione ao menos uma modalidade de venda válida.'},400);
  const slug=typeof body.slug==='string'?body.slug.trim().toLowerCase():'';
  const ownerName=typeof body.ownerName==='string'?body.ownerName.trim():'';
  const ownerEmail=typeof body.ownerEmail==='string'?body.ownerEmail.trim().toLowerCase():'';
@@ -100,14 +103,14 @@ superAdminRoutes.post('/tenants',async(c)=>{
     id,crm_external_id,slug,name,status,plan,
     banner_title,banner_subtitle,
     signup_popup_title,signup_popup_description,signup_popup_button,
-    created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(
+    created_at,updated_at,sale_modes_json)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(
       tenantId,null,slug,name,initialStatus,'profissional',
       'Bem-vindo à nossa loja!','Confira nossos produtos e ofertas.',
       'Novidades e ofertas em primeira mão!',
       'Cadastre-se para conhecer as novidades e ofertas da nossa loja!',
       'Quero ficar por dentro!',
-      time,time),
+      time,time,JSON.stringify(saleModes)),
    db.prepare(`INSERT INTO users(id,tenant_id,name,email,phone,password_hash,role,is_active,created_at,updated_at)
     VALUES(?,?,?,?,?,?,'owner',1,?,?)`).bind(ownerId,tenantId,ownerName,ownerEmail,null,passwordHash,time,time),
    db.prepare(`INSERT INTO tenant_store_domains
