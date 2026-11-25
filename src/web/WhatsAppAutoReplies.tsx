@@ -11,7 +11,7 @@ const presets:Rule[]=[
 ];
 export default function WhatsAppAutoReplies({token}:{token:string}){
 const[config,setConfig]=useState<Config>(base),[rules,setRules]=useState<Rule[]>([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[editing,setEditing]=useState<Rule|null>(null);
-async function request(path:string,options:RequestInit={}){const headers=new Headers(options.headers||{});headers.set('Content-Type','application/json');headers.set('Authorization','Bearer '+token);const r=await fetch('/api'+path,{...options,headers});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Não foi possível concluir.');return d;}
+async function request(path:string,options:RequestInit={}):Promise<any>{const headers=new Headers(options.headers||{});headers.set('Content-Type','application/json');headers.set('Authorization','Bearer '+token);const r=await fetch('/api'+path,{...options,headers});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Não foi possível concluir.');return d;}
 async function load(){setLoading(true);try{const d=await request('/admin/whatsapp/auto-replies');setConfig({...base,...d.settings});setRules((d.rules||[]).map((r:any)=>({...r,keywords:Array.isArray(r.keywords)?r.keywords:[],enabled:!!r.enabled})));}catch(e:any){setError(e.message);}finally{setLoading(false);}}
 useEffect(()=>{load();},[]);
 async function save(){setSaving(true);setError('');setNotice('');try{await request('/admin/whatsapp/auto-replies',{method:'PUT',body:JSON.stringify({settings:config,rules})});setNotice('Atendimento automático salvo com sucesso.');await load();}catch(e:any){setError(e.message);}finally{setSaving(false);}}
