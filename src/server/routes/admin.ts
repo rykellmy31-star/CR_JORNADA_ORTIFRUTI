@@ -430,6 +430,7 @@ adminRoutes.patch('/products/:id',async(c)=>{
     try{const config=readCustomConfig(b.customConfig);if(!config)throw Error('Cadastre grupos.');configUpdate=JSON.stringify(config);}catch{return c.json({error:'Confira os grupos, preços e limites de complementos.'},400);}
     delete b.customConfig;b.minQty=1;b.stepQty=1;
   }
+  if(b.ean!==undefined){const ean=b.ean==null||String(b.ean).trim()===''?null:String(b.ean).trim();if(ean!==null&&!(/^(?:\\d{8}|\\d{12,14})$/.test(ean)))return c.json({error:'O EAN deve conter 8, 12, 13 ou 14 dígitos.'},400);b.ean=ean;}
   const requestedMode=b.saleMode;
   if(requestedMode!==undefined){
     if(!['weight','dual'].includes(requestedMode)||current.sale_mode!=='weight'||current.stock_pool_id)return c.json({error:'Só é possível alternar peso e peso/unidade em produtos cadastrados por peso, sem estoque compartilhado.'},400);
