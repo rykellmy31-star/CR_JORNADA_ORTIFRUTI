@@ -26,7 +26,7 @@ publicStoreRoutes.get('/:slug', async (c) => {
     primary_color, accent_color, button_color, page_background_color, surface_color, text_color, use_logo_colors, logo_palette_json, whatsapp_public, instagram_url, address_text, business_hours, delivery_info,
     default_delivery_fee_cents, free_delivery_min_cents, min_order_cents, is_open,opening_schedule_json,loyalty_config_json,
     accepts_cash, accepts_pix_delivery, accepts_debit_delivery, accepts_credit_delivery,
-    signup_popup_enabled, signup_popup_title, signup_popup_description, signup_popup_button
+    signup_popup_enabled, signup_popup_emojis, signup_popup_eyebrow, signup_popup_title, signup_popup_description, signup_popup_button, signup_popup_name_label, signup_popup_email_label, signup_popup_phone_label, signup_popup_privacy_consent, signup_popup_marketing_consent, signup_popup_privacy_note
     FROM tenants WHERE slug = ? AND status = 'active'`).bind(c.req.param('slug')).first<Record<string, any>>();
   if (!tenant) return c.json({ error: 'Loja não encontrada ou temporariamente indisponível.' }, 404);
   const { results: categories } = await db.prepare(`SELECT id, name, slug, icon, sort_order FROM categories WHERE tenant_id = ? AND is_active = 1 ORDER BY sort_order, name`).bind(tenant.id).all();
