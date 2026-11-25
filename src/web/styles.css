@@ -808,3 +808,22 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .wa-rule-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}
 .wa-rule-editor{display:grid;gap:10px}
 @media(max-width:700px){.wa-auto-grid{grid-template-columns:1fr}.wa-rule-main{flex-direction:column}.wa-rule-actions{justify-content:flex-end}.wa-auto-options{align-items:stretch}.wa-auto-options .wa-auto-field{flex:1}}
+
+/* Painel de atendimento automático do WhatsApp */
+.wa-auto{display:grid;gap:18px}
+.wa-auto .panel-heading h3{display:flex;align-items:center;gap:8px}
+.wa-auto-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+.wa-auto-field{display:grid;gap:7px;font-weight:600;font-size:13px;margin:10px 0}
+.wa-auto-field input,.wa-auto-field textarea{width:100%;min-width:0}
+.wa-auto-options{display:flex;flex-wrap:wrap;align-items:end;gap:14px;margin-top:10px}
+.wa-auto-options .wa-auto-field{min-width:110px;max-width:150px}
+.wa-auto-options .switch-line{display:flex;align-items:center;gap:8px;font-size:13px;max-width:340px}
+.wa-auto-actions{display:flex;flex-wrap:wrap;gap:8px}
+.wa-rule-list{display:grid;gap:10px}
+.wa-rule{border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:14px}
+.wa-rule-main{display:flex;justify-content:space-between;gap:12px}
+.wa-rule-main small{display:block;opacity:.7;margin-top:4px}
+.wa-rule-main p{font-size:13px;opacity:.8;margin:8px 0}
+.wa-rule-main blockquote{margin:0;padding:10px;background:var(--surface-soft,#f7f8f7);border-radius:8px;font-size:13px;white-space:pre-wrap}
+.wa-rule-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}
+@media(max-width:700px){.wa-auto-grid{grid-template-columns:1fr}.wa-rule-main{flex-direction:column}.wa-rule-actions{justify-content:flex-end}.wa-auto-options{align-items:stretch}.wa-auto-options .wa-auto-field{flex:1}}
