@@ -955,7 +955,7 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
  const inserted=await db.prepare("INSERT OR IGNORE INTO whatsapp_auto_reply_events(id,tenant_id,provider_message_id,status,created_at,updated_at) VALUES(?,?,?,'pending',?,?)").bind(eventId,tenantId,providerId,now,now).run();
  if(!inserted.meta.changes){
   const old=await db.prepare('SELECT status FROM whatsapp_auto_reply_events WHERE tenant_id=? AND provider_message_id=?').bind(tenantId,providerId).first<any>();
-  if(old?.status==='sent')return{handled:false,reason:'duplicate'};
+  if(old?.status!=='failed')return{handled:false,reason:'duplicate'};
  }
  const {results}=await db.prepare("SELECT id,title,intent,keywords_json,reply_text,priority FROM whatsapp_auto_replies WHERE tenant_id=? AND is_enabled=1 ORDER BY priority DESC,created_at ASC").bind(tenantId).all<any>();
  let chosen:any=null,bestScore=.69;
