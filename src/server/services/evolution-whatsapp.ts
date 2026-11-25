@@ -199,7 +199,7 @@ const evolutionWebhook = (cfg: EvolutionEnvConfig) => {
     byEvents:false,
     base64:true,
     headers:{'x-evolution-token':cfg.evolutionWebhookToken},
-    events:['QRCODE_UPDATED','CONNECTION_UPDATE']
+    events:['QRCODE_UPDATED','CONNECTION_UPDATE','MESSAGES_UPSERT']
   };
 };
 async function configureEvolutionWebhook(baseUrl:string,instance:string,headers:Record<string,string>,cfg:EvolutionEnvConfig){
@@ -262,7 +262,7 @@ export async function connectOrRefreshWhatsAppQr(
     // Em caso de instância criada anteriormente, atualiza o webhook apenas dela.
     try{
       if(!evolutionWebhook(envCfg))webhookWarning='Configure a chave de webhook para sincronizar o status automaticamente.';
-      else await configureEvolutionWebhook(baseUrl,instanceName,headers,envCfg);
+      else {await configureEvolutionWebhook(baseUrl,instanceName,headers,envCfg);await db.prepare('UPDATE whatsapp_instances SET webhook_events_version=2 WHERE tenant_id=?').bind(tenantId).run();}
     }catch(e:any){webhookWarning=sanitizeEvolutionError(String(e?.message||'Falha de webhook'),envCfg);}
     const state=String(data?.instance?.state||data?.state||'').toLowerCase();
     const connected=state==='open';
@@ -305,6 +305,9 @@ export async function checkWhatsAppConnectionStatus(
     const headers: Record<string, string> = {
       apikey: envCfg.evolutionApiKey!,
     };
+    if(inst.status==='connected'&&Number(inst.webhook_events_version||0)<2&&envCfg.publicWebhookUrl&&envCfg.evolutionWebhookToken){
+      try{await configureEvolutionWebhook(baseUrl,inst.instance_name,{'Content-Type':'application/json',...headers},envCfg);await db.prepare('UPDATE whatsapp_instances SET webhook_events_version=2 WHERE tenant_id=?').bind(tenantId).run();}catch{/* a próxima consulta tentará novamente */}
+    }
     try {
       const stateResp = await fetch(
         `${baseUrl}/instance/connectionState/${encodeURIComponent(inst.instance_name)}`,
@@ -907,4 +910,92 @@ export async function processPendingWhatsAppQueue(
     if (res.status === 'sent') sent++;
   }
   return { processed: results.length, sent };
+}
+
+function normalizeIncomingWhatsAppText(value:string):string {
+ return value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+}
+function incomingMessageText(data:any):string {
+ const m=data?.message||{};
+ return String(m.conversation||m.extendedTextMessage?.text||m.imageMessage?.caption||m.videoMessage?.caption||m.documentMessage?.caption||m.buttonsResponseMessage?.selectedDisplayText||m.listResponseMessage?.title||'').trim();
+}
+function incomingRuleScore(message:string,keywords:string[]):number {
+ const normalized=normalizeIncomingWhatsAppText(message);if(!normalized)return 0;
+ let best=0;
+ for(const keyword of keywords){
+  const phrase=normalizeIncomingWhatsAppText(keyword);if(!phrase)continue;
+  if(normalized===phrase)return 1;
+  if(normalized.includes(phrase)){best=Math.max(best,.96);continue;}
+  const words=phrase.split(' ').filter(w=>w.length>2);
+  if(words.length>=2){const actual=new Set(normalized.split(' '));const hits=words.filter(w=>actual.has(w)).length;best=Math.max(best,(hits/words.length)*.82);}
+ }
+ return best;
+}
+export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:string,data:any,envCfg:EvolutionEnvConfig):Promise<{handled:boolean;reason?:string}> {
+ const key=data?.key||{},jid=String(key.remoteJid||data?.remoteJid||'');
+ if(key.fromMe===true||!jid||jid.endsWith('@g.us')||jid==='status@broadcast')return{handled:false,reason:'ignored_sender'};
+ const text=incomingMessageText(data),providerId=String(key.id||data?.messageId||'');
+ if(!text||!providerId)return{handled:false,reason:'no_text_or_id'};
+ const inst=await db.prepare('SELECT instance_name,status FROM whatsapp_instances WHERE tenant_id=?').bind(tenantId).first<any>();
+ if(!inst||inst.status!=='connected'||!isLiveEvolutionConfigured(envCfg))return{handled:false,reason:'not_connected'};
+ const settings=await db.prepare('SELECT * FROM whatsapp_auto_reply_settings WHERE tenant_id=?').bind(tenantId).first<any>();
+ if(!settings||settings.enabled!==1)return{handled:false,reason:'disabled'};
+ if(settings.business_hours_only===1){
+  const clock=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());
+  if(clock<settings.start_time||clock>settings.end_time)return{handled:false,reason:'outside_business_hours'};
+ }
+ const now=new Date().toISOString(),customerPhone=jid.split('@')[0],normalizedText=normalizeIncomingWhatsAppText(text);
+ if(settings.pause_on_human===1){
+  const resumePhrases=['voltar bot','reativar robo','reativar atendimento automatico','retomar bot'];
+  if(resumePhrases.some(phrase=>normalizedText.includes(phrase))){
+   await db.prepare('DELETE FROM whatsapp_auto_reply_sessions WHERE tenant_id=? AND customer_phone=?').bind(tenantId,customerPhone).run();
+   return{handled:false,reason:'automation_resumed'};
+  }
+  const session=await db.prepare('SELECT paused_until FROM whatsapp_auto_reply_sessions WHERE tenant_id=? AND customer_phone=?').bind(tenantId,customerPhone).first<any>();
+  if(session?.paused_until>now)return{handled:false,reason:'human_handoff_active'};
+ }
+ const eventId=generateId();
+ const inserted=await db.prepare("INSERT OR IGNORE INTO whatsapp_auto_reply_events(id,tenant_id,provider_message_id,status,created_at,updated_at) VALUES(?,?,?,'pending',?,?)").bind(eventId,tenantId,providerId,now,now).run();
+ if(!inserted.meta.changes){
+  const old=await db.prepare('SELECT status FROM whatsapp_auto_reply_events WHERE tenant_id=? AND provider_message_id=?').bind(tenantId,providerId).first<any>();
+  if(old?.status!=='failed')return{handled:false,reason:'duplicate'};
+ }
+ const {results}=await db.prepare("SELECT id,title,intent,keywords_json,reply_text,priority FROM whatsapp_auto_replies WHERE tenant_id=? AND is_enabled=1 ORDER BY priority DESC,created_at ASC").bind(tenantId).all<any>();
+ let chosen:any=null,bestScore=.69;
+ const intentPhrases:Record<string,string[]>={greeting:['oi','ola','bom dia','boa tarde','boa noite','tudo bem','como vai'],order:['quero pedir','fazer compra','quero encomendar','quero comprar','como comprar','como faco pedido','gostaria de pedir','quero fazer uma encomenda','me manda o link da loja'],order_status:['cadê meu pedido','onde esta meu pedido','meu pedido ja saiu','acompanhar compra','consultar pedido','ver meu pedido','status da entrega','previsao do pedido'],human:['atendente','falar com pessoa','falar com alguem','quero falar com funcionario','atendimento humano','pessoa de verdade']};
+ for(const rule of results){let keywords:string[]=[];try{keywords=JSON.parse(rule.keywords_json||'[]');}catch{}const expanded=[...keywords,...(intentPhrases[String(rule.intent||'')]||[])];const score=incomingRuleScore(text,expanded);if(score>bestScore){bestScore=score;chosen=rule;}}
+ let dynamicOrderReply='';
+ if(chosen?.intent==='order_status'){
+  const normalizedPhone=normalizePhoneBR(customerPhone);
+  const order=await db.prepare('SELECT order_number,status FROM orders WHERE tenant_id=? AND customer_phone=? ORDER BY created_at DESC LIMIT 1').bind(tenantId,normalizedPhone).first<any>();
+  if(order){
+   const labels:any={received:'recebido e aguardando confirmação',accepted:'aceito pela loja',preparing:'em preparação',out_for_delivery:'saiu para entrega',delivered:'entregue',cancelled:'cancelado'};
+   dynamicOrderReply='Olá! 😊 Seu pedido nº '+order.order_number+' está '+(labels[order.status]||order.status)+'.';
+  }else dynamicOrderReply='Não encontrei um pedido recente vinculado a este número. Confira se está falando pelo mesmo WhatsApp usado na compra ou envie o número do pedido para nossa equipe.';
+ }
+ const template=dynamicOrderReply||chosen?.reply_text||settings.fallback_message;
+ if(!template){
+  await db.prepare("UPDATE whatsapp_auto_reply_events SET status='ignored',updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(now,tenantId,providerId).run();
+  return{handled:false,reason:'no_match'};
+ }
+ const phone=customerPhone,name=String(data?.pushName||'').trim();
+ const reply=String(template).split('{nome_cliente}').join(name).split('{link_loja}').join(String(settings.store_url||''));
+ try{
+  const base=envCfg.evolutionApiUrl!.replace(/\/+$/,'');
+  const response=await fetch(base+'/message/sendText/'+encodeURIComponent(inst.instance_name),{
+   method:'POST',headers:{'Content-Type':'application/json',apikey:envCfg.evolutionApiKey!},
+   body:JSON.stringify({number:phone,text:reply,delay:500})
+  });
+  if(!response.ok)throw new Error('Evolution sendText HTTP '+response.status);
+  const sentAt=new Date().toISOString();
+  await db.prepare("UPDATE whatsapp_auto_reply_events SET status='sent',matched_rule_id=?,error_message=NULL,updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(chosen?.id||null,sentAt,tenantId,providerId).run();
+  if(settings.pause_on_human===1&&chosen?.intent==='human'){
+   const until=new Date(Date.now()+86400000).toISOString();
+   await db.prepare('INSERT INTO whatsapp_auto_reply_sessions(tenant_id,customer_phone,paused_until,updated_at) VALUES(?,?,?,?) ON CONFLICT(tenant_id,customer_phone) DO UPDATE SET paused_until=excluded.paused_until,updated_at=excluded.updated_at').bind(tenantId,phone,until,sentAt).run();
+  }
+  return{handled:true,reason:chosen?'matched_rule':'fallback'};
+ }catch(error:any){
+  await db.prepare("UPDATE whatsapp_auto_reply_events SET status='failed',matched_rule_id=?,error_message=?,updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(chosen?.id||null,String(error?.message||'send_failed').slice(0,180),new Date().toISOString(),tenantId,providerId).run();
+  return{handled:false,reason:'send_failed'};
+ }
 }
