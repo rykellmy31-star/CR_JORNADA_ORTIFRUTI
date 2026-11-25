@@ -929,7 +929,7 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
  }
  const eventId=generateId();const inserted=await db.prepare("INSERT OR IGNORE INTO whatsapp_auto_reply_events(id,tenant_id,provider_message_id,status,created_at,updated_at) VALUES(?,?,?,'pending',?,?)").bind(eventId,tenantId,providerId,now,now).run();
  if(!inserted.meta.changes){const old=await db.prepare('SELECT status FROM whatsapp_auto_reply_events WHERE tenant_id=? AND provider_message_id=?').bind(tenantId,providerId).first<any>();if(old?.status==='sent')return{handled:false,reason:'duplicate'};}
- const {results}=await db.prepare("SELECT id,title,keywords_json,reply_text,priority FROM whatsapp_auto_replies WHERE tenant_id=? AND is_enabled=1 ORDER BY priority DESC,created_at ASC").bind(tenantId).all<any>();
+ const {results}=await db.prepare("SELECT id,title,intent,keywords_json,reply_text,priority FROM whatsapp_auto_replies WHERE tenant_id=? AND is_enabled=1 ORDER BY priority DESC,created_at ASC").bind(tenantId).all<any>();
  let chosen:any=null,score=.69;for(const rule of results){let words:string[]=[];try{words=JSON.parse(rule.keywords_json||'[]');}catch{}const current=incomingRuleScore(text,words);if(current>score){score=current;chosen=rule;}}
  const template=chosen?.reply_text||settings.fallback_message;if(!template){await db.prepare("UPDATE whatsapp_auto_reply_events SET status='ignored',updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(now,tenantId,providerId).run();return{handled:false,reason:'no_match'};}
  const phone=customerPhone,name=String(data?.pushName||'').trim(),reply=String(template).replace(/\\{nome_cliente\\}/g,name).replace(/\\{link_loja\\}/g,String(settings.store_url||''));
