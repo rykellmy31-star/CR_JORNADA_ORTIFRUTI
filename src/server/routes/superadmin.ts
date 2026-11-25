@@ -40,6 +40,8 @@ superAdminRoutes.get('/tenants',async(c)=>{
  const q=c.req.query('q')||'';
  const {results}=await c.get('services').db.prepare(`
   SELECT t.id,t.crm_external_id,t.slug,t.name,t.status,t.plan,t.created_at,t.sale_modes_json,
+   (SELECT name FROM users WHERE tenant_id=t.id AND role='owner' ORDER BY created_at LIMIT 1) owner_name,
+   (SELECT email FROM users WHERE tenant_id=t.id AND role='owner' ORDER BY created_at LIMIT 1) owner_email,
    COUNT(DISTINCT u.id) users,COUNT(DISTINCT o.id) orders,
    d.status AS domain_status,d.hostname
   FROM tenants t
