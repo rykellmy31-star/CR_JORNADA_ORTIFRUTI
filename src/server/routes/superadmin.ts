@@ -159,6 +159,39 @@ superAdminRoutes.post('/tenants',async(c)=>{
  },201);
 });
 
+
+/** Atualiza dados do estabelecimento e modalidades comerciais habilitadas. */
+superAdminRoutes.patch('/tenants/:id',async(c)=>{
+ const db=c.get('services').db,id=c.req.param('id'),b=await c.req.json().catch(()=>null);
+ if(!b)return c.json({error:'Informe os dados para atualizar.'},400);
+ const name=String(b.name||'').trim(),ownerName=String(b.ownerName||'').trim(),ownerEmail=String(b.ownerEmail||'').trim().toLowerCase();
+ const allowed=['weight','unit','dual','variants','custom'];
+ const modes=Array.isArray(b.saleModes)?[...new Set(b.saleModes.filter((v:string)=>allowed.includes(v)))]:[];
+ if(name.length<2||name.length>160||ownerName.length<2||ownerName.length>160||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)||!modes.length)
+  return c.json({error:'Confira os dados do estabelecimento e selecione ao menos uma modalidade.'},400);
+ const tenant=await db.prepare('SELECT id FROM tenants WHERE id=? AND is_archived=0').bind(id).first();
+ if(!tenant)return c.json({error:'Estabelecimento não encontrado.'},404);
+ const owner=await db.prepare("SELECT id FROM users WHERE tenant_id=? AND role='owner' ORDER BY created_at LIMIT 1").bind(id).first<{id:string}>();
+ if(!owner)return c.json({error:'Proprietário não encontrado.'},409);
+ if(await db.prepare('SELECT id FROM users WHERE lower(email)=? AND id<>?').bind(ownerEmail,owner.id).first())return c.json({error:'Este e-mail já está em uso.'},409);
+ const now=new Date().toISOString();
+ await db.batch([
+  db.prepare('UPDATE tenants SET name=?,sale_modes_json=?,updated_at=? WHERE id=?').bind(name,JSON.stringify(modes),now,id),
+  db.prepare('UPDATE users SET name=?,email=?,updated_at=? WHERE id=? AND tenant_id=?').bind(ownerName,ownerEmail,now,owner.id,id)
+ ]);
+ await logAudit(db,{actorUserId:c.get('authUser').sub,actorRole:'superadmin',action:'superadmin.tenant_updated',entityType:'tenant',entityId:id,details:{saleModes:modes}});
+ return c.json({success:true});
+});
+
+/** Arquiva em vez de apagar fisicamente: bloqueia acesso e preserva histórico e pedidos. */
+superAdminRoutes.delete('/tenants/:id',async(c)=>{
+ const db=c.get('services').db,id=c.req.param('id'),now=new Date().toISOString();
+ const r=await db.prepare("UPDATE tenants SET is_archived=1,status='blocked',blocked_reason='Estabelecimento arquivado pelo Super Admin',updated_at=? WHERE id=? AND is_archived=0").bind(now,id).run();
+ if(!r.meta.changes)return c.json({error:'Estabelecimento não encontrado ou já arquivado.'},404);
+ await logAudit(db,{actorUserId:c.get('authUser').sub,actorRole:'superadmin',action:'superadmin.tenant_archived',entityType:'tenant',entityId:id,details:{preservedData:true}});
+ return c.json({success:true,message:'Estabelecimento arquivado; pedidos, clientes e histórico foram preservados.'});
+});
+
 /** O botão de retry nunca altera ou remove domínios de outros Workers. */
 superAdminRoutes.post('/tenants/:id/domain/retry',async(c)=>{
  const db=c.get('services').db,cf=c.get('services').cloudflareDomains||{};
