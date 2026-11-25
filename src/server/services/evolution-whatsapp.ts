@@ -931,7 +931,18 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
  if(!inserted.meta.changes){const old=await db.prepare('SELECT status FROM whatsapp_auto_reply_events WHERE tenant_id=? AND provider_message_id=?').bind(tenantId,providerId).first<any>();if(old?.status==='sent')return{handled:false,reason:'duplicate'};}
  const {results}=await db.prepare("SELECT id,title,intent,keywords_json,reply_text,priority FROM whatsapp_auto_replies WHERE tenant_id=? AND is_enabled=1 ORDER BY priority DESC,created_at ASC").bind(tenantId).all<any>();
  let chosen:any=null,score=.69;for(const rule of results){let words:string[]=[];try{words=JSON.parse(rule.keywords_json||'[]');}catch{}const current=incomingRuleScore(text,words);if(current>score){score=current;chosen=rule;}}
- const template=chosen?.reply_text||settings.fallback_message;if(!template){await db.prepare("UPDATE whatsapp_auto_reply_events SET status='ignored',updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(now,tenantId,providerId).run();return{handled:false,reason:'no_match'};}
+ let dynamicOrderReply='';
+ if(chosen?.intent==='order_status'){
+  const normalizedPhone=normalizePhoneBR(customerPhone);
+  const order=await db.prepare('SELECT order_number,status,updated_at FROM orders WHERE tenant_id=? AND customer_phone=? ORDER BY created_at DESC LIMIT 1').bind(tenantId,normalizedPhone).first<any>();
+  if(order){
+   const labels:any={received:'recebido e aguardando confirmação',accepted:'aceito pela loja',preparing:'em preparação',out_for_delivery:'saiu para entrega',delivered:'entregue',cancelled:'cancelado'};
+   dynamicOrderReply='Olá, '+(String(data?.pushName||'').trim()||'tudo bem')+'! 😊 Seu pedido nº '+order.order_number+' está '+(labels[order.status]||order.status)+'.';
+  }else{
+   dynamicOrderReply='Não encontrei um pedido recente vinculado a este número. Confira se está falando pelo mesmo WhatsApp usado na compra ou envie o número do pedido para nossa equipe.';
+  }
+ }
+ const template=dynamicOrderReply||chosen?.reply_text||settings.fallback_message;if(!template){await db.prepare("UPDATE whatsapp_auto_reply_events SET status='ignored',updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(now,tenantId,providerId).run();return{handled:false,reason:'no_match'};}
  const phone=customerPhone,name=String(data?.pushName||'').trim(),reply=String(template).replace(/\\{nome_cliente\\}/g,name).replace(/\\{link_loja\\}/g,String(settings.store_url||''));
  try{const base=envCfg.evolutionApiUrl!.replace(/\\/+$/,'');const response=await fetch(base+'/message/sendText/'+encodeURIComponent(inst.instance_name),{method:'POST',headers:{'Content-Type':'application/json',apikey:envCfg.evolutionApiKey!},body:JSON.stringify({number:phone,text:reply,delay:500})});if(!response.ok)throw new Error('Evolution sendText HTTP '+response.status);await db.prepare("UPDATE whatsapp_auto_reply_events SET status='sent',matched_rule_id=?,error_message=NULL,updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(chosen?.id||null,new Date().toISOString(),tenantId,providerId).run();if(settings.pause_on_human===1&&chosen?.intent==='human'){const until=new Date(Date.now()+24*60*60*1000).toISOString();await db.prepare('INSERT INTO whatsapp_auto_reply_sessions(tenant_id,customer_phone,paused_until,updated_at) VALUES(?,?,?,?) ON CONFLICT(tenant_id,customer_phone) DO UPDATE SET paused_until=excluded.paused_until,updated_at=excluded.updated_at').bind(tenantId,phone,until,new Date().toISOString()).run();}return{handled:true,reason:chosen?'matched_rule':'fallback'};}catch(error:any){await db.prepare("UPDATE whatsapp_auto_reply_events SET status='failed',matched_rule_id=?,error_message=?,updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(chosen?.id||null,String(error?.message||'send_failed').slice(0,180),new Date().toISOString(),tenantId,providerId).run();return{handled:false,reason:'send_failed'};}
 }
