@@ -39,17 +39,19 @@ superAdminRoutes.get('/dashboard',async(c)=>{
 superAdminRoutes.get('/tenants',async(c)=>{
  const q=c.req.query('q')||'';
  const {results}=await c.get('services').db.prepare(`
-  SELECT t.id,t.crm_external_id,t.slug,t.name,t.status,t.plan,t.created_at,
+  SELECT t.id,t.crm_external_id,t.slug,t.name,t.status,t.plan,t.created_at,t.sale_modes_json,
+   (SELECT name FROM users WHERE tenant_id=t.id AND role='owner' ORDER BY created_at LIMIT 1) owner_name,
+   (SELECT email FROM users WHERE tenant_id=t.id AND role='owner' ORDER BY created_at LIMIT 1) owner_email,
    COUNT(DISTINCT u.id) users,COUNT(DISTINCT o.id) orders,
    d.status AS domain_status,d.hostname
   FROM tenants t
   LEFT JOIN users u ON u.tenant_id=t.id
   LEFT JOIN orders o ON o.tenant_id=t.id AND o.deleted_at IS NULL
   LEFT JOIN tenant_store_domains d ON d.tenant_id=t.id
-  WHERE (?='' OR t.name LIKE '%'||?||'%' OR t.slug LIKE '%'||?||'%')
+  WHERE t.is_archived=0 AND (?='' OR t.name LIKE '%'||?||'%' OR t.slug LIKE '%'||?||'%')
   GROUP BY t.id ORDER BY t.created_at DESC`
  ).bind(q,q,q).all<any>();
- return c.json({tenants:results.map(row=>({...row,...domainInfo(row)}))});
+ return c.json({tenants:results.map(row=>({...row,saleModes:JSON.parse(row.sale_modes_json||'["weight","unit","dual","variants","custom"]'),...domainInfo(row)}))});
 });
 
 /** Cadastro exclusivo no sistema CR Jornada Express (Worker legado). Nunca edita a zona de outro serviço.
@@ -62,6 +64,9 @@ superAdminRoutes.post('/tenants',async(c)=>{
  if(!body||typeof body!=='object'||Array.isArray(body))
   return c.json({error:'Preencha os dados do estabelecimento.'},400);
  const name=typeof body.name==='string'?body.name.trim():'';
+ const allowedModes=['weight','unit','dual','variants','custom'];
+ const saleModes=Array.isArray(body.saleModes)?[...new Set(body.saleModes.filter(v=>typeof v==='string'&&allowedModes.includes(v)))]:allowedModes;
+ if(!saleModes.length)return c.json({error:'Selecione ao menos uma modalidade de venda válida.'},400);
  const slug=typeof body.slug==='string'?body.slug.trim().toLowerCase():'';
  const ownerName=typeof body.ownerName==='string'?body.ownerName.trim():'';
  const ownerEmail=typeof body.ownerEmail==='string'?body.ownerEmail.trim().toLowerCase():'';
@@ -100,14 +105,14 @@ superAdminRoutes.post('/tenants',async(c)=>{
     id,crm_external_id,slug,name,status,plan,
     banner_title,banner_subtitle,
     signup_popup_title,signup_popup_description,signup_popup_button,
-    created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(
+    created_at,updated_at,sale_modes_json)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(
       tenantId,null,slug,name,initialStatus,'profissional',
       'Bem-vindo à nossa loja!','Confira nossos produtos e ofertas.',
       'Novidades e ofertas em primeira mão!',
       'Cadastre-se para conhecer as novidades e ofertas da nossa loja!',
       'Quero ficar por dentro!',
-      time,time),
+      time,time,JSON.stringify(saleModes)),
    db.prepare(`INSERT INTO users(id,tenant_id,name,email,phone,password_hash,role,is_active,created_at,updated_at)
     VALUES(?,?,?,?,?,?,'owner',1,?,?)`).bind(ownerId,tenantId,ownerName,ownerEmail,null,passwordHash,time,time),
    db.prepare(`INSERT INTO tenant_store_domains
@@ -154,6 +159,39 @@ superAdminRoutes.post('/tenants',async(c)=>{
     ?'Loja criada. A automação Cloudflare ainda está desativada; o link público pode não funcionar.'
     :'Loja criada em implantação. O domínio ainda não foi confirmado; use Tentar novamente no Super Admin.'
  },201);
+});
+
+
+/** Atualiza dados do estabelecimento e modalidades comerciais habilitadas. */
+superAdminRoutes.patch('/tenants/:id',async(c)=>{
+ const db=c.get('services').db,id=c.req.param('id'),b=await c.req.json().catch(()=>null);
+ if(!b)return c.json({error:'Informe os dados para atualizar.'},400);
+ const name=String(b.name||'').trim(),ownerName=String(b.ownerName||'').trim(),ownerEmail=String(b.ownerEmail||'').trim().toLowerCase();
+ const allowed=['weight','unit','dual','variants','custom'];
+ const modes=Array.isArray(b.saleModes)?[...new Set(b.saleModes.filter((v:string)=>allowed.includes(v)))]:[];
+ if(name.length<2||name.length>160||ownerName.length<2||ownerName.length>160||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)||!modes.length)
+  return c.json({error:'Confira os dados do estabelecimento e selecione ao menos uma modalidade.'},400);
+ const tenant=await db.prepare('SELECT id FROM tenants WHERE id=? AND is_archived=0').bind(id).first();
+ if(!tenant)return c.json({error:'Estabelecimento não encontrado.'},404);
+ const owner=await db.prepare("SELECT id FROM users WHERE tenant_id=? AND role='owner' ORDER BY created_at LIMIT 1").bind(id).first<{id:string}>();
+ if(!owner)return c.json({error:'Proprietário não encontrado.'},409);
+ if(await db.prepare('SELECT id FROM users WHERE lower(email)=? AND id<>?').bind(ownerEmail,owner.id).first())return c.json({error:'Este e-mail já está em uso.'},409);
+ const now=new Date().toISOString();
+ await db.batch([
+  db.prepare('UPDATE tenants SET name=?,sale_modes_json=?,updated_at=? WHERE id=?').bind(name,JSON.stringify(modes),now,id),
+  db.prepare('UPDATE users SET name=?,email=?,updated_at=? WHERE id=? AND tenant_id=?').bind(ownerName,ownerEmail,now,owner.id,id)
+ ]);
+ await logAudit(db,{actorUserId:c.get('authUser').sub,actorRole:'superadmin',action:'superadmin.tenant_updated',entityType:'tenant',entityId:id,details:{saleModes:modes}});
+ return c.json({success:true});
+});
+
+/** Arquiva em vez de apagar fisicamente: bloqueia acesso e preserva histórico e pedidos. */
+superAdminRoutes.delete('/tenants/:id',async(c)=>{
+ const db=c.get('services').db,id=c.req.param('id'),now=new Date().toISOString();
+ const r=await db.prepare("UPDATE tenants SET is_archived=1,status='blocked',blocked_reason='Estabelecimento arquivado pelo Super Admin',updated_at=? WHERE id=? AND is_archived=0").bind(now,id).run();
+ if(!r.meta.changes)return c.json({error:'Estabelecimento não encontrado ou já arquivado.'},404);
+ await logAudit(db,{actorUserId:c.get('authUser').sub,actorRole:'superadmin',action:'superadmin.tenant_archived',entityType:'tenant',entityId:id,details:{preservedData:true}});
+ return c.json({success:true,message:'Estabelecimento arquivado; pedidos, clientes e histórico foram preservados.'});
 });
 
 /** O botão de retry nunca altera ou remove domínios de outros Workers. */
