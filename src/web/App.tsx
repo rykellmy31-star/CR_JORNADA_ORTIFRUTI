@@ -981,12 +981,13 @@ function SuperAdmin(){
  const [error,setError]=useState('');
  const [modal,setModal]=useState(false);
  const [creating,setCreating]=useState(false);
+ const [editingId,setEditingId]=useState<string|null>(null);
  const [domainRetryId,setDomainRetryId]=useState<string|null>(null);
  const [notice,setNotice]=useState('');
  const [access,setAccess]=useState<NewExpressAccess|null>(null);
  const [showAccessPassword,setShowAccessPassword]=useState(false);
  const [copied,setCopied]=useState('');
- const [form,setForm]=useState<any>({name:'',slug:'',ownerName:'',ownerEmail:'',temporaryPassword:''});
+ const [form,setForm]=useState<any>({name:'',slug:'',ownerName:'',ownerEmail:'',temporaryPassword:'',saleModes:['weight','unit','dual','variants','custom']});
  async function login(e:React.FormEvent){
   e.preventDefault();
   setError('');
@@ -1016,11 +1017,28 @@ function SuperAdmin(){
    setNotice(created.domainStatus==='registered'?'Domínio registrado na Cloudflare. Confira o certificado HTTPS antes de divulgar.': 'Cadastro criado, mas a vitrine ainda não está pronta. Verifique o estado do domínio.');
    setShowAccessPassword(false);
    setCopied('');
-   setForm({name:'',slug:'',ownerName:'',ownerEmail:'',temporaryPassword:''});
+   setForm({name:'',slug:'',ownerName:'',ownerEmail:'',temporaryPassword:'',saleModes:['weight','unit','dual','variants','custom']});
+   setEditingId(null);
    setModal(false);
    void load().catch(err=>setError(err.message));
   }catch(err:any){setError(err.message);}
   finally{setCreating(false);}
+ }
+ async function editTenant(t:any){
+  setError('');setEditingId(t.id);
+  setForm({name:t.name,slug:t.slug,ownerName:t.owner_name||'',ownerEmail:t.owner_email||'',temporaryPassword:'',saleModes:t.saleModes||['weight','unit','dual','variants','custom']});
+  setModal(true);
+ }
+ async function saveTenant(e:React.FormEvent){
+  e.preventDefault();if(creating)return;setCreating(true);setError('');
+  try{
+   if(editingId){await req('/superadmin/tenants/'+editingId,{method:'PATCH',body:JSON.stringify(form)},token);setNotice('Estabelecimento atualizado.');setModal(false);setEditingId(null);await load();}
+   else await create(e);
+  }catch(err:any){setError(err.message);}finally{setCreating(false);}
+ }
+ async function archiveTenant(t:any){
+  if(!window.confirm('Arquivar '+t.name+'? A loja será bloqueada e removida da lista. Pedidos, clientes e histórico serão preservados.'))return;
+  try{const result=await req('/superadmin/tenants/'+t.id,{method:'DELETE'},token);setNotice(result.message||'Estabelecimento arquivado.');await load();}catch(err:any){setError(err.message);}
  }
  async function retryDomain(t:any){
   if(domainRetryId)return;
@@ -1058,7 +1076,7 @@ function SuperAdmin(){
   <main className="super-content">
    <PageHead eyebrow="SUPER ADMINISTRADOR · EXPRESS" title="Estabelecimentos"
     desc="Gerencie exclusivamente os estabelecimentos do CR Jornada Express."
-    action={<button className="btn btn-primary" onClick={()=>{setError('');setModal(true);}}><Plus/> Novo estabelecimento</button>}/>
+    action={<button className="btn btn-primary" onClick={()=>{setError('');setEditingId(null);setForm({name:'',slug:'',ownerName:'',ownerEmail:'',temporaryPassword:'',saleModes:['weight','unit','dual','variants','custom']});setModal(true);}}><Plus/> Novo estabelecimento</button>}/>
    {error&&<div className="error-banner" role="alert">{error}</div>}
    {notice&&<div className="success-banner" role="status">{notice}</div>}
    <div className="super-stats">
@@ -1082,42 +1100,53 @@ function SuperAdmin(){
       </button>}</td>
      <td><StatusBadge status={t.status==='active'?'accepted':'cancelled'}/></td>
      <td>{new Date(t.created_at).toLocaleDateString('pt-BR')}</td>
-     <td><button className="btn btn-xs btn-outline" onClick={async()=>{
-      try{
-       await req(`/superadmin/tenants/${t.id}/status`,{method:'PATCH',
-        body:JSON.stringify({status:t.status==='active'?'blocked':'active',reason:'Ação pelo Super Admin Express'})},token);
-       await load();
-      }catch(err:any){setError(err.message);}
-     }}>{t.status==='active'?'Bloquear':'Ativar'}</button></td>
+     <td><div className="action-row">
+      <button className="btn btn-xs btn-outline" onClick={()=>editTenant(t)}>Editar</button>
+      <button className="btn btn-xs btn-outline" onClick={async()=>{try{await req('/superadmin/tenants/'+t.id+'/status',{method:'PATCH',body:JSON.stringify({status:t.status==='active'?'blocked':'active',reason:'Ação pelo Super Admin Express'})},token);await load();}catch(err:any){setError(err.message);}}}>{t.status==='active'?'Bloquear':'Ativar'}</button>
+      <button className="btn btn-xs btn-outline" onClick={()=>archiveTenant(t)}>Excluir</button>
+     </div></td>
     </tr>)}</tbody>
    </table></div></div>
-   {modal&&<div className="modal-backdrop"><form className="form-modal" onSubmit={create}>
-    <div className="modal-heading"><div><span className="eyebrow">NOVO ESTABELECIMENTO</span>
-      <h2>Adicionar estabelecimento</h2></div>
+   {modal&&<div className="modal-backdrop"><form className="form-modal" onSubmit={saveTenant}>
+    <div className="modal-heading"><div><span className="eyebrow">{editingId?"EDITAR ESTABELECIMENTO":"NOVO ESTABELECIMENTO"}</span>
+      <h2>{editingId?"Editar estabelecimento":"Adicionar estabelecimento"}</h2></div>
      <button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Fechar cadastro"><X/></button></div>
     <div className="form-grid">
      <label>Nome comercial<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label>
-     <label>Subdomínio da vitrine (.crjornada.com)<input required
+     {!editingId&&<label>Subdomínio da vitrine (.crjornada.com)<input required
       pattern="[a-z0-9]+(-[a-z0-9]+)*" title="Use letras minúsculas, números ou hífens, sem espaços."
       value={form.slug}
-      onChange={e=>setForm({...form,slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-')})}/></label>
+      onChange={e=>setForm({...form,slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-')})}/></label>}
      <label>Nome do proprietário<input required value={form.ownerName}
       onChange={e=>setForm({...form,ownerName:e.target.value})}/></label>
      <label>E-mail de login do proprietário<input type="email" required value={form.ownerEmail}
       onChange={e=>setForm({...form,ownerEmail:e.target.value})}/></label>
      <label>Senha inicial (opcional)<input minLength={12} autoComplete="new-password" type="password"
       value={form.temporaryPassword} onChange={e=>setForm({...form,temporaryPassword:e.target.value})}
-      placeholder="Deixar vazio para gerar automaticamente"/></label>
+      placeholder="Deixar vazio para gerar automaticamente"/></label>}
     </div>
-    <p className="integration-note">O sistema tentará registrar a vitrine na Cloudflare.
+    <div className="panel-card" style={{marginTop:12}}>
+     <b>Modalidades de venda permitidas</b>
+     <p className="integration-note">O proprietário só poderá usar as modalidades selecionadas.</p>
+     <div className="form-grid">
+      {[
+       ['weight','Venda por peso'],['unit','Venda por unidade'],
+       ['dual','Peso e unidade no mesmo produto'],['variants','Embalagens e variações'],
+       ['custom','Produtos personalizáveis (complementos)']
+      ].map(([value,label]:any)=><label key={value} className="check-row">
+       <input type="checkbox" checked={form.saleModes.includes(value)} onChange={e=>setForm({...form,saleModes:e.target.checked?[...form.saleModes,value]:form.saleModes.filter((x:string)=>x!==value)})}/>{label}
+      </label>)}
+     </div>
+    </div>
+    {!editingId&&<p className="integration-note">O sistema tentará registrar a vitrine na Cloudflare.
      Se houver erro, ela ficará pendente para nova tentativa. Os dados de acesso serão
-     mostrados apenas uma vez. A troca de senha é opcional.</p>
-    <p className="integration-note">Endereço desejado: {form.slug||'nomedaloja'}.crjornada.com.
-     O cadastro automático precisa estar habilitado na configuração do Worker.</p>
+     mostrados apenas uma vez. A troca de senha é opcional.</p>}
+    {!editingId&&<p className="integration-note">Endereço desejado: {form.slug||'nomedaloja'}.crjornada.com.
+     O cadastro automático precisa estar habilitado na configuração do Worker.</p>}
     {error&&<div className="error-banner">{error}</div>}
     <div className="modal-footer">
      <button type="button" className="btn btn-outline" onClick={()=>setModal(false)}>Cancelar</button>
-     <button type="submit" className="btn btn-primary" disabled={creating}>{creating?'Criando…':'Criar estabelecimento'}</button>
+     <button type="submit" className="btn btn-primary" disabled={creating}>{creating?(editingId?'Salvando…':'Criando…'):(editingId?'Salvar alterações':'Criar estabelecimento')}</button>
     </div>
    </form></div>}
    {access&&<div className="modal-backdrop"><div className="form-modal"
