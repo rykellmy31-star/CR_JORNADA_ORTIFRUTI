@@ -1,7 +1,3 @@
-adminRoutes.get('/sales-modes',async(c)=>{
- const row=await c.get('services').db.prepare('SELECT sale_modes_json FROM tenants WHERE id=?').bind(c.get('tenantId')).first<{sale_modes_json:string|null}>();
- return c.json({saleModes:JSON.parse(row?.sale_modes_json||'["weight","unit","dual","variants","custom"]')});
-});
 import {dispatchLoyaltyNotifications} from '../services/loyalty-notifications';
 import {loyaltyConfigSchema,readLoyalty} from '../../shared/loyalty';
 import {getStoreStatus,readSchedule} from '../../shared/store-hours';
@@ -22,6 +18,11 @@ import {pairingCode,hashPairingCode} from '../services/print-jobs';
 
 export const adminRoutes = new Hono<AppHonoEnv>();
 adminRoutes.use('*', requireTenantAdmin());
+adminRoutes.get('/sales-modes',async(c)=>{
+ const row=await c.get('services').db.prepare('SELECT sale_modes_json FROM tenants WHERE id=?').bind(c.get('tenantId')).first<{sale_modes_json:string|null}>();
+ return c.json({saleModes:JSON.parse(row?.sale_modes_json||'["weight","unit","dual","variants","custom"]')});
+});
+
 async function tenantOwnsCategory(db:any,tenantId:string,categoryId:string|null|undefined){if(!categoryId)return true;const found=await db.prepare(`SELECT id FROM categories WHERE id=? AND tenant_id=?`).bind(categoryId,tenantId).first();return !!found;}
 
 // Primeira etapa da integração com impressoras térmicas: gestão da fila.
