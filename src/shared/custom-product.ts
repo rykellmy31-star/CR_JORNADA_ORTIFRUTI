@@ -9,7 +9,7 @@ export const customConfigSchema=z.object({groups:z.array(group).min(1).max(12),a
  if(finalGroups.length>1)ctx.addIssue({code:'custom',message:'Somente um grupo pode definir o preço final do produto.'});
  const finalGroup=finalGroups[0];
  for(const g of c.groups){
-  if(g.selectionMode==='half-and-half'&&(g.kind==='included'||g.min!==2||g.max!==2))ctx.addIssue({code:'custom',message:'Pizza meio a meio deve exigir exatamente dois sabores.'});
+  if(g.selectionMode==='half-and-half'&&(g.kind==='included'||g.min!==1||g.max!==2))ctx.addIssue({code:'custom',message:'A escolha de sabores deve permitir um ou dois sabores.'});
   if(g.kind==='included'&&(g.selectionMode!==undefined||g.priceMode==='final'||g.min!==0||g.max!==g.options.length||g.options.some(o=>o.priceCents!==0)))ctx.addIssue({code:'custom',message:'Ingredientes inclusos devem ser gratuitos, sem mínimo e todos disponíveis para retirada.'});
   if(g.priceMode==='final'&&(g.min!==1||g.max!==1||g.options.some(o=>o.priceCents<=0)))ctx.addIssue({code:'custom',message:'O grupo de preço final deve ter uma escolha obrigatória e opções com preço maior que zero.'});
   if(ids.has(g.id)||g.min>g.max||g.max>g.options.length)ctx.addIssue({code:'custom',message:'Confira os limites e opções do grupo '+g.name});
@@ -19,7 +19,7 @@ export const customConfigSchema=z.object({groups:z.array(group).min(1).max(12),a
   }
  }
 });
-export const customSelectionSchema=z.object({optionIds:z.array(id).max(120),note:z.string().trim().max(300).default('')});
+export const customSelectionSchema=z.object({optionIds:z.array(id).max(120),note:z.string().trim().max(300).default(''),flavorMode:z.enum(['single','half-and-half']).optional()});
 export type CustomConfig=z.infer<typeof customConfigSchema>;
 export type CustomSelection=z.infer<typeof customSelectionSchema>;
 export function readCustomConfig(raw:unknown):CustomConfig|null{
@@ -27,7 +27,7 @@ export function readCustomConfig(raw:unknown):CustomConfig|null{
  return customConfigSchema.parse(typeof raw==='string'?JSON.parse(raw):raw);
 }
 export function customSelectionKey(selection?:CustomSelection|null):string{
- return selection?JSON.stringify([Array.from(new Set(selection.optionIds)).sort(),selection.note.trim()]):'';
+ return selection?JSON.stringify([Array.from(new Set(selection.optionIds)).sort(),selection.note.trim(),selection.flavorMode||'']):'';
 }
 export function resolveCustomSelection(config:CustomConfig,raw:unknown){
  const choice=customSelectionSchema.parse(raw);
@@ -48,7 +48,7 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
    if(removed.length)details.push('RETIRAR: '+removed.join(', '));
    continue;
   }
-  if(selected.length<g.min||selected.length>g.max)throw Error('Selecione de '+g.min+' a '+g.max+' opção(ões) em '+g.name+'.');
+  const min=g.selectionMode==='half-and-half'?(choice.flavorMode==='half-and-half'?2:choice.flavorMode==='single'?1:2):g.min;\n  const max=g.selectionMode==='half-and-half'?min:g.max;\n  if(selected.length<min||selected.length>max)throw Error('Selecione '+(min===max?min:'de '+min+' a '+max)+' opção(ões) em '+g.name+'.');
   if(selected.some(o=>!o.active))throw Error('Uma opção de '+g.name+' está indisponível.');
   for(const o of selected){ids.delete(o.id);if(g.priceMode==='final')selectedBaseCents=o.priceCents;}
   if(g.priceMode!=='final')for(const o of selected){const dependent=selectedFinalOptionId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,selectedFinalOptionId)?o.priceByOptionId[selectedFinalOptionId]:o.priceCents;extrasCents+=dependent;}
