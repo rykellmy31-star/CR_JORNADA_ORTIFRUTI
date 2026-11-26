@@ -737,6 +737,11 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .custom-product-card-body{padding:12px;display:grid;gap:8px;flex:1}
 .custom-product-card-body button{margin-top:auto}
 .custom-product-card-body strong{color:var(--store-color)}
+
+.custom-flavor-step{display:grid;gap:8px;padding:10px;border:1px solid #dce8df;border-radius:10px;background:#fbfdfb}
+.custom-flavor-step h4{margin:0;font-size:14px;font-weight:750;color:#315b40}
+.custom-flavor-step .custom-choice-option{background:#fff}
+@media(max-width:680px){.custom-flavor-step{padding:8px;gap:7px}.custom-flavor-step .custom-choice-option{padding:11px 9px}}
 .custom-choice-group{border-top:1px solid #e5ece6;padding:14px 0;display:grid;gap:8px}
 .custom-choice-group h3{margin:0}
 .custom-choice-option{display:flex;gap:10px;align-items:center;padding:10px;border:1px solid #dce8df;border-radius:9px;cursor:pointer}
