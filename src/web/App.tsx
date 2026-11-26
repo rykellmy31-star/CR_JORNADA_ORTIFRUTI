@@ -356,7 +356,7 @@ function ProductCard({p,getLine,setLine}:any){
  };
  return <article className="product-card">
   <div className="product-photo"><img src={img(p.image_url)} loading="lazy"/>
-    {discountPercent!==null?<span className="product-discount-badge" aria-label={`Desconto de ${discountPercent} por cento`}>-{discountPercent}%</span>:<div className="fresh-pill"><span/> Fresco</div>}
+    {discountPercent!==null?<span className="product-discount-badge" aria-label={`Desconto de ${discountPercent} por cento`}>-{discountPercent}%</span>:<span className="fresh-pill" role="img" aria-label="Produto fresco" title="Produto fresco"/>}
     {p.is_featured?<span className="featured-tag">⭐ Destaque</span>:null}
   </div>
   <div className="product-info">
