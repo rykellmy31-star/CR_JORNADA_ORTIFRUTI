@@ -1044,7 +1044,7 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
    body:JSON.stringify({number:phone,text:reply,delay:500})
   });
   if(!response.ok)throw new Error('Evolution sendText HTTP '+response.status);
-  const sentPayload=await response.json().catch(()=>({}));
+  const sentPayload:any=await response.json().catch(()=>({}));
   const botMessageId=String(sentPayload?.key?.id||sentPayload?.data?.key?.id||sentPayload?.message?.key?.id||'');
   const sentAt=new Date().toISOString();
   await db.prepare("UPDATE whatsapp_auto_reply_events SET status='sent',matched_rule_id=?,error_message=NULL,updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(chosen?.id||null,sentAt,tenantId,providerId).run();
