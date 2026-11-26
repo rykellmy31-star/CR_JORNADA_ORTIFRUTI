@@ -59,6 +59,25 @@ describe('produto personalizável',()=>{
   expect(total('g','cat')).toBe(5390);expect(total('f','cat')).toBe(6990);
   expect(minimumCustomPrice(pizza,0)).toBe(3590);
  });
+ it('soma todos os adicionais ao preço do tamanho selecionado em tempo real',()=>{
+  const pizza=customConfigSchema.parse({allowNotes:true,groups:[
+   {id:'size',name:'Tamanho',min:1,max:1,priceMode:'final',options:[
+    {id:'m',name:'M · 6 fatias',priceCents:3500,active:true},
+    {id:'g',name:'G · 8 fatias',priceCents:4900,active:true}]},
+   {id:'flavors',name:'Sabores',min:1,max:1,selectionMode:'half-and-half',options:[
+    {id:'muzz',name:'Mussarela',priceCents:0,active:true}]},
+   {id:'extras',name:'Adicionais',min:0,max:8,options:[
+    {id:'bacon',name:'Bacon',priceCents:500,active:true},
+    {id:'catupiry',name:'Catupiry',priceCents:500,active:true}]},
+   {id:'border',name:'Borda',min:0,max:1,options:[
+    {id:'cat-border',name:'Borda catupiry',priceCents:600,active:true}]}
+  ]});
+  const total=(size:string)=>customUnitPrice(3500,resolveCustomSelection(pizza,{
+   optionIds:[size,'bacon','catupiry','cat-border'],note:'',flavorMode:'single',firstFlavorName:'Mussarela'
+  }));
+  expect(total('m')).toBe(5100);
+  expect(total('g')).toBe(6500);
+ });
  it('já inclui ingredientes de lanche, só registra os que o cliente deseja retirar e não altera preço',()=>{
   const ingredients=customConfigSchema.parse({allowNotes:true,groups:[
    {id:'included',name:'Ingredientes inclusos',kind:'included',min:0,max:3,options:[
