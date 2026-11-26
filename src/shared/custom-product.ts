@@ -67,15 +67,23 @@ export function customUnitPrice(baseCents:number,selection:{extrasCents:number;s
 }
 /** Menor preço realmente comprável, considerando opções obrigatórias ativas. */
 export function minimumCustomPrice(config:CustomConfig,baseCents:number):number{
- let base=baseCents,extras=0;
- for(const g of config.groups){
-  if(g.kind==='included')continue;
-  const costFor=(sizeId:string|null)=>g.options.filter(o=>o.active).map(o=>o.priceByOptionId&&sizeId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents).sort((a,b)=>a-b).slice(0,g.min).reduce((a,b)=>a+b,0);
-  if(g.priceMode==='final'){
-   const sizes=g.options.filter(o=>o.active);
-   return sizes.length?Math.min(...sizes.map(size=>size.priceCents+config.groups.filter(x=>x.kind!=='included'&&x.priceMode!=='final').reduce((sum,x)=>sum+costFor(size.id),0))):base;
-  }
-  extras+=costFor(null);
+ const finalGroup=config.groups.find(g=>g.priceMode==='final');
+ const costFor=(g:CustomConfig['groups'][number],sizeId:string|null)=>g.options
+  .filter(o=>o.active)
+  .map(o=>o.priceByOptionId&&sizeId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents)
+  .sort((a,b)=>a-b)
+  .slice(0,g.min)
+  .reduce((sum,value)=>sum+value,0);
+ if(finalGroup){
+  const sizes=finalGroup.options.filter(o=>o.active);
+  if(!sizes.length)return baseCents;
+  return Math.min(...sizes.map(size=>
+   size.priceCents+config.groups
+    .filter(g=>g.kind!=='included'&&g.id!==finalGroup.id)
+    .reduce((sum,g)=>sum+costFor(g,size.id),0)
+  ));
  }
- return base+extras;
+ return baseCents+config.groups
+  .filter(g=>g.kind!=='included')
+  .reduce((sum,g)=>sum+costFor(g,null),0);
 }
