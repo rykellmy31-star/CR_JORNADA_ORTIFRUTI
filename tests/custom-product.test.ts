@@ -69,7 +69,8 @@ describe('produto personalizável',()=>{
   const a={product:{id:'meal'},purchaseMode:'unit',customization:{optionIds:['p','fish'],note:''}};
   const b={...a,customization:{optionIds:['g','fish'],note:''}};
   expect(removeCartSelection([a,b],a)).toEqual([b]);
-  expect(customSelectionKey({optionIds:['fish','p'],note:''})).toBe(customSelectionKey(a.customization));\n  expect(customSelectionKey({optionIds:['cal'],note:'',flavorMode:'single'})).not.toBe(customSelectionKey({optionIds:['cal'],note:'',flavorMode:'half-and-half'}));
+  expect(customSelectionKey({optionIds:['fish','p'],note:''})).toBe(customSelectionKey(a.customization));
+  expect(customSelectionKey({optionIds:['cal'],note:'',flavorMode:'single'})).not.toBe(customSelectionKey({optionIds:['cal'],note:'',flavorMode:'half-and-half'}));
   expect(formatWhatsAppItems([{product_name_snapshot:'Marmita',quantity_display:'1 un',line_total_cents:2100,customization_snapshot:'Tamanho: P\nProteína: Peixe'}])).toContain('Proteína: Peixe');
  });
 });
