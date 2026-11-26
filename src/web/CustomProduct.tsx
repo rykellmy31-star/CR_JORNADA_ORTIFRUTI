@@ -98,7 +98,7 @@ export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:str
      </section>})}
      {includedGroups.some(g=>g.options.some(o=>o.active))&&<section className="custom-choice-group custom-removal-group">
       <h3>Deseja retirar algum ingrediente?</h3>
-      <small>Opcional · Marque somente o que deseja retirar do lanche. Sem cobrança adicional.</small>
+      <small>Opcional · Marque somente o que deseja retirar. Sem cobrança adicional.</small>
       {includedGroups.flatMap(g=>g.options.filter(o=>o.active).map(o=><label className="custom-choice-option custom-removal-option" key={o.id}>
        <input type="checkbox" checked={ids.includes(o.id)} onChange={()=>toggle(g,o.id)} aria-label={'Retirar '+o.name}/>
        <span>{o.name}</span><b>{ids.includes(o.id)?'RETIRAR':'Manter'}</b>
