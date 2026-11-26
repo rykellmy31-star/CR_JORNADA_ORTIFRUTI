@@ -3,7 +3,7 @@ import {createPortal} from 'react-dom';
 import {Plus,X,Trash2} from 'lucide-react';
 import {formatBRL} from '../shared/pricing';
 import EditableNumberInput from './EditableNumberInput';
-import {readCustomConfig,resolveCustomSelection,customUnitPrice,minimumCustomPrice,type CustomConfig,type CustomSelection} from '../shared/custom-product';
+import {readCustomConfig,resolveCustomSelection,customUnitPrice,minimumCustomPrice,isValidCustomQuantityInput,type CustomConfig,type CustomSelection} from '../shared/custom-product';
 const uid=()=>crypto.randomUUID();
 const makeOption=(name='',priceCents=0)=>({id:uid(),name,priceCents,active:true});
 const makeGroup=(name='',min=0,max=1,options=[makeOption()])=>({id:uid(),name,min,max,options});
@@ -75,7 +75,7 @@ export function CustomProductCard({product,img,onAdd,onChooseSecondFlavor,pendin
  const includedGroups=config.groups.filter(g=>g.kind==='included');
  const includedNames=includedGroups.flatMap(g=>g.options.filter(o=>o.active).map(o=>o.name));
  const quantity=Number(quantityInput);
- const quantityValid=quantityInput.trim()!==''&&/^\\d+$/.test(quantityInput.trim())&&Number.isSafeInteger(quantity)&&quantity>=1&&quantity<=99;
+ const quantityValid=isValidCustomQuantityInput(quantityInput);
  let valid=false,unitTotal=cheapest;
  try{const selection=resolveCustomSelection(config,{optionIds:ids,note,flavorMode:flavorMode||undefined,firstFlavorName:flavorGroup?product.name:undefined});unitTotal=customUnitPrice(base,selection);valid=true;}catch{}
  function start(){if(pendingSecondFlavor){onPickSecondFlavor?.();return;}setIds([]);setNote('');setQuantityInput('1');setFlavorMode('');setOpen(true)}
