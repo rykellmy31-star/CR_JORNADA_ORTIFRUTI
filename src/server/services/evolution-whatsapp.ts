@@ -958,7 +958,7 @@ async function closeExpiredWhatsAppHumanSession(db:DbClient,tenantId:string,sess
   ]);
   if(!inst||inst.status!=='connected'||!isLiveEvolutionConfigured(envCfg))throw new Error('WhatsApp da loja desconectado');
   const message=String(settings?.human_timeout_message||'Por falta de comunicação, nossa conversa será encerrada. Quando precisar, é só mandar uma nova mensagem. 😊');
-  const response=await fetch(envCfg.evolutionApiUrl!.replace(/\\/+$/,'')+'/message/sendText/'+encodeURIComponent(inst.instance_name),{
+  const response=await fetch(envCfg.evolutionApiUrl!.replace(/\/+$/,'')+'/message/sendText/'+encodeURIComponent(inst.instance_name),{
    method:'POST',headers:{'Content-Type':'application/json',apikey:envCfg.evolutionApiKey!},
    body:JSON.stringify({number:normalizePhoneBR(String(session.customer_phone)),text:message,delay:500})
   });
