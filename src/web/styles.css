@@ -967,3 +967,7 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .category-actions .btn-danger-outline{border:1px solid #efcaca;color:#b42318;background:#fff}
 .category-actions .btn-danger-outline:hover{background:#fff1f0}
 @media(max-width:700px){.category-admin-grid{grid-template-columns:1fr}.category-admin-card{flex-wrap:wrap;gap:9px}.category-admin-card>div:nth-child(2){min-width:100px}.category-actions{margin-left:auto;flex-wrap:wrap}.category-actions .btn{font-size:10px;padding:7px 9px}.category-edit-form{grid-template-columns:minmax(0,1fr) 86px}.category-edit-form .category-edit-heading{grid-column:1/-1}.category-edit-form>button{grid-column:1/-1;width:100%;justify-content:center}}
+
+
+/* Transparência do acréscimo de cartão no checkout e nas configurações. */
+.card-fee-notice{display:grid;gap:5px;margin:12px 0;padding:13px 15px;border:1px solid #f0d7a4;border-radius:12px;background:#fff9eb;color:#684b16;font-size:13px;line-height:1.45}.card-fee-notice b{font-size:14px}.card-fee-settings{margin-top:12px}.settings-divider{height:1px;background:var(--border,#e5ebe6);margin:14px 0}

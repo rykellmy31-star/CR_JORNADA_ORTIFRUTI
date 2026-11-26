@@ -67,6 +67,14 @@ export function calculateLineTotalCents(
   return effectivePriceCents * quantity;
 }
 
+/** Calcula taxa de cartão usando pontos-base (100 = 1%), sem erros de ponto flutuante. */
+export function calculateCardFeeCents(baseCents:number,feeBps:number,enabled=true):number {
+ if(!enabled||feeBps===0)return 0;
+ if(!Number.isSafeInteger(baseCents)||baseCents<0||!Number.isInteger(feeBps)||feeBps<0||feeBps>10000)
+  throw new Error('Base ou percentual da taxa de cartão inválido.');
+ return Math.floor((baseCents*feeBps+5000)/10000);
+}
+
 /**
  * Valida e calcula o troco em centavos para pagamentos em dinheiro.
  */
