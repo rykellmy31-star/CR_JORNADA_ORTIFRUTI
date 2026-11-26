@@ -950,3 +950,8 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .custom-half-pending b{width:100%;font-size:16px}
 .custom-half-pending span{flex:1 1 180px;font-size:14px}
 .custom-half-pending .btn{flex:0 0 auto}
+
+
+/* Indicador visual de frescor: somente a bolinha verde, sem texto ou etiqueta. */
+.storefront .fresh-pill{position:absolute;top:12px;left:12px;display:block;width:10px;height:10px;min-width:10px;padding:0;margin:0;border:2px solid #fff;border-radius:50%;background:#29a35b!important;box-shadow:0 1px 4px #0002;color:transparent;font-size:0;line-height:0}
+.storefront .fresh-pill span{display:none}
