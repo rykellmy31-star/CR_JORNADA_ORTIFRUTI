@@ -67,6 +67,11 @@ export function calculateLineTotalCents(
   return effectivePriceCents * quantity;
 }
 
+/** Mesmo cálculo de entrega no carrinho, checkout e servidor. Zero é frete grátis desde qualquer valor. */
+export function calculateDeliveryFeeCents(subtotalCents:number,deliveryFeeCents:number,freeDeliveryMinCents:number|null|undefined):number {
+ return freeDeliveryMinCents!=null && subtotalCents>=freeDeliveryMinCents?0:deliveryFeeCents;
+}
+
 /** Calcula taxa de cartão usando pontos-base (100 = 1%), sem erros de ponto flutuante. */
 export function calculateCardFeeCents(baseCents:number,feeBps:number,enabled=true):number {
  if(!enabled||feeBps===0)return 0;
