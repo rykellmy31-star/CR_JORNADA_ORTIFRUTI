@@ -46,7 +46,7 @@ const DEVELOPER_CREDIT='Desenvolvido por Carlos Rykellmy Santos Correia';
 function DeveloperCredit(){return <footer className="developer-credit" aria-label="Créditos do desenvolvedor">
   {DEVELOPER_CREDIT}
 </footer>}
-export default function CardFeePercentInput({label,value,onChange}:{label:string;value:number;onChange:(bps:number)=>void}) {
+function CardFeePercentInput({label,value,onChange}:{label:string;value:number;onChange:(bps:number)=>void}) {
  const format=(bps:number)=>((Number(bps||0)/100).toFixed(2)).replace('.',',');
  const [draft,setDraft]=useState(()=>format(value));
  useEffect(()=>{setDraft(format(value));},[value]);
@@ -61,7 +61,7 @@ export default function CardFeePercentInput({label,value,onChange}:{label:string
  return <label>{label}<input type="text" inputMode="decimal" autoComplete="off" value={draft} placeholder="0,00" onChange={e=>{const next=e.target.value;if(/^\\d{0,3}([,.]\\d{0,2})?$/.test(next))setDraft(next);}} onBlur={commit}/></label>;
 }
 
-function App(){
+export default function App(){
  const loc=useLocation();
  const vanity=vanityStoreSlug(window.location.hostname);
  const homeRoute=hortifrutiHomeRoute(window.location.hostname);
