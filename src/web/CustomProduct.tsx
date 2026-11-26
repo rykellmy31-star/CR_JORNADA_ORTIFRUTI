@@ -66,7 +66,7 @@ export function CustomConfigEditor({value,onChange,baseCents=0}:{value:CustomCon
 }
 export function CustomProductCard({product,img,onAdd,onChooseSecondFlavor,pendingSecondFlavor,onPickSecondFlavor}:{product:any;img:(url?:string)=>string;onAdd:(choice:CustomSelection,quantity:number)=>void;onChooseSecondFlavor?:(choice:CustomSelection,quantity:number)=>void;pendingSecondFlavor?:boolean;onPickSecondFlavor?:()=>void}){
  const config=readCustomConfig(product.custom_config_json)!;
- const [open,setOpen]=useState(false),[ids,setIds]=useState<string[]>([]),[note,setNote]=useState(''),[quantityInput,setQuantityInput]=useState('1'),[flavorMode,setFlavorMode]=useState<'single'|'half-and-half'|'single'>('single');
+ const [open,setOpen]=useState(false),[ids,setIds]=useState<string[]>([]),[note,setNote]=useState(''),[quantityInput,setQuantityInput]=useState('1'),[flavorMode,setFlavorMode]=useState<'single'|'half-and-half'>('single');
  const original=Number(product.price_cents);
  const base=typeof product.promo_price_cents==='number'&&product.promo_price_cents>=0&&product.promo_price_cents<original?product.promo_price_cents:original;
  const cheapest=minimumCustomPrice(config,base);
