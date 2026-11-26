@@ -2,14 +2,15 @@ import {z} from 'zod';
 const id=z.string().min(1).max(80);
 const name=z.string().trim().min(1).max(100).regex(/^[^\r\n]+$/);
 const option=z.object({id,name,priceCents:z.number().int().min(0).max(10000000),priceByOptionId:z.record(z.string().min(1).max(80),z.number().int().min(0).max(10000000)).optional(),active:z.boolean()});
-const group=z.object({id,name,min:z.number().int().min(0).max(30),max:z.number().int().min(1).max(30),priceMode:z.enum(['additional','final']).optional(),kind:z.enum(['choice','included']).optional(),options:z.array(option).min(1).max(30)});
+const group=z.object({id,name,min:z.number().int().min(0).max(30),max:z.number().int().min(1).max(30),priceMode:z.enum(['additional','final']).optional(),kind:z.enum(['choice','included']).optional(),selectionMode:z.enum(['half-and-half']).optional(),options:z.array(option).min(1).max(30)});
 export const customConfigSchema=z.object({groups:z.array(group).min(1).max(12),allowNotes:z.boolean()}).superRefine((c,ctx)=>{
  const ids=new Set<string>();
  const finalGroups=c.groups.filter(g=>g.priceMode==='final');
  if(finalGroups.length>1)ctx.addIssue({code:'custom',message:'Somente um grupo pode definir o preço final do produto.'});
  const finalGroup=finalGroups[0];
  for(const g of c.groups){
-  if(g.kind==='included'&&(g.priceMode==='final'||g.min!==0||g.max!==g.options.length||g.options.some(o=>o.priceCents!==0)))ctx.addIssue({code:'custom',message:'Ingredientes inclusos devem ser gratuitos, sem mínimo e todos disponíveis para retirada.'});
+  if(g.selectionMode==='half-and-half'&&(g.kind==='included'||g.min!==2||g.max!==2))ctx.addIssue({code:'custom',message:'Pizza meio a meio deve exigir exatamente dois sabores.'});
+  if(g.kind==='included'&&(g.selectionMode!==undefined||g.priceMode==='final'||g.min!==0||g.max!==g.options.length||g.options.some(o=>o.priceCents!==0)))ctx.addIssue({code:'custom',message:'Ingredientes inclusos devem ser gratuitos, sem mínimo e todos disponíveis para retirada.'});
   if(g.priceMode==='final'&&(g.min!==1||g.max!==1||g.options.some(o=>o.priceCents<=0)))ctx.addIssue({code:'custom',message:'O grupo de preço final deve ter uma escolha obrigatória e opções com preço maior que zero.'});
   if(ids.has(g.id)||g.min>g.max||g.max>g.options.length)ctx.addIssue({code:'custom',message:'Confira os limites e opções do grupo '+g.name});
   ids.add(g.id);
