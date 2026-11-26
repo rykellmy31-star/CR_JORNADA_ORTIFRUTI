@@ -18,6 +18,19 @@ describe('produto personalizável',()=>{
   expect(customUnitPrice(2200,resolveCustomSelection(full,{optionIds:['g','fish'],note:''}))).toBe(2200);
   expect(customUnitPrice(1800,resolveCustomSelection(config,{optionIds:['g','fish'],note:''}))).toBe(3100);
  });
+ it('calcula borda recheada com adicional diferente para cada tamanho escolhido',()=>{
+  const pizza=customConfigSchema.parse({allowNotes:true,groups:[
+   {id:'size',name:'Tamanho',min:1,max:1,priceMode:'final',options:[{id:'m',name:'Média',priceCents:3590,active:true},{id:'g',name:'Grande',priceCents:4590,active:true},{id:'f',name:'Família',priceCents:5990,active:true}]},
+   {id:'flavor',name:'Sabores',min:1,max:1,options:[{id:'cal',name:'Calabresa',priceCents:0,active:true}]},
+   {id:'border',name:'Borda',min:1,max:1,options:[
+    {id:'none',name:'Sem borda',priceCents:0,priceByOptionId:{m:0,g:0,f:0},active:true},
+    {id:'cat',name:'Catupiry',priceCents:600,priceByOptionId:{m:600,g:800,f:1000},active:true}]}
+  ]});
+  const total=(size:string,border:string)=>customUnitPrice(0,resolveCustomSelection(pizza,{optionIds:[size,'cal',border],note:''}));
+  expect(total('m','none')).toBe(3590);expect(total('m','cat')).toBe(4190);
+  expect(total('g','cat')).toBe(5390);expect(total('f','cat')).toBe(6990);
+  expect(minimumCustomPrice(pizza,0)).toBe(3590);
+ });
  it('já inclui ingredientes de lanche, só registra os que o cliente deseja retirar e não altera preço',()=>{
   const ingredients=customConfigSchema.parse({allowNotes:true,groups:[
    {id:'included',name:'Ingredientes inclusos',kind:'included',min:0,max:3,options:[
