@@ -569,6 +569,7 @@ export async function enqueueAndDispatchStaffOrderNotification(
     itemsText,
     '',
     `Subtotal: ${formatBRL(order.subtotal_cents)}`,
+     ...(Number(order.card_fee_cents||0)>0?[`Taxa da maquininha: ${formatBRL(order.card_fee_cents)}`]:[]),
     `Entrega: ${order.delivery_fee_cents===0?'GRÁTIS':formatBRL(order.delivery_fee_cents)}`,
     `*TOTAL: ${formatBRL(order.total_cents)}*`,
     `Pagamento: ${payment}${change}`,
