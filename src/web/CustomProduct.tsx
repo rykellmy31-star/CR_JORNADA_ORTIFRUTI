@@ -66,18 +66,19 @@ export function CustomConfigEditor({value,onChange,baseCents=0}:{value:CustomCon
 }
 export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:string)=>string;onAdd:(choice:CustomSelection,quantity:number)=>void}){
  const config=readCustomConfig(product.custom_config_json)!;
- const [open,setOpen]=useState(false),[ids,setIds]=useState<string[]>([]),[note,setNote]=useState(''),[quantityInput,setQuantityInput]=useState('1');
+ const [open,setOpen]=useState(false),[ids,setIds]=useState<string[]>([]),[note,setNote]=useState(''),[quantityInput,setQuantityInput]=useState('1'),[flavorMode,setFlavorMode]=useState<'single'|'half-and-half'|''>('');
  const original=Number(product.price_cents);
  const base=typeof product.promo_price_cents==='number'&&product.promo_price_cents>=0&&product.promo_price_cents<original?product.promo_price_cents:original;
  const cheapest=minimumCustomPrice(config,base);
  const hasFinal=config.groups.some(g=>g.priceMode==='final');
+ const flavorGroup=config.groups.find(g=>g.selectionMode==='half-and-half');
  const includedGroups=config.groups.filter(g=>g.kind==='included');
  const includedNames=includedGroups.flatMap(g=>g.options.filter(o=>o.active).map(o=>o.name));
  const quantity=Number(quantityInput);
- const quantityValid=quantityInput.trim()!==''&&/^\d+$/.test(quantityInput.trim())&&Number.isSafeInteger(quantity)&&quantity>=1&&quantity<=99;
+ const quantityValid=quantityInput.trim()!==''&&/^\\d+$/.test(quantityInput.trim())&&Number.isSafeInteger(quantity)&&quantity>=1&&quantity<=99;
  let valid=false,unitTotal=cheapest;
- try{const selection=resolveCustomSelection(config,{optionIds:ids,note});unitTotal=customUnitPrice(base,selection);valid=true;}catch{}
- function start(){setIds([]);setNote('');setQuantityInput('1');setOpen(true)}
+ try{const selection=resolveCustomSelection(config,{optionIds:ids,note,flavorMode:flavorMode||undefined});unitTotal=customUnitPrice(base,selection);valid=true;}catch{}
+ function start(){setIds([]);setNote('');setQuantityInput('1');setFlavorMode('');setOpen(true)}
  function toggle(g:Group,id:string){setIds(old=>{
   if(old.includes(id))return old.filter(x=>x!==id);
   const own=new Set(g.options.map(o=>o.id));
@@ -86,6 +87,23 @@ export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:str
   if(g.max===1)return [...old.filter(x=>!own.has(x)),id];
   return selected.length<g.max?[...old,id]:old;
  });}
+ function chooseFlavor(position:number,id:string){
+  if(!flavorGroup)return;
+  setIds(old=>{
+   const own=new Set(flavorGroup.options.map(x=>x.id));
+   const other=old.filter(x=>!own.has(x));
+   const flavors=old.filter(x=>own.has(x));
+   if(flavorMode==='single')return [...other,id];
+   const next=[flavors[0],flavors[1]] as (string|undefined)[];
+   next[position]=id;
+   if(position===0&&next[1]===id)next[1]=undefined;
+   return [...other,...next.filter((x):x is string=>!!x)];
+  });
+ }
+ const selectedFlavorIds=flavorGroup?ids.filter(id=>flavorGroup.options.some(o=>o.id===id)):[];
+ const sizeId=config.groups.find(x=>x.priceMode==='final')?.options.find(x=>ids.includes(x.id))?.id;
+ const flavorPrice=(o:any)=>sizeId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents;
+ const renderFlavorOptions=(position:number,excludeId?:string)=><div className="custom-flavor-step"><h4>{flavorMode==='single'?'Escolha o sabor':position===0?'1. Escolha o primeiro sabor':'2. Escolha o segundo sabor'}</h4>{flavorGroup!.options.filter(o=>o.id!==excludeId).map(o=><label className="custom-choice-option" key={o.id}><input type="radio" name={'pizza-flavor-'+position} checked={selectedFlavorIds[position]===o.id} disabled={!o.active} onChange={()=>chooseFlavor(position,o.id)}/><span>{o.name}{!o.active?' (indisponível)':''}</span><b>{o.priceByOptionId&&!sizeId?'Varia por tamanho':flavorPrice(o)?'+'+formatBRL(flavorPrice(o)):'Sem custo extra'}</b></label>)}</div>;
  return <article className="custom-product-card">
   <button type="button" onClick={start} style={{border:0,padding:0,background:'transparent',cursor:'pointer'}} aria-label={'Montar '+product.name}><img className="custom-product-cover" src={img(product.image_url)} alt={product.name}/></button>
   <div className="custom-product-card-body"><button type="button" onClick={start} style={{border:0,background:'transparent',textAlign:'left',padding:0,fontWeight:700,cursor:'pointer'}}>{product.name}</button>{includedNames.length>0&&<small className="custom-included-summary"><b>Já vem com:</b> {includedNames.join(', ')}</small>}<strong>A partir de {formatBRL(cheapest)}</strong><button type="button" className="btn btn-primary btn-block" onClick={start}>Montar e adicionar</button></div>
@@ -94,19 +112,15 @@ export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:str
     <header className="fixed-price-hero"><img src={img(product.image_url)} alt=""/><button type="button" className="icon-btn fixed-price-close" onClick={()=>setOpen(false)} aria-label="Fechar"><X/></button></header>
     <div className="fixed-price-body"><h2>{product.name}</h2><p>{product.description}</p><strong>{hasFinal?'A partir de '+formatBRL(cheapest):'Preço base: '+formatBRL(base)}</strong>
      {includedNames.length>0&&<div className="custom-included-summary custom-included-in-modal"><b>Ingredientes inclusos:</b> {includedNames.join(', ')}</div>}
-     {config.groups.filter(g=>g.kind!=='included').map(g=>{const selectedIds=ids.filter(id=>g.options.some(o=>o.id===id));const selected=g.options.filter(o=>ids.includes(o.id)).length;const sizeId=config.groups.find(x=>x.priceMode==='final')?.options.find(x=>ids.includes(x.id))?.id;const renderFlavorStep=(position:number,title:string,excludeId?:string)=> <div className="custom-flavor-step"><h4>{title}</h4>{g.options.filter(o=>o.id!==excludeId).map(o=>{const price=sizeId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents;return <label className="custom-choice-option" key={o.id}><input type="radio" name={g.id+'-'+position} checked={selectedIds[position]===o.id} disabled={!o.active} onChange={()=>setIds(old=>{const own=new Set(g.options.map(x=>x.id));const other=old.filter(x=>!own.has(x));const flavors=old.filter(x=>own.has(x));const next=[flavors[0],flavors[1]] as (string|undefined)[];next[position]=o.id;if(position===0&&next[1]===o.id)next[1]=undefined;return [...other,...next.filter((x):x is string=>!!x)];})}/><span>{o.name}{!o.active?' (indisponível)':''}</span><b>{g.priceMode==='final'?formatBRL(o.priceCents):o.priceByOptionId&&!sizeId?'Varia por tamanho':price?'+'+formatBRL(price):'Sem custo extra'}</b></label>})}</div>;return <section key={g.id} className="custom-choice-group"><h3>{g.selectionMode==='half-and-half'?'Sabores da pizza':g.name}</h3>{g.selectionMode==='half-and-half'?<><small>Escolha os dois sabores da pizza meia a meia.</small>{renderFlavorStep(0,'1. Escolha o primeiro sabor')}</>:<><small>{g.min?'Obrigatório':'Opcional'} · {g.min===g.max?'Escolha '+g.max:'Escolha de '+g.min+' a '+g.max} · {selected}/{g.max}</small>{g.options.map(o=>{const price=sizeId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents;const varies=!!o.priceByOptionId;return <label className="custom-choice-option" key={o.id}><input type={g.max===1&&g.min===1?'radio':'checkbox'} name={g.id} checked={ids.includes(o.id)} disabled={!o.active||(!ids.includes(o.id)&&g.max>1&&selected>=g.max)} onChange={()=>toggle(g,o.id)}/><span>{o.name}{!o.active?' (indisponível)':''}</span><b>{g.priceMode==='final'?formatBRL(o.priceCents):varies&&!sizeId?'Varia por tamanho':price?'+'+formatBRL(price):'Sem custo extra'}</b></label>})}</>}</section>})}
-     {(()=>{const flavorGroup=config.groups.find(g=>g.selectionMode==='half-and-half');if(!flavorGroup)return null;const selectedFlavorIds=ids.filter(id=>flavorGroup.options.some(o=>o.id===id));if(!selectedFlavorIds.length)return null;const sizeId=config.groups.find(g=>g.priceMode==='final')?.options.find(o=>ids.includes(o.id))?.id;return <section className="custom-choice-group custom-flavor-second-step"><h3>Segundo sabor</h3><small>Agora escolha mais um sabor para completar sua pizza meia a meia.</small><div className="custom-flavor-step"><h4>2. Escolha o segundo sabor</h4>{flavorGroup.options.filter(o=>o.id!==selectedFlavorIds[0]).map(o=>{const price=sizeId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents;return <label className="custom-choice-option" key={o.id}><input type="radio" name={flavorGroup.id+'-second'} checked={selectedFlavorIds[1]===o.id} disabled={!o.active} onChange={()=>setIds(old=>{const own=new Set(flavorGroup.options.map(x=>x.id));const other=old.filter(x=>!own.has(x));const flavors=old.filter(x=>own.has(x));return [...other,flavors[0],o.id];})}/><span>{o.name}{!o.active?' (indisponível)':''}</span><b>{o.priceByOptionId&&!sizeId?'Varia por tamanho':price?'+'+formatBRL(price):'Sem custo extra'}</b></label>})}</div></section>})()}
-     {includedGroups.some(g=>g.options.some(o=>o.active))&&<section className="custom-choice-group custom-removal-group">
-      <h3>Deseja retirar algum ingrediente?</h3>
-      <small>Opcional · Marque somente o que deseja retirar. Sem cobrança adicional.</small>
-      {includedGroups.flatMap(g=>g.options.filter(o=>o.active).map(o=><label className="custom-choice-option custom-removal-option" key={o.id}>
-       <input type="checkbox" checked={ids.includes(o.id)} onChange={()=>toggle(g,o.id)} aria-label={'Retirar '+o.name}/>
-       <span>{o.name}</span><b>{ids.includes(o.id)?'RETIRAR':'Manter'}</b>
-      </label>))}
-     </section>}
+     {config.groups.filter(g=>g.kind!=='included'&&g.selectionMode!=='half-and-half').map(g=>{const selected=g.options.filter(o=>ids.includes(o.id)).length;return <section key={g.id} className="custom-choice-group"><h3>{g.name}</h3><small>{g.min?'Obrigatório':'Opcional'} · {g.min===g.max?'Escolha '+g.max:'Escolha de '+g.min+' a '+g.max} · {selected}/{g.max}</small>{g.options.map(o=>{const price=sizeId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents;const varies=!!o.priceByOptionId;return <label className="custom-choice-option" key={o.id}><input type={g.max===1&&g.min===1?'radio':'checkbox'} name={g.id} checked={ids.includes(o.id)} disabled={!o.active||(!ids.includes(o.id)&&g.max>1&&selected>=g.max)} onChange={()=>toggle(g,o.id)}/><span>{o.name}{!o.active?' (indisponível)':''}</span><b>{g.priceMode==='final'?formatBRL(o.priceCents):varies&&!sizeId?'Varia por tamanho':price?'+'+formatBRL(price):'Sem custo extra'}</b></label>})}</section>})}
+     {includedGroups.some(g=>g.options.some(o=>o.active))&&<section className="custom-choice-group custom-removal-group"><h3>Deseja retirar algum ingrediente?</h3><small>Opcional · Marque somente o que deseja retirar. Sem cobrança adicional.</small>{includedGroups.flatMap(g=>g.options.filter(o=>o.active).map(o=><label className="custom-choice-option custom-removal-option" key={o.id}><input type="checkbox" checked={ids.includes(o.id)} onChange={()=>toggle(g,o.id)} aria-label={'Retirar '+o.name}/><span>{o.name}</span><b>{ids.includes(o.id)?'RETIRAR':'Manter'}</b></label>))}</section>}
      {config.allowNotes&&<label>Observações / retirar ingredientes<textarea rows={3} maxLength={300} placeholder="Ex.: sem cebola" value={note} onChange={e=>setNote(e.target.value)}/></label>}
+     {flavorGroup&&<section className="custom-choice-group custom-flavor-mode"><h3>Como deseja sua pizza?</h3><small>Escolha uma opção para continuar.</small><div className="custom-flavor-mode-options"><label className="custom-choice-option"><input type="radio" name="pizza-flavor-mode" checked={flavorMode==='single'} onChange={()=>{setFlavorMode('single');setIds(old=>old.filter(id=>!flavorGroup.options.some(o=>o.id===id)));}}/><span>Somente 1 sabor</span></label><label className="custom-choice-option"><input type="radio" name="pizza-flavor-mode" checked={flavorMode==='half-and-half'} onChange={()=>{setFlavorMode('half-and-half');setIds(old=>old.filter(id=>!flavorGroup.options.some(o=>o.id===id)));}}/><span>Meio a meio (2 sabores)</span></label></div>
+      {flavorMode==='single'&&renderFlavorOptions(0)}
+      {flavorMode==='half-and-half'&&<>{renderFlavorOptions(0)}{selectedFlavorIds.length>0&&renderFlavorOptions(1,selectedFlavorIds[0])}</>}
+     </section>}
     </div>
-    <footer className="fixed-price-footer custom-product-footer"><input aria-label="Quantidade" type="number" inputMode="numeric" min={1} max={99} step={1} value={quantityInput} onChange={e=>setQuantityInput(e.target.value)} onBlur={()=>{if(quantityInput==='')setQuantityInput('1');}}/><button type="button" className="btn btn-primary" disabled={!valid||!quantityValid} onClick={()=>{if(!quantityValid||!valid)return;onAdd({optionIds:ids,note},quantity);setOpen(false);}}>Adicionar · {quantityValid?formatBRL(unitTotal*quantity):'—'}</button></footer>
+    <footer className="fixed-price-footer custom-product-footer"><input aria-label="Quantidade" type="number" inputMode="numeric" min={1} max={99} step={1} value={quantityInput} onChange={e=>setQuantityInput(e.target.value)} onBlur={()=>{if(quantityInput==='')setQuantityInput('1');}}/><button type="button" className="btn btn-primary" disabled={!valid||!quantityValid} onClick={()=>{if(!quantityValid||!valid)return;onAdd({optionIds:ids,note,flavorMode:flavorMode||undefined},quantity);setOpen(false);}}>Adicionar · {quantityValid?formatBRL(unitTotal*quantity):'—'}</button></footer>
    </div></div>,document.body)}
  </article>;
 }
