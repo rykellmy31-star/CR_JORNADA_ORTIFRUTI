@@ -1,7 +1,7 @@
 import {createApp} from './server/app';
 import {CloudflareD1Adapter} from './server/db/cloudflare-d1';
 import {createCloudflareR2Storage} from './server/storage/r2-media';
-import {processPendingWhatsAppQueue,type EvolutionEnvConfig} from './server/services/evolution-whatsapp';
+import {processPendingWhatsAppQueue,processExpiredWhatsAppHumanSessions,type EvolutionEnvConfig} from './server/services/evolution-whatsapp';
 import {monitorWhatsAppDisconnections,processPendingTelegramAlerts} from './server/services/telegram-alerts';
 
 interface Env {
@@ -23,6 +23,7 @@ export default {
   const services=servicesFor(env);
   ctx.waitUntil(Promise.allSettled([
     processPendingWhatsAppQueue(services.db,services.evolution,50),
+    processExpiredWhatsAppHumanSessions(services.db,services.evolution,50),
     (async()=>{
       await monitorWhatsAppDisconnections(services.db,services.evolution,40);
       await processPendingTelegramAlerts(services.db,services.evolution,30);
