@@ -915,3 +915,18 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .wa-rule-main blockquote{margin:0;padding:10px;background:var(--surface-soft,#f7f8f7);border-radius:8px;font-size:13px;white-space:pre-wrap}
 .wa-rule-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}
 @media(max-width:700px){.wa-auto-grid{grid-template-columns:1fr}.wa-rule-main{flex-direction:column}.wa-rule-actions{justify-content:flex-end}.wa-auto-options{align-items:stretch}.wa-auto-options .wa-auto-field{flex:1}}
+
+
+/* Overrides finais: o editor precisa vencer as regras antigas de grade no mobile. */
+@media(max-width:680px){
+ .custom-config-editor .custom-config-option{grid-template-columns:minmax(0,1fr) 38px 38px!important}
+ .custom-config-editor .custom-config-option>input[aria-label="Nome da opção"]{grid-column:1/-1!important}
+ .custom-config-editor .custom-config-option>input[type="number"]{grid-column:1/2!important}
+ .custom-config-editor .custom-config-option>.custom-size-price-grid{grid-column:1/-1!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .custom-config-editor .custom-config-option>input[type="checkbox"]{grid-column:2!important;justify-self:center!important;width:20px!important;height:20px!important}
+ .custom-config-editor .custom-config-option>.icon-btn{grid-column:3!important;justify-self:center!important}
+}
+@media(max-width:390px){
+ .custom-config-editor .custom-size-price-grid{grid-template-columns:minmax(0,1fr)!important}
+ .custom-config-editor .custom-size-price-grid>small{grid-column:1!important}
+}
