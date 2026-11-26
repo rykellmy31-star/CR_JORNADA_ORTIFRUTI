@@ -58,6 +58,7 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
   if(selected.length)details.push(g.name+': '+selected.map(o=>o.name).join(', '));
  }
  if(ids.size)throw Error('Complemento inválido para este produto.');
+ if(choice.pairedFlavorName){const first=config.groups.find(g=>g.selectionMode==='half-and-half')?.options.find(o=>choice.optionIds.includes(o.id))?.name;details.push('Meio a meio: '+(first||'1º sabor')+' + '+choice.pairedFlavorName);if(choice.pairedFlavorPriceCents!==undefined)selectedBaseCents=Math.max(selectedBaseCents??0,choice.pairedFlavorPriceCents);}
  if(choice.note)details.push('Observação: '+choice.note.replace(/[\r\n]+/g,' '));
  return {extrasCents,selectedBaseCents,details:details.join('\n')};
 }
