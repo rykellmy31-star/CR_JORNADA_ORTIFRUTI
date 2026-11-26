@@ -68,4 +68,46 @@ describe('venda por kg e unidade',()=>{
   expect(changed).toEqual({unit_price_cents:null,unit_weight_grams:null});
  });
 
+ it('modo Pizzaria permite pizzas personalizáveis e bebidas por unidade mesmo sem habilitar os modos genéricos',async()=>{
+  const {tenantId}=await setup();
+  await db.prepare("UPDATE tenants SET sale_modes_json='[\"pizzeria\"]' WHERE id=?").bind(tenantId).run();
+  const owner=await db.prepare("SELECT id,name,email,role FROM users WHERE tenant_id=? AND role='owner' LIMIT 1").bind(tenantId).first<any>();
+  const token=await signJwt({sub:owner.id,name:owner.name,email:owner.email,role:'owner',tenantId},'test-secret'.repeat(4));
+  const media:any={async putObject(){throw Error('unused')},async getObject(){return null}};
+  const app=createApp({db,media,jwtSecret:'test-secret'.repeat(4),crmApiKey:'test',appEnv:'test',evolution:{}});
+  const headers={'content-type':'application/json',authorization:'Bearer '+token};
+  const pizzaConfig={allowNotes:true,groups:[
+   {id:'size',name:'Tamanho',min:1,max:1,priceMode:'final',options:[
+    {id:'small',name:'Pequena',priceCents:2590,active:true},
+    {id:'large',name:'Grande',priceCents:3590,active:true}]},
+   {id:'flavors',name:'Sabores (até 2)',min:1,max:2,options:[
+    {id:'marguerita',name:'Marguerita',priceCents:0,active:true},
+    {id:'calabresa',name:'Calabresa',priceCents:0,active:true}]},
+   {id:'extras',name:'Adicionais',min:0,max:1,options:[
+    {id:'bacon',name:'Bacon',priceCents:500,active:true}]}
+  ]};
+  const pizza=await app.fetch(new Request('http://local/api/admin/products',{method:'POST',headers,body:JSON.stringify({
+   name:'Pizza meio a meio',saleMode:'custom',priceCents:2590,stockQty:20,customConfig:pizzaConfig
+  })}));
+  expect(pizza.status).toBe(201);
+  const pizzaId=(await pizza.json() as any).id;
+  const drink=await app.fetch(new Request('http://local/api/admin/products',{method:'POST',headers,body:JSON.stringify({
+   name:'Refrigerante lata',saleMode:'unit',priceCents:600,stockQty:30
+  })}));
+  expect(drink.status).toBe(201);
+  const salesModes=await app.fetch(new Request('http://local/api/admin/sales-modes',{headers}));
+  expect((await salesModes.json() as any).saleModes).toEqual(['pizzeria']);
+  const order=await app.fetch(new Request('http://local/api/store/verde-vivo/orders',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+   customerName:'Cliente Pizzaria',phone:'73999990179',street:'Rua A',number:'4',neighborhood:'Centro',
+   paymentMethod:'cash',whatsappOptIn:false,
+   items:[{productId:pizzaId,quantity:1,customization:{optionIds:['large','marguerita','calabresa'],note:'Cortar em 8 pedaços'}},{productId:(await drink.json() as any).id,quantity:2,purchaseMode:'unit'}]
+  })}));
+  expect(order.status).toBe(201);
+  const orderId=(await order.json() as any).order.id;
+  const lines=(await db.prepare('SELECT product_name_snapshot,quantity_display,line_total_cents,customization_snapshot FROM order_items WHERE order_id=? ORDER BY rowid').bind(orderId).all<any>()).results;
+  expect(lines[0]).toMatchObject({product_name_snapshot:'Pizza meio a meio',quantity_display:'1 un',line_total_cents:3590});
+  expect(lines[0].customization_snapshot).toContain('Sabores (até 2): Marguerita, Calabresa');
+  expect(lines[1]).toMatchObject({product_name_snapshot:'Refrigerante lata',quantity_display:'2 un',line_total_cents:1200});
+ });
+
 });
