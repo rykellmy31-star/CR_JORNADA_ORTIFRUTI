@@ -488,7 +488,7 @@ function Tracking(){
        <b>{money(i.line_total_cents)}</b>
      </div>)}</div>
      <div className="checkout-total">
-       <span>Total atualizado na entrega</span><b>{money(data.order.total_cents)}</b>
+       {Number(data.order.card_fee_cents||0)>0&&<div className="track-card-fee">Taxa da maquininha: {money(data.order.card_fee_cents)}</div>}<span>Total atualizado na entrega</span><b>{money(data.order.total_cents)}</b>
      </div>
      {error&&<div className="error-banner" role="alert">{error}</div>}
      <p className="track-refresh-note">Atualização automática a cada 12 segundos.</p>
