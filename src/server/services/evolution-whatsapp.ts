@@ -962,7 +962,7 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
  }
  const {results}=await db.prepare("SELECT id,title,intent,keywords_json,reply_text,priority FROM whatsapp_auto_replies WHERE tenant_id=? AND is_enabled=1 ORDER BY priority DESC,created_at ASC").bind(tenantId).all<any>();
  let chosen:any=null,bestScore=.69;
- const intentPhrases:Record<string,string[]>={greeting:['oi','ola','bom dia','boa tarde','boa noite','tudo bem','como vai'],order:['quero pedir','fazer compra','quero encomendar','quero comprar','como comprar','como faco pedido','gostaria de pedir','quero fazer uma encomenda','me manda o link da loja'],order_status:['cadê meu pedido','onde esta meu pedido','meu pedido ja saiu','acompanhar compra','consultar pedido','ver meu pedido','status da entrega','previsao do pedido'],human:['atendente','falar com pessoa','falar com alguem','quero falar com funcionario','atendimento humano','pessoa de verdade']};
+ const intentPhrases:Record<string,string[]>={greeting:['oi','ola','bom dia','boa tarde','boa noite','tudo bem','como vai'],order:['quero pedir','fazer compra','quero encomendar','quero comprar','como comprar','como faco pedido','gostaria de pedir','quero fazer uma encomenda','me manda o link da loja'],order_status:['cadê meu pedido','onde esta meu pedido','meu pedido ja saiu','acompanhar compra','consultar pedido','ver meu pedido','status da entrega','previsao do pedido'],human:['atendente','falar com atendente','quero falar com atendente','preciso falar com atendente','falar com pessoa','falar com uma pessoa','quero falar com uma pessoa','quero falar com pessoa','falar com humano','quero falar com humano','atendimento humano','quero atendimento humano','atendimento com pessoa','atendimento com humano','falar com alguem','quero falar com alguem','quero falar com funcionario','falar com funcionario','quero conversar com atendente','conversar com uma pessoa','preciso de ajuda','quero falar com alguem da loja','pessoa de verdade','me transfere para um atendente']};
  for(const rule of results){let keywords:string[]=[];try{keywords=JSON.parse(rule.keywords_json||'[]');}catch{}const expanded=[...keywords,...(intentPhrases[String(rule.intent||'')]||[])];const score=incomingRuleScore(text,expanded);if(score>bestScore){bestScore=score;chosen=rule;}}
  let dynamicOrderReply='';
  if(chosen?.intent==='order_status'){
@@ -989,9 +989,43 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
   if(!response.ok)throw new Error('Evolution sendText HTTP '+response.status);
   const sentAt=new Date().toISOString();
   await db.prepare("UPDATE whatsapp_auto_reply_events SET status='sent',matched_rule_id=?,error_message=NULL,updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(chosen?.id||null,sentAt,tenantId,providerId).run();
-  if(settings.pause_on_human===1&&chosen?.intent==='human'){
-   const until=new Date(Date.now()+86400000).toISOString();
-   await db.prepare('INSERT INTO whatsapp_auto_reply_sessions(tenant_id,customer_phone,paused_until,updated_at) VALUES(?,?,?,?) ON CONFLICT(tenant_id,customer_phone) DO UPDATE SET paused_until=excluded.paused_until,updated_at=excluded.updated_at').bind(tenantId,phone,until,sentAt).run();
+  if(chosen?.intent==='human'){
+   if(settings.pause_on_human===1){
+    const until=new Date(Date.now()+86400000).toISOString();
+    await db.prepare('INSERT INTO whatsapp_auto_reply_sessions(tenant_id,customer_phone,paused_until,updated_at) VALUES(?,?,?,?) ON CONFLICT(tenant_id,customer_phone) DO UPDATE SET paused_until=excluded.paused_until,updated_at=excluded.updated_at').bind(tenantId,phone,until,sentAt).run();
+   }
+   // Usa o mesmo destinatário já configurado para receber os pedidos da loja.
+   try{
+    const destination=await db.prepare('SELECT name,whatsapp_order_recipient_phone FROM tenants WHERE id=?').bind(tenantId).first<any>();
+    const digits=String(destination?.whatsapp_order_recipient_phone||'').replace(/\D/g,'');
+    if(digits){
+     const notifyNumber=(digits.length===10||digits.length===11)?'55'+digits:digits;
+     const when=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date());
+     const notification=[
+      '🔔 *NOVO PEDIDO DE ATENDIMENTO HUMANO*',
+      '',
+      '🏪 *Loja:* '+String(destination?.name||'Estabelecimento'),
+      '👤 *Cliente:* '+(name||'Não informado'),
+      '📱 *WhatsApp do cliente:* '+phone,
+      '💬 *Mensagem recebida:* '+text,
+      '🕒 *Solicitação:* '+when,
+      '',
+      'Entre em contato com o cliente pelo número informado para continuar o atendimento.'
+     ].join('\n');
+     const notifyResponse=await fetch(base+'/message/sendText/'+encodeURIComponent(inst.instance_name),{
+      method:'POST',headers:{'Content-Type':'application/json',apikey:envCfg.evolutionApiKey!},
+      body:JSON.stringify({number:notifyNumber,text:notification,delay:500})
+     });
+     if(!notifyResponse.ok)throw new Error('Evolution sendText HTTP '+notifyResponse.status);
+     return{handled:true,reason:'human_handoff_notified'};
+    }
+    return{handled:true,reason:'human_handoff_no_recipient'};
+   }catch(notifyError:any){
+    const detail=String(notifyError?.message||'notification_failed').slice(0,140);
+    await db.prepare("UPDATE whatsapp_auto_reply_events SET error_message=?,updated_at=? WHERE tenant_id=? AND provider_message_id=?")
+     .bind('Falha ao notificar atendimento humano: '+detail,new Date().toISOString(),tenantId,providerId).run();
+    return{handled:true,reason:'human_handoff_notification_failed'};
+   }
   }
   return{handled:true,reason:chosen?'matched_rule':'fallback'};
  }catch(error:any){
