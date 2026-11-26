@@ -28,6 +28,7 @@ export type PrintableOrder={
  change_amount_cents?:number|null;
  subtotal_cents:number;
  delivery_fee_cents:number;
+  card_fee_cents?:number;
  total_cents:number;
  items:PrintableOrderItem[];
 };
@@ -74,6 +75,8 @@ export default function OrderPrintReceipt({order,storeName,footerMessage='',stor
   </div>
   <div className="order-print-totals">
    <p><span>Subtotal</span><b>{formatBRL(order.subtotal_cents)}</b></p>
+    <p><span>Entrega</span><b>{formatBRL(order.delivery_fee_cents)}</b></p>
+    {!!order.card_fee_cents&&<p><span>Taxa da maquininha</span><b>{formatBRL(order.card_fee_cents)}</b></p>}
    <p><span>Entrega</span><b>{order.delivery_fee_cents===0?'GRÁTIS':formatBRL(order.delivery_fee_cents)}</b></p>
    <p className="order-print-grand-total"><span>TOTAL</span><b>{formatBRL(order.total_cents)}</b></p>
   </div>
