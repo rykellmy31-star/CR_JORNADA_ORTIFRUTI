@@ -76,8 +76,15 @@ export function CustomProductCard({product,img,onAdd,onChooseSecondFlavor,pendin
  const includedNames=includedGroups.flatMap(g=>g.options.filter(o=>o.active).map(o=>o.name));
  const quantity=Number(quantityInput);
  const quantityValid=isValidCustomQuantityInput(quantityInput);
- let valid=false,unitTotal=cheapest;
- try{const selection=resolveCustomSelection(config,{optionIds:ids,note,flavorMode:flavorMode||undefined,firstFlavorName:flavorGroup?product.name:undefined});unitTotal=customUnitPrice(base,selection);valid=true;}catch{}
+ let valid=false,unitTotal=0;
+ try{
+  const selection=resolveCustomSelection(config,{optionIds:ids,note,flavorMode:flavorMode||undefined,firstFlavorName:flavorGroup?product.name:undefined});
+  const finalGroup=config.groups.find(g=>g.priceMode==='final');
+  const selectedSize=finalGroup?.options.find(o=>ids.includes(o.id));
+  // O preço do tamanho substitui o preço base; os adicionais continuam sendo somados.
+  unitTotal=selectedSize?selectedSize.priceCents+selection.extrasCents:customUnitPrice(base,selection);
+  valid=true;
+ }catch{}
  function start(){if(pendingSecondFlavor){onPickSecondFlavor?.();return;}setIds([]);setNote('');setQuantityInput('1');setFlavorMode('');setOpen(true)}
  function toggle(g:Group,id:string){setIds(old=>{
   if(old.includes(id))return old.filter(x=>x!==id);
