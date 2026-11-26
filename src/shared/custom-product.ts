@@ -27,10 +27,11 @@ export function readCustomConfig(raw:unknown):CustomConfig|null{
  return customConfigSchema.parse(typeof raw==='string'?JSON.parse(raw):raw);
 }
 export function customSelectionKey(selection?:CustomSelection|null):string{
- return selection?JSON.stringify([Array.from(new Set(selection.optionIds)).sort(),selection.note.trim(),selection.flavorMode||'']):'';
+ return selection?JSON.stringify([Array.from(new Set(selection.optionIds)).sort(),selection.note.trim(),selection.flavorMode||'',selection.pairedFlavorName||'']):'';
 }
 export function resolveCustomSelection(config:CustomConfig,raw:unknown){
  const choice=customSelectionSchema.parse(raw);
+ if(config.groups.some(g=>g.selectionMode==='half-and-half')&&!choice.flavorMode)throw Error('Escolha se deseja uma pizza de um sabor ou meio a meio.');
  const ids=new Set(choice.optionIds);
  if(ids.size!==choice.optionIds.length)throw Error('Opção repetida.');
  if(!config.allowNotes&&choice.note)throw Error('Este produto não aceita observações.');
