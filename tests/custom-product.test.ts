@@ -13,9 +13,9 @@ describe('produto personalizável',()=>{
     {id:'port',name:'Portuguesa',priceCents:0,active:true}]}
   ]});
   const single=resolveCustomSelection(half,{optionIds:['m','cal'],note:'',flavorMode:'single'});
-  expect(single.details).toBe('Tamanho: Média\\nSabores: Calabresa');
+  expect(single.details).toBe('Tamanho: Média\nSabores: Calabresa');
   const paired=resolveCustomSelection(half,{optionIds:['m','cal'],note:'',flavorMode:'half-and-half',pairedFlavorName:'Portuguesa',pairedFlavorPriceCents:3990});
-  expect(paired.details).toBe('Tamanho: Média\\nSabores: Calabresa\\nMeio a meio: Calabresa + Portuguesa');
+  expect(paired.details).toBe('Tamanho: Média\nSabores: Calabresa\nMeio a meio: Calabresa + Portuguesa');
   expect(customUnitPrice(3590,paired)).toBe(3990);
   expect(customSelectionKey({optionIds:['m','cal'],note:'',flavorMode:'half-and-half',pairedFlavorName:'Portuguesa'}))
    .not.toBe(customSelectionKey({optionIds:['m','cal'],note:'',flavorMode:'half-and-half',pairedFlavorName:'Mussarela'}));
