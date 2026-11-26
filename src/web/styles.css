@@ -955,3 +955,15 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 /* Indicador visual de frescor: somente a bolinha verde, sem texto ou etiqueta. */
 .storefront .fresh-pill{position:absolute;top:12px;left:12px;display:block;width:10px;height:10px;min-width:10px;padding:0;margin:0;border:2px solid #fff;border-radius:50%;background:#29a35b!important;box-shadow:0 1px 4px #0002;color:transparent;font-size:0;line-height:0}
 .storefront .fresh-pill span{display:none}
+
+
+/* Gestão de categorias: edição do nome e emoji e exclusão segura de inativas. */
+.category-edit-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(90px,150px) auto;gap:12px;align-items:end;margin:14px 0}
+.category-edit-form label{display:grid;gap:6px;font-size:11px;font-weight:700;color:#52685a}
+.category-edit-form input{height:42px;min-width:0;border:1px solid #dce6de;border-radius:9px;padding:0 12px;color:#314638;background:#fff}
+.category-edit-form .emoji-input{width:100%;text-align:center;font-size:20px}
+.category-edit-heading{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;color:#314638}
+.category-admin-card.is-inactive{background:#fafcfb;border-style:dashed}
+.category-actions .btn-danger-outline{border:1px solid #efcaca;color:#b42318;background:#fff}
+.category-actions .btn-danger-outline:hover{background:#fff1f0}
+@media(max-width:700px){.category-admin-grid{grid-template-columns:1fr}.category-admin-card{flex-wrap:wrap;gap:9px}.category-admin-card>div:nth-child(2){min-width:100px}.category-actions{margin-left:auto;flex-wrap:wrap}.category-actions .btn{font-size:10px;padding:7px 9px}.category-edit-form{grid-template-columns:minmax(0,1fr) 86px}.category-edit-form .category-edit-heading{grid-column:1/-1}.category-edit-form>button{grid-column:1/-1;width:100%;justify-content:center}}
