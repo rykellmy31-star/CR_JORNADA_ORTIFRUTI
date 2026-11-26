@@ -209,7 +209,7 @@ publicStoreRoutes.get('/:slug/orders/:orderNumber', async (c) => {
   const phoneInput = c.req.query('phone') || '';
   const phone = normalizePhoneBR(phoneInput);
   if (phone.length < 12) return c.json({ error: 'Informe o telefone usado na compra para consultar o pedido.' }, 400);
-  const order = await db.prepare(`SELECT id, order_number, status, subtotal_cents, delivery_fee_cents, total_cents, created_at, updated_at FROM orders WHERE tenant_id = ? AND order_number = ? AND customer_phone = ? AND deleted_at IS NULL`).bind(t.id, Number(c.req.param('orderNumber')), phone).first();
+  const order = await db.prepare(`SELECT id, order_number, status, subtotal_cents, delivery_fee_cents, card_fee_cents, total_cents, created_at, updated_at FROM orders WHERE tenant_id = ? AND order_number = ? AND customer_phone = ? AND deleted_at IS NULL`).bind(t.id, Number(c.req.param('orderNumber')), phone).first();
   if (!order) return c.json({ error: 'Pedido não encontrado para este telefone.' }, 404);
   const { results: items } = await db.prepare(`SELECT product_name_snapshot, variant_name_snapshot, quantity_display, line_total_cents, customization_snapshot FROM order_items WHERE tenant_id = ? AND order_id = ?`).bind(t.id, (order as any).id).all();
   const {results:adjustments}=await db.prepare(`SELECT id,version,reason,old_total_cents,new_total_cents,
