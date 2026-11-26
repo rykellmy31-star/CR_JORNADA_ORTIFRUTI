@@ -4,6 +4,18 @@ import {removeCartSelection} from '../src/shared/cart';
 import {formatWhatsAppItems} from '../src/shared/order-presentation';
 const config=customConfigSchema.parse({allowNotes:true,groups:[{id:'size',name:'Tamanho',min:1,max:1,options:[{id:'p',name:'P',priceCents:0,active:true},{id:'g',name:'G',priceCents:1000,active:true}]},{id:'protein',name:'Proteína',min:1,max:1,options:[{id:'fish',name:'Peixe',priceCents:300,active:true},{id:'beef',name:'Carne',priceCents:0,active:false}]}]});
 describe('produto personalizável',()=>{
+ it('configura pizza meio a meio e exige dois sabores escolhidos em etapas',()=>{
+  const half=customConfigSchema.parse({allowNotes:true,groups:[
+   {id:'size',name:'Tamanho',min:1,max:1,priceMode:'final',options:[{id:'m',name:'Média',priceCents:3590,active:true}]},
+   {id:'flavors',name:'Sabores',min:2,max:2,selectionMode:'half-and-half',options:[
+    {id:'cal',name:'Calabresa',priceCents:0,active:true},
+    {id:'muzz',name:'Mussarela',priceCents:0,active:true},
+    {id:'port',name:'Portuguesa',priceCents:0,active:true}]}
+  ]});
+  expect(resolveCustomSelection(half,{optionIds:['m','cal','muzz'],note:''}).details).toBe('Tamanho: Média\nSabores: Calabresa, Mussarela');
+  expect(()=>resolveCustomSelection(half,{optionIds:['m','cal'],note:''})).toThrow('Selecione de 2 a 2 opção(ões) em Sabores.');
+  expect(()=>customConfigSchema.parse({...half,groups:half.groups.map(g=>g.id==='flavors'?{...g,max:1}:g)})).toThrow();
+ });
  it('valida escolhas e calcula apenas adicionais cadastrados',()=>{
   const r=resolveCustomSelection(config,{optionIds:['g','fish'],note:'Sem cebola'});
   expect(r.extrasCents).toBe(1300);
