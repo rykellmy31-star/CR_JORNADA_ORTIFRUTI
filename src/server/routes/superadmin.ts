@@ -18,6 +18,12 @@ type StoreDomainRow={
  updated_at:string;
 };
 
+async function ensurePizzeriaCategories(db:any,tenantId:string,time:string){
+ const defaults=[['Pizzas','pizzas','🍕'],['Lanches','lanches','🍔'],['Bebidas','bebidas','🥤'],['Porções','porcoes','🍟'],['Combos','combos','🎁']];
+ await db.batch(defaults.map(([name,slug,icon],index)=>db.prepare(`INSERT INTO categories(id,tenant_id,name,slug,icon,sort_order,is_active,created_at)
+  SELECT ?,?,?,?,?,?,1,? WHERE NOT EXISTS(SELECT 1 FROM categories WHERE tenant_id=? AND slug=?)`).bind(generateId(),tenantId,name,slug,icon,index,time,tenantId,slug)));
+}
+
 const domainInfo=(row:{domain_status:string|null;hostname:string|null})=>({
  domainStatus:row.domain_status||'manual',
  hostname:row.hostname||null
@@ -64,7 +70,7 @@ superAdminRoutes.post('/tenants',async(c)=>{
  if(!body||typeof body!=='object'||Array.isArray(body))
   return c.json({error:'Preencha os dados do estabelecimento.'},400);
  const name=typeof body.name==='string'?body.name.trim():'';
- const allowedModes=['weight','unit','dual','variants','custom'];
+ const allowedModes=['weight','unit','dual','variants','custom','pizzeria'];
  const saleModes=Array.isArray(body.saleModes)?[...new Set(body.saleModes.filter(v=>typeof v==='string'&&allowedModes.includes(v)))]:allowedModes;
  if(!saleModes.length)return c.json({error:'Selecione ao menos uma modalidade de venda válida.'},400);
  const slug=typeof body.slug==='string'?body.slug.trim().toLowerCase():'';
@@ -121,6 +127,7 @@ superAdminRoutes.post('/tenants',async(c)=>{
       shouldProvision?'pending':'manual',null,shouldProvision?1:0,
       shouldProvision?null:'Automação ainda não ativada na Cloudflare.',time)
   ]);
+  if(saleModes.includes('pizzeria'))await ensurePizzeriaCategories(db,tenantId,time);
  }catch{
   return c.json({error:'Não foi possível criar a loja. Verifique se o e-mail ou subdomínio já existem.'},409);
  }
@@ -167,7 +174,7 @@ superAdminRoutes.patch('/tenants/:id',async(c)=>{
  const db=c.get('services').db,id=c.req.param('id'),b=await c.req.json().catch(()=>null);
  if(!b)return c.json({error:'Informe os dados para atualizar.'},400);
  const name=String(b.name||'').trim(),ownerName=String(b.ownerName||'').trim(),ownerEmail=String(b.ownerEmail||'').trim().toLowerCase();
- const allowed=['weight','unit','dual','variants','custom'];
+ const allowed=['weight','unit','dual','variants','custom','pizzeria'];
  const modes=Array.isArray(b.saleModes)?[...new Set(b.saleModes.filter((v:string)=>allowed.includes(v)))]:[];
  if(name.length<2||name.length>160||ownerName.length<2||ownerName.length>160||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)||!modes.length)
   return c.json({error:'Confira os dados do estabelecimento e selecione ao menos uma modalidade.'},400);
@@ -181,6 +188,7 @@ superAdminRoutes.patch('/tenants/:id',async(c)=>{
   db.prepare('UPDATE tenants SET name=?,sale_modes_json=?,updated_at=? WHERE id=?').bind(name,JSON.stringify(modes),now,id),
   db.prepare('UPDATE users SET name=?,email=?,updated_at=? WHERE id=? AND tenant_id=?').bind(ownerName,ownerEmail,now,owner.id,id)
  ]);
+ if(modes.includes('pizzeria'))await ensurePizzeriaCategories(db,id,now);
  await logAudit(db,{actorUserId:c.get('authUser').sub,actorRole:'superadmin',action:'superadmin.tenant_updated',entityType:'tenant',entityId:id,details:{saleModes:modes}});
  return c.json({success:true});
 });

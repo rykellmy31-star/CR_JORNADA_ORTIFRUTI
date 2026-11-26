@@ -14,11 +14,26 @@ export const newCustomConfig=():CustomConfig=>({allowNotes:true,groups:[
  makeGroup('Acompanhamentos',0,3,[makeOption('Arroz'),makeOption('Feijão'),makeOption('Salada')]),
  makeGroup('Adicionais',0,1,[makeOption('Ovo frito',200)]),
 ]});
+export const newPizzaConfig=():CustomConfig=>({allowNotes:true,groups:[
+ {...makeGroup('Tamanho',1,1,[makeOption('Broto · 4 fatias',2590),makeOption('Média · 6 fatias',3590),makeOption('Grande · 8 fatias',4590),makeOption('Família · 12 fatias',5990)]),priceMode:'final'},
+ makeGroup('Sabores (escolha até 2)',1,2,['Calabresa','Mussarela','Portuguesa','Frango com catupiry','Marguerita','Quatro queijos','Pepperoni','Bacon','Napolitana','Moda da casa'].map(n=>makeOption(n))),
+ makeGroup('Borda recheada',0,1,[makeOption('Sem borda',0),makeOption('Catupiry',700),makeOption('Cheddar',700),makeOption('Chocolate',900)]),
+ makeGroup('Adicionais',0,8,[makeOption('Bacon',500),makeOption('Catupiry',500),makeOption('Cheddar',500),makeOption('Milho',250),makeOption('Azeitona',250),makeOption('Cebola',200),makeOption('Tomate',250),makeOption('Extra mussarela',600)]),
+ makeGroup('Tipo de massa',0,1,[makeOption('Tradicional'),makeOption('Fina'),makeOption('Integral')])
+]});
+export const newSnackConfig=():CustomConfig=>{
+ const ingredients=['Pão','Hambúrguer','Queijo','Presunto','Alface','Tomate','Cebola','Milho','Batata palha','Molho especial'];
+ const included={...makeGroup('Ingredientes que acompanham',0,ingredients.length,ingredients.map(n=>makeOption(n))),kind:'included' as const};
+ return {allowNotes:true,groups:[included,
+  makeGroup('Adicionais',0,8,[makeOption('Bacon',400),makeOption('Ovo',250),makeOption('Cheddar',350),makeOption('Hambúrguer extra',600),makeOption('Queijo extra',300),makeOption('Presunto extra',250),makeOption('Catupiry',400),makeOption('Calabresa',400)]),
+  makeGroup('Ponto da carne',0,1,[makeOption('Bem passado'),makeOption('Ao ponto'),makeOption('Mal passado')])
+ ]};
+};
 type Group=CustomConfig['groups'][number];
 export function CustomConfigEditor({value,onChange,baseCents=0}:{value:CustomConfig;onChange:(v:CustomConfig)=>void;baseCents?:number}){
  const update=(index:number,change:Partial<Group>)=>onChange({...value,groups:value.groups.map((g,i)=>i===index?{...g,...change}:g)});
  return <section className="custom-config-editor">
-  <h3>Complementos e ingredientes</h3><small>Use «Escolhas e adicionais» para opções que o cliente precisa selecionar. Use «Ingredientes que já vêm no produto» para mostrar a composição do lanche e permitir retirar ingredientes sem cobrança. O preço base já inclui esses ingredientes.</small>
+  <h3>Complementos e ingredientes</h3><div className="custom-config-create"><button type="button" className="btn btn-outline" onClick={()=>onChange(newPizzaConfig())}>🍕 Usar modelo de pizza</button><button type="button" className="btn btn-outline" onClick={()=>onChange(newSnackConfig())}>🍔 Usar modelo de lanche</button></div><small>Use «Escolhas e adicionais» para opções que o cliente precisa selecionar. Use «Ingredientes que já vêm no produto» para mostrar a composição do lanche e permitir retirar ingredientes sem cobrança. O preço base já inclui esses ingredientes.</small>
   {value.groups.map((g,i)=><div key={g.id} className="custom-config-group">
    <div className="custom-config-row"><label>Nome do grupo<input required maxLength={100} value={g.name} onChange={e=>update(i,{name:e.target.value})}/></label><button type="button" className="icon-btn" aria-label="Excluir grupo" onClick={()=>onChange({...value,groups:value.groups.filter(x=>x.id!==g.id)})}><Trash2 size={16}/></button></div>
    <label>Como funciona este grupo?<select value={g.kind||'choice'} onChange={e=>{

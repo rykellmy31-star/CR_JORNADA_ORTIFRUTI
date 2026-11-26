@@ -403,7 +403,7 @@ adminRoutes.post('/products',async(c)=>{
   if(!['weight','unit','dual','custom'].includes(selected))return c.json({error:'Modo de venda inválido.'},400);
   const tenantModes=await db.prepare('SELECT sale_modes_json FROM tenants WHERE id=?').bind(tid).first<{sale_modes_json:string|null}>();
   const enabledModes=new Set<string>(JSON.parse(tenantModes?.sale_modes_json||'["weight","unit","dual","variants","custom"]'));
-  const requiredModes=selected==='dual'?['dual','weight','unit']:[selected];
+  const requiredModes=selected==='dual'?['dual','weight','unit']:[(selected==='custom'||selected==='unit')&&enabledModes.has('pizzeria')?'pizzeria':selected];
   if(requiredModes.some(mode=>!enabledModes.has(mode)))return c.json({error:'Esta modalidade de venda não está habilitada para seu estabelecimento. Solicite ao Super Admin.'},403);
   let customConfig:string|null=null;
   if(selected==='custom'){try{const config=readCustomConfig(b.customConfig);if(!config)throw Error('Cadastre os grupos de opções.');customConfig=JSON.stringify(config);}catch{return c.json({error:'Confira os grupos, preços e limites de complementos.'},400);}}
