@@ -845,7 +845,7 @@ function setHalfAndHalf(enabled:boolean){
  let index=groups.findIndex((g:any)=>/sabor/i.test(g.name||''));
  if(enabled){
   if(index<0){const template=newPizzaConfig().groups.find((g:any)=>/sabor/i.test(g.name||''));if(template)groups.push(template);index=groups.length-1;}
-  if(index>=0)groups[index]={...groups[index],kind:undefined,selectionMode:'half-and-half',min:2,max:2};
+  if(index>=0)groups[index]={...groups[index],kind:undefined,selectionMode:'half-and-half',min:1,max:2};
  }else if(index>=0){
   const current:any=groups[index];groups[index]={...current,selectionMode:undefined,min:1,max:1};
  }
