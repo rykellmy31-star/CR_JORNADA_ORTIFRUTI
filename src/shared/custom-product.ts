@@ -1,18 +1,21 @@
 import {z} from 'zod';
 const id=z.string().min(1).max(80);
 const name=z.string().trim().min(1).max(100).regex(/^[^\r\n]+$/);
-const option=z.object({id,name,priceCents:z.number().int().min(0).max(10000000),active:z.boolean()});
+const option=z.object({id,name,priceCents:z.number().int().min(0).max(10000000),priceByOptionId:z.record(z.string().min(1).max(80),z.number().int().min(0).max(10000000)).optional(),active:z.boolean()});
 const group=z.object({id,name,min:z.number().int().min(0).max(30),max:z.number().int().min(1).max(30),priceMode:z.enum(['additional','final']).optional(),kind:z.enum(['choice','included']).optional(),options:z.array(option).min(1).max(30)});
 export const customConfigSchema=z.object({groups:z.array(group).min(1).max(12),allowNotes:z.boolean()}).superRefine((c,ctx)=>{
  const ids=new Set<string>();
  const finalGroups=c.groups.filter(g=>g.priceMode==='final');
  if(finalGroups.length>1)ctx.addIssue({code:'custom',message:'Somente um grupo pode definir o preço final do produto.'});
+ const finalGroup=finalGroups[0];
  for(const g of c.groups){
   if(g.kind==='included'&&(g.priceMode==='final'||g.min!==0||g.max!==g.options.length||g.options.some(o=>o.priceCents!==0)))ctx.addIssue({code:'custom',message:'Ingredientes inclusos devem ser gratuitos, sem mínimo e todos disponíveis para retirada.'});
   if(g.priceMode==='final'&&(g.min!==1||g.max!==1||g.options.some(o=>o.priceCents<=0)))ctx.addIssue({code:'custom',message:'O grupo de preço final deve ter uma escolha obrigatória e opções com preço maior que zero.'});
   if(ids.has(g.id)||g.min>g.max||g.max>g.options.length)ctx.addIssue({code:'custom',message:'Confira os limites e opções do grupo '+g.name});
   ids.add(g.id);
-  for(const o of g.options){if(ids.has(o.id))ctx.addIssue({code:'custom',message:'Identificador de opção duplicado.'});ids.add(o.id);}
+  for(const o of g.options){if(ids.has(o.id))ctx.addIssue({code:'custom',message:'Identificador de opção duplicado.'});ids.add(o.id);
+   if(o.priceByOptionId){if(!finalGroup||g.id===finalGroup.id||Object.keys(o.priceByOptionId).some(key=>!finalGroup.options.some(size=>size.id===key)))ctx.addIssue({code:'custom',message:'Preço por tamanho só pode ser usado em opções de outros grupos e deve apontar para tamanhos existentes.'});}
+  }
  }
 });
 export const customSelectionSchema=z.object({optionIds:z.array(id).max(120),note:z.string().trim().max(300).default('')});
@@ -30,6 +33,8 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
  const ids=new Set(choice.optionIds);
  if(ids.size!==choice.optionIds.length)throw Error('Opção repetida.');
  if(!config.allowNotes&&choice.note)throw Error('Este produto não aceita observações.');
+ const finalGroup=config.groups.find(g=>g.priceMode==='final');
+ const selectedFinalOptionId=finalGroup?.options.find(o=>ids.has(o.id))?.id||null;
  let extrasCents=0;let selectedBaseCents:number|null=null;const details:string[]=[];
  for(const g of config.groups){
   const selected=g.options.filter(o=>ids.has(o.id));
@@ -44,7 +49,8 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
   }
   if(selected.length<g.min||selected.length>g.max)throw Error('Selecione de '+g.min+' a '+g.max+' opção(ões) em '+g.name+'.');
   if(selected.some(o=>!o.active))throw Error('Uma opção de '+g.name+' está indisponível.');
-  for(const o of selected){ids.delete(o.id);if(g.priceMode==='final')selectedBaseCents=o.priceCents;else extrasCents+=o.priceCents;}
+  for(const o of selected){ids.delete(o.id);if(g.priceMode==='final')selectedBaseCents=o.priceCents;}
+  if(g.priceMode!=='final')for(const o of selected){const dependent=selectedFinalOptionId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,selectedFinalOptionId)?o.priceByOptionId[selectedFinalOptionId]:o.priceCents;extrasCents+=dependent;}
   if(selected.length)details.push(g.name+': '+selected.map(o=>o.name).join(', '));
  }
  if(ids.size)throw Error('Complemento inválido para este produto.');
@@ -64,8 +70,12 @@ export function minimumCustomPrice(config:CustomConfig,baseCents:number):number{
  let base=baseCents,extras=0;
  for(const g of config.groups){
   if(g.kind==='included')continue;
-  const cost=g.options.filter(o=>o.active).map(o=>o.priceCents).sort((a,b)=>a-b).slice(0,g.min).reduce((a,b)=>a+b,0);
-  if(g.priceMode==='final')base=cost;else extras+=cost;
+  const costFor=(sizeId:string|null)=>g.options.filter(o=>o.active).map(o=>o.priceByOptionId&&sizeId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents).sort((a,b)=>a-b).slice(0,g.min).reduce((a,b)=>a+b,0);
+  if(g.priceMode==='final'){
+   const sizes=g.options.filter(o=>o.active);
+   return sizes.length?Math.min(...sizes.map(size=>size.priceCents+config.groups.filter(x=>x.kind!=='included'&&x.priceMode!=='final').reduce((sum,x)=>sum+costFor(size.id),0))):base;
+  }
+  extras+=costFor(null);
  }
  return base+extras;
 }
