@@ -77,7 +77,7 @@ export function CustomProductCard({product,img,onAdd,onChooseSecondFlavor,pendin
  const quantity=Number(quantityInput);
  const quantityValid=quantityInput.trim()!==''&&/^\\d+$/.test(quantityInput.trim())&&Number.isSafeInteger(quantity)&&quantity>=1&&quantity<=99;
  let valid=false,unitTotal=cheapest;
- try{const selection=resolveCustomSelection(config,{optionIds:ids,note,flavorMode:flavorMode||undefined});unitTotal=customUnitPrice(base,selection);valid=true;}catch{}
+ try{const selection=resolveCustomSelection(config,{optionIds:ids,note,flavorMode:flavorMode||undefined,firstFlavorName:flavorGroup?product.name:undefined});unitTotal=customUnitPrice(base,selection);valid=true;}catch{}
  function start(){if(pendingSecondFlavor){onPickSecondFlavor?.();return;}setIds([]);setNote('');setQuantityInput('1');setFlavorMode('');setOpen(true)}
  function toggle(g:Group,id:string){setIds(old=>{
   if(old.includes(id))return old.filter(x=>x!==id);
@@ -87,23 +87,7 @@ export function CustomProductCard({product,img,onAdd,onChooseSecondFlavor,pendin
   if(g.max===1)return [...old.filter(x=>!own.has(x)),id];
   return selected.length<g.max?[...old,id]:old;
  });}
- function chooseFlavor(position:number,id:string){
-  if(!flavorGroup)return;
-  setIds(old=>{
-   const own=new Set(flavorGroup.options.map(x=>x.id));
-   const other=old.filter(x=>!own.has(x));
-   const flavors=old.filter(x=>own.has(x));
-   if(flavorMode==='single')return [...other,id];
-   const next=[flavors[0],flavors[1]] as (string|undefined)[];
-   next[position]=id;
-   if(position===0&&next[1]===id)next[1]=undefined;
-   return [...other,...next.filter((x):x is string=>!!x)];
-  });
- }
- const selectedFlavorIds=flavorGroup?ids.filter(id=>flavorGroup.options.some(o=>o.id===id)):[];
  const sizeId=config.groups.find(x=>x.priceMode==='final')?.options.find(x=>ids.includes(x.id))?.id;
- const flavorPrice=(o:any)=>sizeId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents;
- const renderFlavorOptions=(position:number,excludeId?:string)=><div className="custom-flavor-step"><h4>{flavorMode==='single'?'Escolha o sabor':position===0?'1. Escolha o primeiro sabor':'2. Escolha o segundo sabor'}</h4>{flavorGroup!.options.filter(o=>o.id!==excludeId).map(o=><label className="custom-choice-option" key={o.id}><input type="radio" name={'pizza-flavor-'+position} checked={selectedFlavorIds[position]===o.id} disabled={!o.active} onChange={()=>chooseFlavor(position,o.id)}/><span>{o.name}{!o.active?' (indisponível)':''}</span><b>{o.priceByOptionId&&!sizeId?'Varia por tamanho':flavorPrice(o)?'+'+formatBRL(flavorPrice(o)):'Sem custo extra'}</b></label>)}</div>;
  return <article className="custom-product-card">
   <button type="button" onClick={start} style={{border:0,padding:0,background:'transparent',cursor:'pointer'}} aria-label={'Montar '+product.name}><img className="custom-product-cover" src={img(product.image_url)} alt={product.name}/></button>
   <div className="custom-product-card-body"><button type="button" onClick={start} style={{border:0,background:'transparent',textAlign:'left',padding:0,fontWeight:700,cursor:'pointer'}}>{product.name}</button>{includedNames.length>0&&<small className="custom-included-summary"><b>Já vem com:</b> {includedNames.join(', ')}</small>}<strong>A partir de {formatBRL(cheapest)}</strong><button type="button" className="btn btn-primary btn-block" onClick={start}>{pendingSecondFlavor?'Escolher este sabor':'Montar e adicionar'}</button></div>
@@ -116,11 +100,10 @@ export function CustomProductCard({product,img,onAdd,onChooseSecondFlavor,pendin
      {includedGroups.some(g=>g.options.some(o=>o.active))&&<section className="custom-choice-group custom-removal-group"><h3>Deseja retirar algum ingrediente?</h3><small>Opcional · Marque somente o que deseja retirar. Sem cobrança adicional.</small>{includedGroups.flatMap(g=>g.options.filter(o=>o.active).map(o=><label className="custom-choice-option custom-removal-option" key={o.id}><input type="checkbox" checked={ids.includes(o.id)} onChange={()=>toggle(g,o.id)} aria-label={'Retirar '+o.name}/><span>{o.name}</span><b>{ids.includes(o.id)?'RETIRAR':'Manter'}</b></label>))}</section>}
      {config.allowNotes&&<label>Observações / retirar ingredientes<textarea rows={3} maxLength={300} placeholder="Ex.: sem cebola" value={note} onChange={e=>setNote(e.target.value)}/></label>}
      {flavorGroup&&<section className="custom-choice-group custom-flavor-mode"><h3>Como deseja sua pizza?</h3><small>Escolha uma opção para continuar.</small><div className="custom-flavor-mode-options"><label className="custom-choice-option"><input type="radio" name="pizza-flavor-mode" checked={flavorMode==='single'} onChange={()=>{setFlavorMode('single');setIds(old=>old.filter(id=>!flavorGroup.options.some(o=>o.id===id)));}}/><span>Somente 1 sabor</span></label><label className="custom-choice-option"><input type="radio" name="pizza-flavor-mode" checked={flavorMode==='half-and-half'} onChange={()=>{setFlavorMode('half-and-half');setIds(old=>old.filter(id=>!flavorGroup.options.some(o=>o.id===id)));}}/><span>Meio a meio (2 sabores)</span></label></div>
-      {flavorMode&&renderFlavorOptions(0)}
-      {flavorMode==='half-and-half'&&<p className="custom-half-hint">Depois de concluir, você escolherá o segundo sabor diretamente na vitrine.</p>}
+      {flavorMode==='half-and-half'&&<p className="custom-half-hint">Ao continuar, você voltará à vitrine para escolher o segundo sabor. Os dois serão adicionados juntos ao carrinho.</p>}
      </section>}
     </div>
-    <footer className="fixed-price-footer custom-product-footer"><input aria-label="Quantidade" type="number" inputMode="numeric" min={1} max={99} step={1} value={quantityInput} onChange={e=>setQuantityInput(e.target.value)} onBlur={()=>{if(quantityInput==='')setQuantityInput('1');}}/><button type="button" className="btn btn-primary" disabled={!valid||!quantityValid} onClick={()=>{if(!quantityValid||!valid)return;const choice={optionIds:ids,note,flavorMode:flavorMode||undefined};if(flavorMode==='half-and-half')onChooseSecondFlavor?.(choice,quantity);else onAdd(choice,quantity);setOpen(false);}}>{flavorMode==='half-and-half'?'Escolher segundo sabor':'Adicionar · '+(quantityValid?formatBRL(unitTotal*quantity):'—')}</button></footer>
+    <footer className="fixed-price-footer custom-product-footer"><input aria-label="Quantidade" type="number" inputMode="numeric" min={1} max={99} step={1} value={quantityInput} onChange={e=>setQuantityInput(e.target.value)} onBlur={()=>{if(quantityInput==='')setQuantityInput('1');}}/><button type="button" className="btn btn-primary" disabled={!valid||!quantityValid} onClick={()=>{if(!quantityValid||!valid)return;const choice={optionIds:ids,note,flavorMode:flavorMode||undefined,firstFlavorName:flavorGroup?product.name:undefined};if(flavorMode==='half-and-half')onChooseSecondFlavor?.(choice,quantity);else onAdd(choice,quantity);setOpen(false);}}>{flavorGroup&&flavorMode==='half-and-half'?'Escolher segundo sabor':'Adicionar · '+(quantityValid?formatBRL(unitTotal*quantity):'—')}</button></footer>
    </div></div>,document.body)}
  </article>;
 }

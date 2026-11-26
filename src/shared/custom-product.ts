@@ -19,7 +19,7 @@ export const customConfigSchema=z.object({groups:z.array(group).min(1).max(12),a
   }
  }
 });
-export const customSelectionSchema=z.object({optionIds:z.array(id).max(120),note:z.string().trim().max(300).default(''),flavorMode:z.enum(['single','half-and-half']).optional(),pairedFlavorName:z.string().trim().min(1).max(100).optional(),pairedFlavorPriceCents:z.number().int().min(0).max(10000000).optional()});
+export const customSelectionSchema=z.object({optionIds:z.array(id).max(120),note:z.string().trim().max(300).default(''),flavorMode:z.enum(['single','half-and-half']).optional(),firstFlavorName:z.string().trim().min(1).max(100).optional(),pairedFlavorName:z.string().trim().min(1).max(100).optional(),pairedFlavorPriceCents:z.number().int().min(0).max(10000000).optional()});
 export type CustomConfig=z.infer<typeof customConfigSchema>;
 export type CustomSelection=z.infer<typeof customSelectionSchema>;
 export function readCustomConfig(raw:unknown):CustomConfig|null{
@@ -27,11 +27,11 @@ export function readCustomConfig(raw:unknown):CustomConfig|null{
  return customConfigSchema.parse(typeof raw==='string'?JSON.parse(raw):raw);
 }
 export function customSelectionKey(selection?:CustomSelection|null):string{
- return selection?JSON.stringify([Array.from(new Set(selection.optionIds)).sort(),selection.note.trim(),selection.flavorMode||'',selection.pairedFlavorName||'']):'';
+ return selection?JSON.stringify([Array.from(new Set(selection.optionIds)).sort(),selection.note.trim(),selection.flavorMode||'',selection.firstFlavorName||'',selection.pairedFlavorName||'']):'';
 }
 export function resolveCustomSelection(config:CustomConfig,raw:unknown){
  const choice=customSelectionSchema.parse(raw);
- if(config.groups.some(g=>g.selectionMode==='half-and-half')&&!choice.flavorMode)throw Error('Escolha se deseja uma pizza de um sabor ou meio a meio.');
+ if(config.groups.some(g=>g.selectionMode==='half-and-half')&&(!choice.flavorMode||!choice.firstFlavorName))throw Error('Escolha se deseja uma pizza de um sabor ou meio a meio.');
  const ids=new Set(choice.optionIds);
  if(ids.size!==choice.optionIds.length)throw Error('Opção repetida.');
  if(!config.allowNotes&&choice.note)throw Error('Este produto não aceita observações.');
@@ -39,6 +39,7 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
  const selectedFinalOptionId=finalGroup?.options.find(o=>ids.has(o.id))?.id||null;
  let extrasCents=0;let selectedBaseCents:number|null=null;const details:string[]=[];
  for(const g of config.groups){
+  if(g.selectionMode==='half-and-half')continue;
   const selected=g.options.filter(o=>ids.has(o.id));
   if(g.kind==='included'){
    if(selected.some(o=>!o.active))throw Error('Ingrediente indisponível não pode ser retirado.');
@@ -58,7 +59,7 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
   if(selected.length)details.push(g.name+': '+selected.map(o=>o.name).join(', '));
  }
  if(ids.size)throw Error('Complemento inválido para este produto.');
- if(choice.pairedFlavorName){const first=config.groups.find(g=>g.selectionMode==='half-and-half')?.options.find(o=>choice.optionIds.includes(o.id))?.name;details.push('Meio a meio: '+(first||'1º sabor')+' + '+choice.pairedFlavorName);if(choice.pairedFlavorPriceCents!==undefined)selectedBaseCents=Math.max(selectedBaseCents??0,choice.pairedFlavorPriceCents);}
+ if(choice.pairedFlavorName){details.push('Meio a meio: '+choice.firstFlavorName+' + '+choice.pairedFlavorName);if(choice.pairedFlavorPriceCents!==undefined)selectedBaseCents=Math.max(selectedBaseCents??0,choice.pairedFlavorPriceCents);}else if(choice.firstFlavorName){details.push('Sabor: '+choice.firstFlavorName);}
  if(choice.note)details.push('Observação: '+choice.note.replace(/[\r\n]+/g,' '));
  return {extrasCents,selectedBaseCents,details:details.join('\n')};
 }
