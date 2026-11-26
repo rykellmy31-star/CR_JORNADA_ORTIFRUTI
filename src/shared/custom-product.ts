@@ -9,7 +9,7 @@ export const customConfigSchema=z.object({groups:z.array(group).min(1).max(12),a
  if(finalGroups.length>1)ctx.addIssue({code:'custom',message:'Somente um grupo pode definir o preço final do produto.'});
  const finalGroup=finalGroups[0];
  for(const g of c.groups){
-  if(g.selectionMode==='half-and-half'&&(g.kind==='included'||g.min!==1||g.max!==2))ctx.addIssue({code:'custom',message:'A escolha de sabores deve permitir um ou dois sabores.'});
+  if(g.selectionMode==='half-and-half'&&(g.kind==='included'||(g.min!==1&&g.min!==2)||g.max!==2))ctx.addIssue({code:'custom',message:'A escolha de sabores deve permitir um ou dois sabores.'});
   if(g.kind==='included'&&(g.selectionMode!==undefined||g.priceMode==='final'||g.min!==0||g.max!==g.options.length||g.options.some(o=>o.priceCents!==0)))ctx.addIssue({code:'custom',message:'Ingredientes inclusos devem ser gratuitos, sem mínimo e todos disponíveis para retirada.'});
   if(g.priceMode==='final'&&(g.min!==1||g.max!==1||g.options.some(o=>o.priceCents<=0)))ctx.addIssue({code:'custom',message:'O grupo de preço final deve ter uma escolha obrigatória e opções com preço maior que zero.'});
   if(ids.has(g.id)||g.min>g.max||g.max>g.options.length)ctx.addIssue({code:'custom',message:'Confira os limites e opções do grupo '+g.name});
