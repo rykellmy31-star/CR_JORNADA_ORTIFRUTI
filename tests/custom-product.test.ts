@@ -65,7 +65,7 @@ describe('produto personalizável',()=>{
     {id:'m',name:'M · 6 fatias',priceCents:3500,active:true},
     {id:'g',name:'G · 8 fatias',priceCents:4900,active:true}]},
    {id:'flavors',name:'Sabores',min:1,max:2,selectionMode:'half-and-half',options:[
-    {id:'muzz',name:'Mussarela',priceCents:0,active:true}]},
+    {id:'muzz',name:'Mussarela',priceCents:0,active:true},{id:'cal',name:'Calabresa',priceCents:0,active:true}]},
    {id:'extras',name:'Adicionais',min:0,max:2,options:[
     {id:'bacon',name:'Bacon',priceCents:500,active:true},
     {id:'catupiry',name:'Catupiry',priceCents:500,active:true}]},
