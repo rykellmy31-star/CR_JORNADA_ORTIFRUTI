@@ -58,7 +58,7 @@ function CardFeePercentInput({label,value,onChange}:{label:string;value:number;o
   onChange(bps);
   setDraft(format(bps));
  };
- return <label>{label}<input type="text" inputMode="decimal" autoComplete="off" value={draft} placeholder="0,00" onChange={e=>{const next=e.target.value;if(/^\\d{0,3}([,.]\\d{0,2})?$/.test(next))setDraft(next);}} onBlur={commit}/></label>;
+ return <label>{label}<input type="text" inputMode="decimal" autoComplete="off" value={draft} placeholder="0,00" onChange={e=>{const next=e.target.value;if(/^[0-9]{0,3}(?:[,.][0-9]{0,2})?$/.test(next))setDraft(next);}} onBlur={commit}/></label>;
 }
 
 export default function App(){
