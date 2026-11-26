@@ -19,7 +19,7 @@ export const customConfigSchema=z.object({groups:z.array(group).min(1).max(12),a
   }
  }
 });
-export const customSelectionSchema=z.object({optionIds:z.array(id).max(120),note:z.string().trim().max(300).default(''),flavorMode:z.enum(['single','half-and-half']).optional()});
+export const customSelectionSchema=z.object({optionIds:z.array(id).max(120),note:z.string().trim().max(300).default(''),flavorMode:z.enum(['single','half-and-half']).optional(),pairedFlavorName:z.string().trim().min(1).max(100).optional(),pairedFlavorPriceCents:z.number().int().min(0).max(10000000).optional()});
 export type CustomConfig=z.infer<typeof customConfigSchema>;
 export type CustomSelection=z.infer<typeof customSelectionSchema>;
 export function readCustomConfig(raw:unknown):CustomConfig|null{
@@ -48,8 +48,8 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
    if(removed.length)details.push('RETIRAR: '+removed.join(', '));
    continue;
   }
-  const min=g.selectionMode==='half-and-half'?(choice.flavorMode==='half-and-half'?2:choice.flavorMode==='single'?1:2):g.min;
-  const max=g.selectionMode==='half-and-half'?min:g.max;
+  const min=g.selectionMode==='half-and-half'?1:g.min;
+  const max=g.selectionMode==='half-and-half'?1:g.max;
   if(selected.length<min||selected.length>max)throw Error('Selecione '+(min===max?min:'de '+min+' a '+max)+' opção(ões) em '+g.name+'.');
   if(selected.some(o=>!o.active))throw Error('Uma opção de '+g.name+' está indisponível.');
   for(const o of selected){ids.delete(o.id);if(g.priceMode==='final')selectedBaseCents=o.priceCents;}
