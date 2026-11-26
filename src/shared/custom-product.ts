@@ -93,3 +93,11 @@ export function minimumCustomPrice(config:CustomConfig,baseCents:number):number{
   .filter(g=>g.kind!=='included')
   .reduce((sum,g)=>sum+costFor(g,null),0);
 }
+
+/** Valida a quantidade digitada no modal antes de liberar o preço e a ação do rodapé. */
+export function isValidCustomQuantityInput(value:string):boolean{
+ const normalized=value.trim();
+ if(!/^\d+$/.test(normalized))return false;
+ const quantity=Number(normalized);
+ return Number.isSafeInteger(quantity)&&quantity>=1&&quantity<=99;
+}
