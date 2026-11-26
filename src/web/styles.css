@@ -635,6 +635,94 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 }
 @media print{.mobile-bag-bar{display:none!important}}
 
+
+
+/* Editor de produtos personalizáveis: campos organizados em telas pequenas. */
+.custom-config-editor,
+.custom-config-group,
+.custom-config-option,
+.custom-size-price-grid{min-width:0;max-width:100%;box-sizing:border-box}
+.custom-config-group{overflow:hidden}
+.custom-config-option{grid-template-columns:minmax(0,1fr) 88px 30px 30px}
+.custom-config-option>input[aria-label="Nome da opção"]{min-width:0}
+.custom-size-price-grid{
+ grid-column:1/-1;
+ display:grid;
+ grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:8px;
+ padding:10px;
+ border:1px solid #e1eae3;
+ border-radius:10px;
+ background:#fff;
+}
+.custom-size-price-grid>small{grid-column:1/-1;color:#526b59;font-weight:700;line-height:1.4}
+.custom-size-price-grid>label{
+ display:grid;
+ grid-template-columns:minmax(0,1fr);
+ gap:5px;
+ min-width:0;
+ color:#526b59;
+ font-size:11px;
+ font-weight:750;
+}
+.custom-size-price-grid input{width:100%;min-width:0;box-sizing:border-box}
+@media(max-width:680px){
+ .custom-config-editor{gap:10px}
+ .custom-config-group{padding:10px;border-radius:11px;gap:10px}
+ .custom-config-row{align-items:stretch}
+ .custom-config-row>label{min-width:0;flex-basis:100%}
+ .custom-config-option{
+  grid-template-columns:minmax(0,1fr) 38px 38px;
+  gap:8px;
+  align-items:center;
+  padding:10px;
+  border:1px solid #e0e9e2;
+  border-radius:10px;
+  background:#fff;
+ }
+ .custom-config-option>input[aria-label="Nome da opção"]{
+  grid-column:1/-1;
+  width:100%;
+  min-height:42px;
+  box-sizing:border-box;
+ }
+ .custom-config-option>input[type="number"]{
+  grid-column:1/2;
+  width:100%;
+  min-width:0;
+  min-height:42px;
+  box-sizing:border-box;
+ }
+ .custom-config-option>.custom-size-price-grid{
+  grid-column:1/-1;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+  padding:9px;
+ }
+ .custom-config-option>input[type="checkbox"]{
+  grid-column:2;
+  grid-row:auto;
+  justify-self:center;
+  width:20px;
+  height:20px;
+ }
+ .custom-config-option>.icon-btn{
+  grid-column:3;
+  justify-self:center;
+  min-width:34px;
+  min-height:34px;
+ }
+ .custom-config-create{display:grid;grid-template-columns:minmax(0,1fr)}
+ .custom-config-create>.btn{width:100%;justify-content:center;white-space:normal}
+ .custom-price-check{min-width:0;overflow-wrap:anywhere}
+ .form-modal>.form-grid{min-width:0}
+}
+@media(max-width:390px){
+ .custom-size-price-grid{grid-template-columns:minmax(0,1fr)}
+ .custom-size-price-grid>small{grid-column:1}
+ .custom-config-option{padding:8px;gap:7px}
+}
+
 /* Produtos personalizáveis: grupos e opções independentes, com modal responsivo. */
 .custom-config-editor{grid-column:1/-1;display:grid;gap:12px;min-width:0}
 .custom-config-group{border:1px solid #dce8df;border-radius:12px;padding:12px;display:grid;gap:9px;background:#f8fbf9}
@@ -827,3 +915,18 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .wa-rule-main blockquote{margin:0;padding:10px;background:var(--surface-soft,#f7f8f7);border-radius:8px;font-size:13px;white-space:pre-wrap}
 .wa-rule-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}
 @media(max-width:700px){.wa-auto-grid{grid-template-columns:1fr}.wa-rule-main{flex-direction:column}.wa-rule-actions{justify-content:flex-end}.wa-auto-options{align-items:stretch}.wa-auto-options .wa-auto-field{flex:1}}
+
+
+/* Overrides finais: o editor precisa vencer as regras antigas de grade no mobile. */
+@media(max-width:680px){
+ .custom-config-editor .custom-config-option{grid-template-columns:minmax(0,1fr) 38px 38px!important}
+ .custom-config-editor .custom-config-option>input[aria-label="Nome da opção"]{grid-column:1/-1!important}
+ .custom-config-editor .custom-config-option>input[type="number"]{grid-column:1/2!important}
+ .custom-config-editor .custom-config-option>.custom-size-price-grid{grid-column:1/-1!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .custom-config-editor .custom-config-option>input[type="checkbox"]{grid-column:2!important;justify-self:center!important;width:20px!important;height:20px!important}
+ .custom-config-editor .custom-config-option>.icon-btn{grid-column:3!important;justify-self:center!important}
+}
+@media(max-width:390px){
+ .custom-config-editor .custom-size-price-grid{grid-template-columns:minmax(0,1fr)!important}
+ .custom-config-editor .custom-size-price-grid>small{grid-column:1!important}
+}
