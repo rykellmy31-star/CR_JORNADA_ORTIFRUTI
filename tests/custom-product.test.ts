@@ -12,9 +12,9 @@ describe('produto personalizável',()=>{
     {id:'muzz',name:'Mussarela',priceCents:0,active:true},
     {id:'port',name:'Portuguesa',priceCents:0,active:true}]}
   ]});
-  expect(resolveCustomSelection(half,{optionIds:['m','cal','muzz'],note:''}).details).toBe('Tamanho: Média\nSabores: Calabresa, Mussarela');
-  expect(()=>resolveCustomSelection(half,{optionIds:['m','cal'],note:''})).toThrow('Selecione de 2 a 2 opção(ões) em Sabores.');
-  expect(()=>customConfigSchema.parse({...half,groups:half.groups.map(g=>g.id==='flavors'?{...g,max:1}:g)})).toThrow();
+  expect(resolveCustomSelection(half,{optionIds:['m','cal','muzz'],note:'',flavorMode:'half-and-half'}).details).toBe('Tamanho: Média\nSabores: Calabresa, Mussarela');
+  expect(()=>resolveCustomSelection(half,{optionIds:['m','cal'],note:'',flavorMode:'half-and-half'})).toThrow('Selecione de 2 a 2 opção(ões) em Sabores.');
+  expect(resolveCustomSelection(half,{optionIds:['m','cal'],note:'',flavorMode:'single'}).details).toBe('Tamanho: Média\\nSabores: Calabresa');\n  expect(()=>resolveCustomSelection(half,{optionIds:['m','cal','muzz'],note:'',flavorMode:'single'})).toThrow();\n  expect(()=>customConfigSchema.parse({...half,groups:half.groups.map(g=>g.id==='flavors'?{...g,max:1}:g)})).toThrow();
  });
  it('valida escolhas e calcula apenas adicionais cadastrados',()=>{
   const r=resolveCustomSelection(config,{optionIds:['g','fish'],note:'Sem cebola'});
@@ -67,7 +67,7 @@ describe('produto personalizável',()=>{
   const a={product:{id:'meal'},purchaseMode:'unit',customization:{optionIds:['p','fish'],note:''}};
   const b={...a,customization:{optionIds:['g','fish'],note:''}};
   expect(removeCartSelection([a,b],a)).toEqual([b]);
-  expect(customSelectionKey({optionIds:['fish','p'],note:''})).toBe(customSelectionKey(a.customization));
+  expect(customSelectionKey({optionIds:['fish','p'],note:''})).toBe(customSelectionKey(a.customization));\n  expect(customSelectionKey({optionIds:['cal'],note:'',flavorMode:'single'})).not.toBe(customSelectionKey({optionIds:['cal'],note:'',flavorMode:'half-and-half'}));
   expect(formatWhatsAppItems([{product_name_snapshot:'Marmita',quantity_display:'1 un',line_total_cents:2100,customization_snapshot:'Tamanho: P\nProteína: Peixe'}])).toContain('Proteína: Peixe');
  });
 });
