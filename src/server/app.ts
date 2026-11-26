@@ -11,7 +11,7 @@ import {latestAndroidUpdate} from './services/android-updates';
 import {timingSafeEqualStr} from './security/crypto';
 import {normalizePhoneBR} from '../shared/pricing';
 import {generateId,hashPassword} from './security/crypto';
-import {normalizeEvolutionQrImage,handleIncomingWhatsAppAutoReply} from './services/evolution-whatsapp';
+import {normalizeEvolutionQrImage,handleIncomingWhatsAppAutoReply,handleOutgoingWhatsAppHumanActivity} from './services/evolution-whatsapp';
 import {recordWhatsAppDisconnection,processPendingTelegramAlerts} from './services/telegram-alerts';
 import {z} from 'zod';
 
@@ -53,7 +53,8 @@ export function createApp(services:AppRuntimeServices){
   const data=body.data||{},time=new Date().toISOString();
   if(event.includes('messages_upsert')){
     const messageData=data?.messages?.[0]||data;
-    await handleIncomingWhatsAppAutoReply(services.db,inst.tenant_id,messageData,services.evolution).catch(()=>undefined);
+    if(messageData?.key?.fromMe===true)await handleOutgoingWhatsAppHumanActivity(services.db,inst.tenant_id,messageData).catch(()=>undefined);
+    else await handleIncomingWhatsAppAutoReply(services.db,inst.tenant_id,messageData,services.evolution).catch(()=>undefined);
   }else if(event.includes('qrcode')){
     const qr=await normalizeEvolutionQrImage(data);
     const code=String(data.qrcode?.code||data.code||'')||null;

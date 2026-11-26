@@ -931,9 +931,62 @@ function incomingRuleScore(message:string,keywords:string[]):number {
  }
  return best;
 }
+export async function handleOutgoingWhatsAppHumanActivity(db:DbClient,tenantId:string,data:any):Promise<{handled:boolean;reason?:string}> {
+ const key=data?.key||{},jid=String(key.remoteJid||data?.remoteJid||'');
+ if(key.fromMe!==true||!jid||jid.endsWith('@g.us')||jid==='status@broadcast')return{handled:false,reason:'ignored_sender'};
+ const phone=jid.split('@')[0],providerId=String(key.id||data?.messageId||'');
+ const session=await db.prepare('SELECT last_bot_message_id,closure_claimed_at FROM whatsapp_auto_reply_sessions WHERE tenant_id=? AND customer_phone=?').bind(tenantId,phone).first<any>();
+ if(!session)return{handled:false,reason:'no_human_session'};
+ if(session.closure_claimed_at)return{handled:false,reason:'closure_in_progress_ignored'};
+ if(providerId&&session.last_bot_message_id&&providerId===session.last_bot_message_id)return{handled:false,reason:'bot_message_ignored'};
+ const settings=await db.prepare('SELECT human_timeout_minutes FROM whatsapp_auto_reply_settings WHERE tenant_id=?').bind(tenantId).first<any>();
+ const minutes=Math.max(1,Math.min(1440,Number(settings?.human_timeout_minutes)||30));
+ const now=new Date(),nowIso=now.toISOString(),until=new Date(now.getTime()+minutes*60000).toISOString();
+ await db.prepare('UPDATE whatsapp_auto_reply_sessions SET paused_until=?,updated_at=?,last_human_message_at=?,last_bot_message_id=NULL,closure_claimed_at=NULL WHERE tenant_id=? AND customer_phone=?')
+  .bind(until,nowIso,nowIso,tenantId,phone).run();
+ return{handled:true,reason:'human_reply_timer_reset'};
+}
+
+async function closeExpiredWhatsAppHumanSession(db:DbClient,tenantId:string,session:any,envCfg:EvolutionEnvConfig):Promise<boolean>{
+ const now=new Date().toISOString();
+ const claim=await db.prepare('UPDATE whatsapp_auto_reply_sessions SET closure_claimed_at=? WHERE tenant_id=? AND customer_phone=? AND paused_until<=? AND closure_claimed_at IS NULL')
+  .bind(now,tenantId,session.customer_phone,now).run();
+ if(!claim.meta.changes)return false;
+ try{
+  const [settings,inst]=await Promise.all([
+   db.prepare('SELECT human_timeout_message FROM whatsapp_auto_reply_settings WHERE tenant_id=?').bind(tenantId).first<any>(),
+   db.prepare('SELECT instance_name,status FROM whatsapp_instances WHERE tenant_id=?').bind(tenantId).first<any>()
+  ]);
+  if(!inst||inst.status!=='connected'||!isLiveEvolutionConfigured(envCfg))throw new Error('WhatsApp da loja desconectado');
+  const message=String(settings?.human_timeout_message||'Por falta de comunicação, nossa conversa será encerrada. Quando precisar, é só mandar uma nova mensagem. 😊');
+  const response=await fetch(envCfg.evolutionApiUrl!.replace(/\/+$/,'')+'/message/sendText/'+encodeURIComponent(inst.instance_name),{
+   method:'POST',headers:{'Content-Type':'application/json',apikey:envCfg.evolutionApiKey!},
+   body:JSON.stringify({number:normalizePhoneBR(String(session.customer_phone)),text:message,delay:500})
+  });
+  if(!response.ok)throw new Error('Evolution sendText HTTP '+response.status);
+  await db.prepare('DELETE FROM whatsapp_auto_reply_sessions WHERE tenant_id=? AND customer_phone=? AND closure_claimed_at=?')
+   .bind(tenantId,session.customer_phone,now).run();
+  return true;
+ }catch(error){
+  await db.prepare('UPDATE whatsapp_auto_reply_sessions SET closure_claimed_at=NULL,paused_until=? WHERE tenant_id=? AND customer_phone=? AND closure_claimed_at=?')
+   .bind(new Date(Date.now()+2*60000).toISOString(),tenantId,session.customer_phone,now).run();
+  return false;
+ }
+}
+
+export async function processExpiredWhatsAppHumanSessions(db:DbClient,envCfg:EvolutionEnvConfig,limit=50):Promise<number>{
+ const now=new Date().toISOString();
+ const {results}=await db.prepare('SELECT tenant_id,customer_phone,paused_until FROM whatsapp_auto_reply_sessions WHERE paused_until<=? AND closure_claimed_at IS NULL ORDER BY paused_until LIMIT ?')
+  .bind(now,Math.max(1,Math.min(200,limit))).all<any>();
+ let sent=0;
+ for(const session of results){if(await closeExpiredWhatsAppHumanSession(db,session.tenant_id,session,envCfg))sent++;}
+ return sent;
+}
+
 export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:string,data:any,envCfg:EvolutionEnvConfig):Promise<{handled:boolean;reason?:string}> {
  const key=data?.key||{},jid=String(key.remoteJid||data?.remoteJid||'');
- if(key.fromMe===true||!jid||jid.endsWith('@g.us')||jid==='status@broadcast')return{handled:false,reason:'ignored_sender'};
+ if(key.fromMe===true)return handleOutgoingWhatsAppHumanActivity(db,tenantId,data);
+ if(!jid||jid.endsWith('@g.us')||jid==='status@broadcast')return{handled:false,reason:'ignored_sender'};
  const text=incomingMessageText(data),providerId=String(key.id||data?.messageId||'');
  if(!text||!providerId)return{handled:false,reason:'no_text_or_id'};
  const inst=await db.prepare('SELECT instance_name,status FROM whatsapp_instances WHERE tenant_id=?').bind(tenantId).first<any>();
@@ -951,8 +1004,12 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
    await db.prepare('DELETE FROM whatsapp_auto_reply_sessions WHERE tenant_id=? AND customer_phone=?').bind(tenantId,customerPhone).run();
    return{handled:false,reason:'automation_resumed'};
   }
-  const session=await db.prepare('SELECT paused_until FROM whatsapp_auto_reply_sessions WHERE tenant_id=? AND customer_phone=?').bind(tenantId,customerPhone).first<any>();
-  if(session?.paused_until>now)return{handled:false,reason:'human_handoff_active'};
+  const session=await db.prepare('SELECT paused_until,closure_claimed_at FROM whatsapp_auto_reply_sessions WHERE tenant_id=? AND customer_phone=?').bind(tenantId,customerPhone).first<any>();
+  if(session&&session.paused_until>now)return{handled:false,reason:'human_handoff_active'};
+  if(session&&session.paused_until<=now){
+   await closeExpiredWhatsAppHumanSession(db,tenantId,{customer_phone:customerPhone},envCfg);
+   return{handled:false,reason:'human_session_closed'};
+  }
  }
  const eventId=generateId();
  const inserted=await db.prepare("INSERT OR IGNORE INTO whatsapp_auto_reply_events(id,tenant_id,provider_message_id,status,created_at,updated_at) VALUES(?,?,?,'pending',?,?)").bind(eventId,tenantId,providerId,now,now).run();
@@ -987,12 +1044,15 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
    body:JSON.stringify({number:phone,text:reply,delay:500})
   });
   if(!response.ok)throw new Error('Evolution sendText HTTP '+response.status);
+  const sentPayload=await response.json().catch(()=>({}));
+  const botMessageId=String(sentPayload?.key?.id||sentPayload?.data?.key?.id||sentPayload?.message?.key?.id||'');
   const sentAt=new Date().toISOString();
   await db.prepare("UPDATE whatsapp_auto_reply_events SET status='sent',matched_rule_id=?,error_message=NULL,updated_at=? WHERE tenant_id=? AND provider_message_id=?").bind(chosen?.id||null,sentAt,tenantId,providerId).run();
   if(chosen?.intent==='human'){
    if(settings.pause_on_human===1){
-    const until=new Date(Date.now()+86400000).toISOString();
-    await db.prepare('INSERT INTO whatsapp_auto_reply_sessions(tenant_id,customer_phone,paused_until,updated_at) VALUES(?,?,?,?) ON CONFLICT(tenant_id,customer_phone) DO UPDATE SET paused_until=excluded.paused_until,updated_at=excluded.updated_at').bind(tenantId,phone,until,sentAt).run();
+    const minutes=Math.max(1,Math.min(1440,Number(settings.human_timeout_minutes)||30));
+    const until=new Date(Date.now()+minutes*60000).toISOString();
+    await db.prepare('INSERT INTO whatsapp_auto_reply_sessions(tenant_id,customer_phone,paused_until,updated_at,last_bot_message_id,last_human_message_at,closure_claimed_at) VALUES(?,?,?,?,?,NULL,NULL) ON CONFLICT(tenant_id,customer_phone) DO UPDATE SET paused_until=excluded.paused_until,updated_at=excluded.updated_at,last_bot_message_id=excluded.last_bot_message_id,last_human_message_at=NULL,closure_claimed_at=NULL').bind(tenantId,phone,until,sentAt,botMessageId||null).run();
    }
    // Usa o mesmo destinatário já configurado para receber os pedidos da loja.
    try{

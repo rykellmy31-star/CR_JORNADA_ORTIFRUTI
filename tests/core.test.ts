@@ -60,11 +60,11 @@ describe('configuração de respostas automáticas WhatsApp',()=>{
   await setup();const app=createApp(services());
   const login=await app.fetch(new Request('http://local/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'dono@verdevivo.local',password:'CRJornada!Local2026'})}));
   const {token}=await login.json() as any;
-  const payload={settings:{enabled:true,fallbackMessage:'Olá!',storeUrl:'https://loja.test',businessHoursOnly:false,startTime:'08:00',endTime:'18:00',pauseOnHuman:true},rules:[{id:'preset-example',title:'Saudação',intent:'greeting',keywords:['oi','bom dia'],replyText:'Olá, {nome_cliente}!',enabled:true,priority:100}]};
+  const payload={settings:{enabled:true,fallbackMessage:'Olá!',storeUrl:'https://loja.test',businessHoursOnly:false,startTime:'08:00',endTime:'18:00',pauseOnHuman:true,humanTimeoutMinutes:45,humanTimeoutMessage:'Por falta de comunicação, atendimento encerrado.'},rules:[{id:'preset-example',title:'Saudação',intent:'greeting',keywords:['oi','bom dia'],replyText:'Olá, {nome_cliente}!',enabled:true,priority:100}]};
   const saved=await app.fetch(new Request('http://local/api/admin/whatsapp/auto-replies',{method:'PUT',headers:{'content-type':'application/json','authorization':`Bearer ${token}`},body:JSON.stringify(payload)}));
   expect(saved.status).toBe(200);
   const own:any=await (await app.fetch(new Request('http://local/api/admin/whatsapp/auto-replies',{headers:{authorization:`Bearer ${token}`}}))).json();
-  expect(own.settings.enabled).toBe(true);expect(own.rules[0].keywords).toEqual(['oi','bom dia']);
+  expect(own.settings.enabled).toBe(true);expect(own.settings.humanTimeoutMinutes).toBe(45);expect(own.settings.humanTimeoutMessage).toBe('Por falta de comunicação, atendimento encerrado.');expect(own.rules[0].keywords).toEqual(['oi','bom dia']);
   const other=await db.prepare('SELECT id FROM tenants WHERE slug=?').bind('sabor-da-terra').first<any>();
   const foreign=await db.prepare('SELECT COUNT(*) total FROM whatsapp_auto_replies WHERE tenant_id=?').bind(other.id).first<any>();
   expect(foreign.total).toBe(0);
