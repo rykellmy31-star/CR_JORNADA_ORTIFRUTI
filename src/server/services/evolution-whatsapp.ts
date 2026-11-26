@@ -935,8 +935,9 @@ export async function handleOutgoingWhatsAppHumanActivity(db:DbClient,tenantId:s
  const key=data?.key||{},jid=String(key.remoteJid||data?.remoteJid||'');
  if(key.fromMe!==true||!jid||jid.endsWith('@g.us')||jid==='status@broadcast')return{handled:false,reason:'ignored_sender'};
  const phone=jid.split('@')[0],providerId=String(key.id||data?.messageId||'');
- const session=await db.prepare('SELECT last_bot_message_id FROM whatsapp_auto_reply_sessions WHERE tenant_id=? AND customer_phone=?').bind(tenantId,phone).first<any>();
+ const session=await db.prepare('SELECT last_bot_message_id,closure_claimed_at FROM whatsapp_auto_reply_sessions WHERE tenant_id=? AND customer_phone=?').bind(tenantId,phone).first<any>();
  if(!session)return{handled:false,reason:'no_human_session'};
+ if(session.closure_claimed_at)return{handled:false,reason:'closure_in_progress_ignored'};
  if(providerId&&session.last_bot_message_id&&providerId===session.last_bot_message_id)return{handled:false,reason:'bot_message_ignored'};
  const settings=await db.prepare('SELECT human_timeout_minutes FROM whatsapp_auto_reply_settings WHERE tenant_id=?').bind(tenantId).first<any>();
  const minutes=Math.max(1,Math.min(1440,Number(settings?.human_timeout_minutes)||30));
@@ -984,7 +985,8 @@ export async function processExpiredWhatsAppHumanSessions(db:DbClient,envCfg:Evo
 
 export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:string,data:any,envCfg:EvolutionEnvConfig):Promise<{handled:boolean;reason?:string}> {
  const key=data?.key||{},jid=String(key.remoteJid||data?.remoteJid||'');
- if(key.fromMe===true)return handleOutgoingWhatsAppHumanActivity(db,tenantId,data);\n if(!jid||jid.endsWith('@g.us')||jid==='status@broadcast')return{handled:false,reason:'ignored_sender'};
+ if(key.fromMe===true)return handleOutgoingWhatsAppHumanActivity(db,tenantId,data);
+ if(!jid||jid.endsWith('@g.us')||jid==='status@broadcast')return{handled:false,reason:'ignored_sender'};
  const text=incomingMessageText(data),providerId=String(key.id||data?.messageId||'');
  if(!text||!providerId)return{handled:false,reason:'no_text_or_id'};
  const inst=await db.prepare('SELECT instance_name,status FROM whatsapp_instances WHERE tenant_id=?').bind(tenantId).first<any>();
