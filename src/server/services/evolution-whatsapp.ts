@@ -962,7 +962,7 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
  }
  const {results}=await db.prepare("SELECT id,title,intent,keywords_json,reply_text,priority FROM whatsapp_auto_replies WHERE tenant_id=? AND is_enabled=1 ORDER BY priority DESC,created_at ASC").bind(tenantId).all<any>();
  let chosen:any=null,bestScore=.69;
- const intentPhrases:Record<string,string[]>={greeting:['oi','ola','bom dia','boa tarde','boa noite','tudo bem','como vai'],order:['quero pedir','fazer compra','quero encomendar','quero comprar','como comprar','como faco pedido','gostaria de pedir','quero fazer uma encomenda','me manda o link da loja'],order_status:['cadê meu pedido','onde esta meu pedido','meu pedido ja saiu','acompanhar compra','consultar pedido','ver meu pedido','status da entrega','previsao do pedido'],human:['atendente','falar com atendente','quero falar com atendente','preciso falar com atendente','falar com pessoa','falar com uma pessoa','quero falar com uma pessoa','quero falar com pessoa','falar com humano','quero falar com humano','atendimento humano','quero atendimento humano','atendimento com pessoa','atendimento com humano','falar com alguem','quero falar com alguem','quero falar com funcionario','falar com funcionario','quero conversar com atendente','conversar com uma pessoa','preciso de ajuda','quero falar com alguem da loja','pessoa de verdade','me transfere para um atendente']};
+ const intentPhrases:Record<string,string[]>={greeting:['oi','ola','bom dia','boa tarde','boa noite','tudo bem','como vai'],order:['quero pedir','fazer compra','quero encomendar','quero comprar','como comprar','como faco pedido','gostaria de pedir','quero fazer uma encomenda','me manda o link da loja'],order_status:['cadê meu pedido','onde esta meu pedido','meu pedido ja saiu','acompanhar compra','consultar pedido','ver meu pedido','status da entrega','previsao do pedido'],human:['atendente','falar com atendente','quero falar com atendente','preciso falar com atendente','preciso de um atendente','chamar atendente','falar com pessoa','falar com uma pessoa','quero falar com uma pessoa','quero falar com pessoa','falar com humano','quero falar com humano','atendimento humano','quero atendimento humano','quero atendimento','atendimento com pessoa','atendimento com humano','falar com alguem','quero falar com alguem','quero conversar com alguem','quero falar com funcionario','falar com funcionario','quero conversar com atendente','conversar com uma pessoa','preciso de ajuda','quero falar com alguem da loja','pessoa de verdade','me transfere para um atendente','pode me passar para um atendente','tem um atendente ai']};
  for(const rule of results){let keywords:string[]=[];try{keywords=JSON.parse(rule.keywords_json||'[]');}catch{}const expanded=[...keywords,...(intentPhrases[String(rule.intent||'')]||[])];const score=incomingRuleScore(text,expanded);if(score>bestScore){bestScore=score;chosen=rule;}}
  let dynamicOrderReply='';
  if(chosen?.intent==='order_status'){
@@ -997,9 +997,8 @@ export async function handleIncomingWhatsAppAutoReply(db:DbClient,tenantId:strin
    // Usa o mesmo destinatário já configurado para receber os pedidos da loja.
    try{
     const destination=await db.prepare('SELECT name,whatsapp_order_recipient_phone FROM tenants WHERE id=?').bind(tenantId).first<any>();
-    const digits=String(destination?.whatsapp_order_recipient_phone||'').replace(/\D/g,'');
-    if(digits){
-     const notifyNumber=(digits.length===10||digits.length===11)?'55'+digits:digits;
+    const notifyNumber=normalizePhoneBR(String(destination?.whatsapp_order_recipient_phone||''));
+    if(notifyNumber){
      const when=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date());
      const notification=[
       '🔔 *NOVO PEDIDO DE ATENDIMENTO HUMANO*',
