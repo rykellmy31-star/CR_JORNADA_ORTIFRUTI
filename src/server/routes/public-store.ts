@@ -6,7 +6,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppHonoEnv } from '../context';
 import { generateId } from '../security/crypto';
-import { calculateChangeCents, normalizePhoneBR, parseBRLToCents } from '../../shared/pricing';
+import { calculateCardFeeCents, calculateChangeCents, normalizePhoneBR, parseBRLToCents } from '../../shared/pricing';
 import { buildAtomicStockReservationSteps, validateAndPrepareOrderLines } from '../services/inventory';
 import { enqueueAndDispatchOrderWhatsAppNotification, enqueueAndDispatchStaffOrderNotification } from '../services/evolution-whatsapp';
 import { runConditionalTransaction } from '../db/adapter';
@@ -153,7 +153,7 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
     if (!neighborhood) return c.json({ error: 'Este bairro não está cadastrado para entrega.' }, 400);
     const fee = tenant.free_delivery_min_cents !== null && prepared.subtotalCents >= tenant.free_delivery_min_cents ? 0 : neighborhood.delivery_fee_cents;
     const cardFeeBps=body.paymentMethod==='debit_card'?Number(tenant.debit_card_fee_bps||0):body.paymentMethod==='credit_card'?Number(tenant.credit_card_fee_bps||0):0;
-     const cardFeeCents=tenant.pass_card_fee===1&&cardFeeBps>0?Math.round((prepared.subtotalCents+fee)*cardFeeBps/10000):0;
+     const cardFeeCents=calculateCardFeeCents(prepared.subtotalCents+fee,cardFeeBps,tenant.pass_card_fee===1);
      const total = prepared.subtotalCents + fee + cardFeeCents;
     if (total < tenant.min_order_cents) return c.json({ error: `O pedido mínimo é R$ ${(tenant.min_order_cents / 100).toFixed(2).replace('.', ',')}.` }, 400);
     if (body.paymentMethod !== 'cash' && body.needsChange) return c.json({ error: 'Troco somente é aplicável para pagamento em dinheiro.' }, 400);
