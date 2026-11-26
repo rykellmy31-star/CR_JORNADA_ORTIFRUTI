@@ -64,7 +64,7 @@ export function CustomConfigEditor({value,onChange,baseCents=0}:{value:CustomCon
   <label className="check-row"><input type="checkbox" checked={value.allowNotes} onChange={e=>onChange({...value,allowNotes:e.target.checked})}/> Permitir observações e retirada de ingredientes</label>
  </section>;
 }
-export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:string)=>string;onAdd:(choice:CustomSelection,quantity:number)=>void}){
+export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:string)=>string;onAdd:(choice:CustomSelection,quantity:number)=>void;onChooseSecondFlavor?:(choice:CustomSelection,quantity:number)=>void;pendingSecondFlavor?:boolean;onPickSecondFlavor?:()=>void}){
  const config=readCustomConfig(product.custom_config_json)!;
  const [open,setOpen]=useState(false),[ids,setIds]=useState<string[]>([]),[note,setNote]=useState(''),[quantityInput,setQuantityInput]=useState('1'),[flavorMode,setFlavorMode]=useState<'single'|'half-and-half'|''>('');
  const original=Number(product.price_cents);
@@ -78,7 +78,7 @@ export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:str
  const quantityValid=quantityInput.trim()!==''&&/^\\d+$/.test(quantityInput.trim())&&Number.isSafeInteger(quantity)&&quantity>=1&&quantity<=99;
  let valid=false,unitTotal=cheapest;
  try{const selection=resolveCustomSelection(config,{optionIds:ids,note,flavorMode:flavorMode||undefined});unitTotal=customUnitPrice(base,selection);valid=true;}catch{}
- function start(){setIds([]);setNote('');setQuantityInput('1');setFlavorMode('');setOpen(true)}
+ function start(){if(pendingSecondFlavor){onPickSecondFlavor?.();return;}setIds([]);setNote('');setQuantityInput('1');setFlavorMode('');setOpen(true)}
  function toggle(g:Group,id:string){setIds(old=>{
   if(old.includes(id))return old.filter(x=>x!==id);
   const own=new Set(g.options.map(o=>o.id));
@@ -117,10 +117,10 @@ export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:str
      {config.allowNotes&&<label>Observações / retirar ingredientes<textarea rows={3} maxLength={300} placeholder="Ex.: sem cebola" value={note} onChange={e=>setNote(e.target.value)}/></label>}
      {flavorGroup&&<section className="custom-choice-group custom-flavor-mode"><h3>Como deseja sua pizza?</h3><small>Escolha uma opção para continuar.</small><div className="custom-flavor-mode-options"><label className="custom-choice-option"><input type="radio" name="pizza-flavor-mode" checked={flavorMode==='single'} onChange={()=>{setFlavorMode('single');setIds(old=>old.filter(id=>!flavorGroup.options.some(o=>o.id===id)));}}/><span>Somente 1 sabor</span></label><label className="custom-choice-option"><input type="radio" name="pizza-flavor-mode" checked={flavorMode==='half-and-half'} onChange={()=>{setFlavorMode('half-and-half');setIds(old=>old.filter(id=>!flavorGroup.options.some(o=>o.id===id)));}}/><span>Meio a meio (2 sabores)</span></label></div>
       {flavorMode==='single'&&renderFlavorOptions(0)}
-      {flavorMode==='half-and-half'&&<>{renderFlavorOptions(0)}{selectedFlavorIds.length>0&&renderFlavorOptions(1,selectedFlavorIds[0])}</>}
+      {flavorMode==='half-and-half'&&<p className="custom-half-hint">Depois de concluir, você escolherá o segundo sabor diretamente na vitrine.</p>}
      </section>}
     </div>
-    <footer className="fixed-price-footer custom-product-footer"><input aria-label="Quantidade" type="number" inputMode="numeric" min={1} max={99} step={1} value={quantityInput} onChange={e=>setQuantityInput(e.target.value)} onBlur={()=>{if(quantityInput==='')setQuantityInput('1');}}/><button type="button" className="btn btn-primary" disabled={!valid||!quantityValid} onClick={()=>{if(!quantityValid||!valid)return;onAdd({optionIds:ids,note,flavorMode:flavorMode||undefined},quantity);setOpen(false);}}>Adicionar · {quantityValid?formatBRL(unitTotal*quantity):'—'}</button></footer>
+    <footer className="fixed-price-footer custom-product-footer"><input aria-label="Quantidade" type="number" inputMode="numeric" min={1} max={99} step={1} value={quantityInput} onChange={e=>setQuantityInput(e.target.value)} onBlur={()=>{if(quantityInput==='')setQuantityInput('1');}}/><button type="button" className="btn btn-primary" disabled={!valid||!quantityValid} onClick={()=>{if(!quantityValid||!valid)return;const choice={optionIds:ids,note,flavorMode:flavorMode||undefined};if(flavorMode==='half-and-half')onChooseSecondFlavor?.(choice,quantity);else onAdd(choice,quantity);setOpen(false);}}{flavorMode==='half-and-half'?'Escolher segundo sabor':'Adicionar · '+(quantityValid?formatBRL(unitTotal*quantity):'—')}</button></footer>
    </div></div>,document.body)}
  </article>;
 }
