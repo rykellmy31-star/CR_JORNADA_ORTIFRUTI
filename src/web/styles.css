@@ -935,3 +935,8 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
  .custom-config-editor .custom-size-price-grid{grid-template-columns:minmax(0,1fr)!important}
  .custom-config-editor .custom-size-price-grid>small{grid-column:1!important}
 }
+
+
+.product-final-flags{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;padding-top:4px}
+.product-final-flags .check-row{min-height:34px;font-size:12px}
+.product-final-flags .check-row input{width:16px;height:16px;flex:0 0 auto}
