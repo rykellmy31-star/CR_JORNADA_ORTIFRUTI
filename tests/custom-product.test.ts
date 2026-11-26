@@ -14,10 +14,10 @@ describe('produto personalizável',()=>{
    {id:'border',name:'Borda',min:0,max:1,options:[{id:'cat',name:'Catupiry',priceCents:600,active:true}]}
   ]});
   const single=resolveCustomSelection(half,{optionIds:['m','cat'],note:'',flavorMode:'single',firstFlavorName:'Mussarela'});
-  expect(single.details).toBe('Tamanho: Média\\nBorda: Catupiry\\nSabor: Mussarela');
+  expect(single.details).toBe('Tamanho: Média\nBorda: Catupiry\nSabor: Mussarela');
   expect(customUnitPrice(3590,single)).toBe(4190);
   const paired=resolveCustomSelection(half,{optionIds:['m','cat'],note:'',flavorMode:'half-and-half',firstFlavorName:'Mussarela',pairedFlavorName:'Calabresa',pairedFlavorPriceCents:3990});
-  expect(paired.details).toBe('Tamanho: Média\\nBorda: Catupiry\\nMeio a meio: Mussarela + Calabresa');
+  expect(paired.details).toBe('Tamanho: Média\nBorda: Catupiry\nMeio a meio: Mussarela + Calabresa');
   expect(customUnitPrice(3590,paired)).toBe(4590);
   expect(customSelectionKey({optionIds:['m','cat'],note:'',flavorMode:'half-and-half',firstFlavorName:'Mussarela',pairedFlavorName:'Calabresa'}))
    .not.toBe(customSelectionKey({optionIds:['m','cat'],note:'',flavorMode:'half-and-half',firstFlavorName:'Mussarela',pairedFlavorName:'Portuguesa'}));
