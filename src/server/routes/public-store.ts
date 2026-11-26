@@ -26,6 +26,7 @@ publicStoreRoutes.get('/:slug', async (c) => {
     primary_color, accent_color, button_color, page_background_color, surface_color, text_color, use_logo_colors, logo_palette_json, whatsapp_public, instagram_url, address_text, business_hours, delivery_info,
     default_delivery_fee_cents, free_delivery_min_cents, min_order_cents, is_open,opening_schedule_json,loyalty_config_json,
     accepts_cash, accepts_pix_delivery, accepts_debit_delivery, accepts_credit_delivery,
+     pass_card_fee,debit_card_fee_bps,credit_card_fee_bps,
     signup_popup_enabled, signup_popup_emojis, signup_popup_eyebrow, signup_popup_title, signup_popup_description, signup_popup_button, signup_popup_name_label, signup_popup_email_label, signup_popup_phone_label, signup_popup_privacy_consent, signup_popup_marketing_consent, signup_popup_privacy_note
     FROM tenants WHERE slug = ? AND status = 'active'`).bind(c.req.param('slug')).first<Record<string, any>>();
   if (!tenant) return c.json({ error: 'Loja não encontrada ou temporariamente indisponível.' }, 404);
@@ -151,7 +152,9 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
     const neighborhood = await db.prepare(`SELECT name, delivery_fee_cents FROM neighborhoods WHERE tenant_id = ? AND lower(name) = lower(?) AND is_active = 1`).bind(tenant.id, body.neighborhood).first<{name:string;delivery_fee_cents:number}>();
     if (!neighborhood) return c.json({ error: 'Este bairro não está cadastrado para entrega.' }, 400);
     const fee = tenant.free_delivery_min_cents !== null && prepared.subtotalCents >= tenant.free_delivery_min_cents ? 0 : neighborhood.delivery_fee_cents;
-    const total = prepared.subtotalCents + fee;
+    const cardFeeBps=body.paymentMethod==='debit_card'?Number(tenant.debit_card_fee_bps||0):body.paymentMethod==='credit_card'?Number(tenant.credit_card_fee_bps||0):0;
+     const cardFeeCents=tenant.pass_card_fee===1&&cardFeeBps>0?Math.round((prepared.subtotalCents+fee)*cardFeeBps/10000):0;
+     const total = prepared.subtotalCents + fee + cardFeeCents;
     if (total < tenant.min_order_cents) return c.json({ error: `O pedido mínimo é R$ ${(tenant.min_order_cents / 100).toFixed(2).replace('.', ',')}.` }, 400);
     if (body.paymentMethod !== 'cash' && body.needsChange) return c.json({ error: 'Troco somente é aplicável para pagamento em dinheiro.' }, 400);
     let change;
@@ -172,8 +175,8 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
       statements.push(db.prepare(`INSERT INTO customers (id, tenant_id, name, phone, default_street, default_number, default_neighborhood, default_complement, default_reference, whatsapp_opt_in, orders_count, total_spent_cents, last_order_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`).bind(customerId, tenant.id, body.customerName, phone, body.street, body.number, neighborhood.name, body.complement, body.reference, body.whatsappOptIn ? 1 : 0, timestamp, timestamp, timestamp));
     }
     const loyalty=readLoyalty(tenant.loyalty_config_json);
-    statements.push(db.prepare(`INSERT INTO orders (id, tenant_id, customer_id, order_number, status, stock_state, customer_name, customer_phone, whatsapp_opt_in, address_street, address_number, address_neighborhood, address_complement, address_reference, payment_method, needs_change, change_for_cents, change_amount_cents, subtotal_cents, delivery_fee_cents, total_cents, created_at, updated_at, loyalty_minimum_cents, loyalty_goal, loyalty_reward_name) VALUES (?, ?, ?, ?, 'received', 'reserved', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(orderId, tenant.id, customerId, orderNumber, body.customerName, phone, body.whatsappOptIn ? 1 : 0, body.street, body.number, neighborhood.name, body.complement, body.reference, body.paymentMethod, change.needsChange ? 1 : 0, change.changeForCents, change.changeAmountCents, prepared.subtotalCents, fee, total, timestamp, timestamp,loyalty.enabled?loyalty.minimumCents:null,loyalty.enabled?loyalty.goal:null,loyalty.enabled?loyalty.reward:null));
+    statements.push(db.prepare(`INSERT INTO orders (id, tenant_id, customer_id, order_number, status, stock_state, customer_name, customer_phone, whatsapp_opt_in, address_street, address_number, address_neighborhood, address_complement, address_reference, payment_method, needs_change, change_for_cents, change_amount_cents, subtotal_cents, delivery_fee_cents, card_fee_cents, total_cents, created_at, updated_at, loyalty_minimum_cents, loyalty_goal, loyalty_reward_name) VALUES (?, ?, ?, ?, 'received', 'reserved', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(orderId, tenant.id, customerId, orderNumber, body.customerName, phone, body.whatsappOptIn ? 1 : 0, body.street, body.number, neighborhood.name, body.complement, body.reference, body.paymentMethod, change.needsChange ? 1 : 0, change.changeForCents, change.changeAmountCents, prepared.subtotalCents, fee, cardFeeCents, total, timestamp, timestamp,loyalty.enabled?loyalty.minimumCents:null,loyalty.enabled?loyalty.goal:null,loyalty.enabled?loyalty.reward:null));
     for (const line of prepared.lines) {
       statements.push(db.prepare(`INSERT INTO order_items (id, tenant_id, order_id, product_id, variant_id, stock_pool_id, product_name_snapshot, variant_name_snapshot, sku_snapshot, sale_mode, quantity, quantity_display, stock_deducted_qty, unit_price_cents, pricing_unit_label, line_total_cents, original_line_total_cents, customization_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(line.id, tenant.id, orderId, line.product_id, line.variant_id, line.stock_pool_id, line.product_name_snapshot, line.variant_name_snapshot, line.sku_snapshot, line.sale_mode, line.quantity, line.quantity_display, line.stock_deducted_qty, line.unit_price_cents, line.pricing_unit_label, line.line_total_cents,line.original_line_total_cents??null,line.customization_snapshot??null));
@@ -192,7 +195,7 @@ publicStoreRoutes.post('/:slug/orders', async (c) => {
     await enqueueAndDispatchOrderWhatsAppNotification(db, tenant.id, orderId, 'order_received', services.evolution).catch(() => undefined);
     await enqueueAndDispatchStaffOrderNotification(db,tenant.id,orderId,services.evolution).catch(()=>undefined);
     await dispatchLoyaltyNotifications(db,tenant.id,orderId,services.evolution).catch(()=>undefined);
-    return c.json({ success: true, order: { id: orderId, number: orderNumber, status: 'received', subtotalCents: prepared.subtotalCents, deliveryFeeCents: fee, totalCents: total, changeForCents: change.changeForCents, changeAmountCents: change.changeAmountCents } }, 201);
+    return c.json({ success: true, order: { id: orderId, number: orderNumber, status: 'received', subtotalCents: prepared.subtotalCents, deliveryFeeCents: fee, cardFeeCents, totalCents: total, changeForCents: change.changeForCents, changeAmountCents: change.changeAmountCents } }, 201);
   } catch (e: any) {
     const status = e?.statusCode || 400;
     return c.json({ error: e?.message || 'Não foi possível registrar o pedido.' }, status);
