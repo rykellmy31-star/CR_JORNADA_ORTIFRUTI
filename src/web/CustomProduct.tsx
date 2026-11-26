@@ -64,7 +64,7 @@ export function CustomConfigEditor({value,onChange,baseCents=0}:{value:CustomCon
   <label className="check-row"><input type="checkbox" checked={value.allowNotes} onChange={e=>onChange({...value,allowNotes:e.target.checked})}/> Permitir observações e retirada de ingredientes</label>
  </section>;
 }
-export function CustomProductCard({product,img,onAdd}:{product:any;img:(url?:string)=>string;onAdd:(choice:CustomSelection,quantity:number)=>void;onChooseSecondFlavor?:(choice:CustomSelection,quantity:number)=>void;pendingSecondFlavor?:boolean;onPickSecondFlavor?:()=>void}){
+export function CustomProductCard({product,img,onAdd,onChooseSecondFlavor,pendingSecondFlavor,onPickSecondFlavor}:{product:any;img:(url?:string)=>string;onAdd:(choice:CustomSelection,quantity:number)=>void;onChooseSecondFlavor?:(choice:CustomSelection,quantity:number)=>void;pendingSecondFlavor?:boolean;onPickSecondFlavor?:()=>void}){
  const config=readCustomConfig(product.custom_config_json)!;
  const [open,setOpen]=useState(false),[ids,setIds]=useState<string[]>([]),[note,setNote]=useState(''),[quantityInput,setQuantityInput]=useState('1'),[flavorMode,setFlavorMode]=useState<'single'|'half-and-half'|''>('');
  const original=Number(product.price_cents);
