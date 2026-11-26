@@ -127,6 +127,7 @@ superAdminRoutes.post('/tenants',async(c)=>{
       shouldProvision?'pending':'manual',null,shouldProvision?1:0,
       shouldProvision?null:'Automação ainda não ativada na Cloudflare.',time)
   ]);
+  if(saleModes.includes('pizzeria'))await ensurePizzeriaCategories(db,tenantId,time);
  }catch{
   return c.json({error:'Não foi possível criar a loja. Verifique se o e-mail ou subdomínio já existem.'},409);
  }
@@ -187,6 +188,7 @@ superAdminRoutes.patch('/tenants/:id',async(c)=>{
   db.prepare('UPDATE tenants SET name=?,sale_modes_json=?,updated_at=? WHERE id=?').bind(name,JSON.stringify(modes),now,id),
   db.prepare('UPDATE users SET name=?,email=?,updated_at=? WHERE id=? AND tenant_id=?').bind(ownerName,ownerEmail,now,owner.id,id)
  ]);
+ if(modes.includes('pizzeria'))await ensurePizzeriaCategories(db,id,now);
  await logAudit(db,{actorUserId:c.get('authUser').sub,actorRole:'superadmin',action:'superadmin.tenant_updated',entityType:'tenant',entityId:id,details:{saleModes:modes}});
  return c.json({success:true});
 });
