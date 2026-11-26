@@ -14,7 +14,9 @@ describe('produto personalizável',()=>{
   ]});
   expect(resolveCustomSelection(half,{optionIds:['m','cal','muzz'],note:'',flavorMode:'half-and-half'}).details).toBe('Tamanho: Média\nSabores: Calabresa, Mussarela');
   expect(()=>resolveCustomSelection(half,{optionIds:['m','cal'],note:'',flavorMode:'half-and-half'} )).toThrow('Selecione 2 opção(ões) em Sabores.');
-  expect(resolveCustomSelection(half,{optionIds:['m','cal'],note:'',flavorMode:'single'}).details).toBe('Tamanho: Média\nSabores: Calabresa');\n  expect(()=>resolveCustomSelection(half,{optionIds:['m','cal','muzz'],note:'',flavorMode:'single'})).toThrow();\n  expect(()=>customConfigSchema.parse({...half,groups:half.groups.map(g=>g.id==='flavors'?{...g,max:1}:g)})).toThrow();
+  expect(resolveCustomSelection(half,{optionIds:['m','cal'],note:'',flavorMode:'single'}).details).toBe('Tamanho: Média\nSabores: Calabresa');
+  expect(()=>resolveCustomSelection(half,{optionIds:['m','cal','muzz'],note:'',flavorMode:'single'})).toThrow();
+  expect(()=>customConfigSchema.parse({...half,groups:half.groups.map(g=>g.id==='flavors'?{...g,max:1}:g)})).toThrow();
  });
  it('valida escolhas e calcula apenas adicionais cadastrados',()=>{
   const r=resolveCustomSelection(config,{optionIds:['g','fish'],note:'Sem cebola'});
