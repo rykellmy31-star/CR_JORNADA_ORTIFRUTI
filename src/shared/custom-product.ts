@@ -48,7 +48,9 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
    if(removed.length)details.push('RETIRAR: '+removed.join(', '));
    continue;
   }
-  const min=g.selectionMode==='half-and-half'?(choice.flavorMode==='half-and-half'?2:choice.flavorMode==='single'?1:2):g.min;\n  const max=g.selectionMode==='half-and-half'?min:g.max;\n  if(selected.length<min||selected.length>max)throw Error('Selecione '+(min===max?min:'de '+min+' a '+max)+' opção(ões) em '+g.name+'.');
+  const min=g.selectionMode==='half-and-half'?(choice.flavorMode==='half-and-half'?2:choice.flavorMode==='single'?1:2):g.min;
+  const max=g.selectionMode==='half-and-half'?min:g.max;
+  if(selected.length<min||selected.length>max)throw Error('Selecione '+(min===max?min:'de '+min+' a '+max)+' opção(ões) em '+g.name+'.');
   if(selected.some(o=>!o.active))throw Error('Uma opção de '+g.name+' está indisponível.');
   for(const o of selected){ids.delete(o.id);if(g.priceMode==='final')selectedBaseCents=o.priceCents;}
   if(g.priceMode!=='final')for(const o of selected){const dependent=selectedFinalOptionId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,selectedFinalOptionId)?o.priceByOptionId[selectedFinalOptionId]:o.priceCents;extrasCents+=dependent;}
