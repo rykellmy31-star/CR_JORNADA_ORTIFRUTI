@@ -1,9 +1,18 @@
 import {describe,it,expect} from 'vitest';
-import {customConfigSchema,resolveCustomSelection,customConfigAvailable,customSelectionKey,customUnitPrice,minimumCustomPrice} from '../src/shared/custom-product';
+import {customConfigSchema,resolveCustomSelection,customConfigAvailable,customSelectionKey,customUnitPrice,minimumCustomPrice,isValidCustomQuantityInput} from '../src/shared/custom-product';
 import {removeCartSelection} from '../src/shared/cart';
 import {formatWhatsAppItems} from '../src/shared/order-presentation';
 const config=customConfigSchema.parse({allowNotes:true,groups:[{id:'size',name:'Tamanho',min:1,max:1,options:[{id:'p',name:'P',priceCents:0,active:true},{id:'g',name:'G',priceCents:1000,active:true}]},{id:'protein',name:'Proteína',min:1,max:1,options:[{id:'fish',name:'Peixe',priceCents:300,active:true},{id:'beef',name:'Carne',priceCents:0,active:false}]}]});
 describe('produto personalizável',()=>{
+ it('valida a quantidade do modal e libera preço e ações com quantidade 1',()=>{
+  expect(isValidCustomQuantityInput('1')).toBe(true);
+  expect(isValidCustomQuantityInput(' 2 ')).toBe(true);
+  expect(isValidCustomQuantityInput('')).toBe(false);
+  expect(isValidCustomQuantityInput('0')).toBe(false);
+  expect(isValidCustomQuantityInput('1.5')).toBe(false);
+  expect(isValidCustomQuantityInput('100')).toBe(false);
+ });
+
  it('mantém o sabor escolhido na vitrine e só retorna para escolher o segundo no meio a meio',()=>{
   const half=customConfigSchema.parse({allowNotes:true,groups:[
    {id:'size',name:'Tamanho',min:1,max:1,priceMode:'final',options:[{id:'m',name:'Média',priceCents:3590,active:true}]},

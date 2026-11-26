@@ -230,7 +230,7 @@ function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOve
  });
  const getLine=(product:any,variant:any,purchaseMode:PurchaseMode)=>cart.find(x=>cartLineKey(x)===cartLineKey({product,variant,purchaseMode,quantity:1}))?.quantity||0;
  const removeLine=(line:CartLine)=>setCart(old=>removeCartSelection(old,line));
- const startHalfAndHalf=(product:any,choice:CustomSelection,quantity:number)=>{setPendingHalfAndHalf({product,choice,quantity});window.scrollTo({top:0,behavior:'smooth'});};
+ const startHalfAndHalf=(product:any,choice:CustomSelection,quantity:number)=>{setPendingHalfAndHalf({product,choice,quantity});setCat('all');setSearch('');window.scrollTo({top:0,behavior:'smooth'});};
  const finishHalfAndHalf=(secondProduct:any)=>{
   if(!pendingHalfAndHalf)return;
   const first=pendingHalfAndHalf.product;
