@@ -3,7 +3,7 @@ import {createPortal} from 'react-dom';
 import {Plus,X,Trash2} from 'lucide-react';
 import {formatBRL} from '../shared/pricing';
 import EditableNumberInput from './EditableNumberInput';
-import {readCustomConfig,resolveCustomSelection,customUnitPrice,minimumCustomPrice,isValidCustomQuantityInput,type CustomConfig,type CustomSelection} from '../shared/custom-product';
+import {readCustomConfig,resolveCustomSelection,customUnitPrice,minimumCustomPrice,isValidCustomQuantityInput,supportsHalfAndHalf,type CustomConfig,type CustomSelection} from '../shared/custom-product';
 const uid=()=>crypto.randomUUID();
 const makeOption=(name='',priceCents=0)=>({id:uid(),name,priceCents,active:true});
 const makeGroup=(name='',min=0,max=1,options=[makeOption()])=>({id:uid(),name,min,max,options});
@@ -14,9 +14,8 @@ export const newCustomConfig=():CustomConfig=>({allowNotes:true,groups:[
  makeGroup('Acompanhamentos',0,3,[makeOption('Arroz'),makeOption('Feijão'),makeOption('Salada')]),
  makeGroup('Adicionais',0,1,[makeOption('Ovo frito',200)]),
 ]});
-export const newPizzaConfig=():CustomConfig=>({allowNotes:true,groups:[
+export const newPizzaConfig=():CustomConfig=>({allowNotes:true,pizzaModel:true,halfAndHalf:false,groups:[
  {...makeGroup('Tamanho',1,1,[makeOption('Broto · 4 fatias',2590),makeOption('Média · 6 fatias',3590),makeOption('Grande · 8 fatias',4590),makeOption('Família · 12 fatias',5990)]),priceMode:'final'},
- {...makeGroup('Sabores',2,2,['Calabresa','Mussarela','Portuguesa','Frango com catupiry','Marguerita','Quatro queijos','Pepperoni','Bacon','Napolitana','Moda da casa'].map(n=>makeOption(n))),selectionMode:'half-and-half'},
  makeGroup('Borda recheada',0,1,[makeOption('Sem borda',0),makeOption('Catupiry',700),makeOption('Cheddar',700),makeOption('Chocolate',900)]),
  makeGroup('Adicionais',0,8,[makeOption('Bacon',500),makeOption('Catupiry',500),makeOption('Cheddar',500),makeOption('Milho',250),makeOption('Azeitona',250),makeOption('Cebola',200),makeOption('Tomate',250),makeOption('Extra mussarela',600)]),
  makeGroup('Tipo de massa',0,1,[makeOption('Tradicional'),makeOption('Fina'),makeOption('Integral')])
@@ -34,10 +33,10 @@ export function CustomConfigEditor({value,onChange,baseCents=0}:{value:CustomCon
  const update=(index:number,change:Partial<Group>)=>onChange({...value,groups:value.groups.map((g,i)=>i===index?{...g,...change}:g)});
  const finalGroup=value.groups.find(g=>g.priceMode==='final');
  return <section className="custom-config-editor">
-  <h3>Complementos e ingredientes</h3><div className="custom-config-create"><button type="button" className="btn btn-outline" onClick={()=>onChange(newPizzaConfig())}>🍕 Usar modelo de pizza</button><button type="button" className="btn btn-outline" onClick={()=>onChange(newSnackConfig())}>🍔 Usar modelo de lanche</button></div><small>Use «Escolhas e adicionais» para opções que o cliente precisa selecionar. Use «Ingredientes que já vêm no produto» para mostrar a composição do lanche e permitir retirar ingredientes sem cobrança. O preço base já inclui esses ingredientes.</small>
+  <h3>Complementos e ingredientes</h3><div className="custom-config-create"><button type="button" className="btn btn-outline" onClick={()=>onChange({...newPizzaConfig(),halfAndHalf:supportsHalfAndHalf(value)})}>🍕 Usar modelo de pizza</button><button type="button" className="btn btn-outline" onClick={()=>onChange(newSnackConfig())}>🍔 Usar modelo de lanche</button></div><small>Use «Escolhas e adicionais» para opções que o cliente precisa selecionar. Use «Ingredientes que já vêm no produto» para mostrar a composição do lanche e permitir retirar ingredientes sem cobrança. O preço base já inclui esses ingredientes.</small>
   {value.groups.map((g,i)=><div key={g.id} className="custom-config-group">
    <div className="custom-config-row"><label>Nome do grupo<input required maxLength={100} value={g.name} onChange={e=>update(i,{name:e.target.value})}/></label><button type="button" className="icon-btn" aria-label="Excluir grupo" onClick={()=>onChange({...value,groups:value.groups.filter(x=>x.id!==g.id)})}><Trash2 size={16}/></button></div>
-   {g.kind!=='included'&&/sabor/i.test(g.name)&&<label className="check-row"><input type="checkbox" checked={g.selectionMode==='half-and-half'} onChange={e=>update(i,e.target.checked?{selectionMode:'half-and-half',min:2,max:2}:{selectionMode:undefined,min:1,max:1})}/> Pizza vendida meio a meio (cliente escolhe 2 sabores em sequência)</label>}
+   {!value.pizzaModel&&g.kind!=='included'&&/sabor/i.test(g.name)&&<label className="check-row"><input type="checkbox" checked={g.selectionMode==='half-and-half'} onChange={e=>update(i,e.target.checked?{selectionMode:'half-and-half',min:2,max:2}:{selectionMode:undefined,min:1,max:1})}/> Pizza vendida meio a meio (cliente escolhe 2 sabores em sequência)</label>}
    <label>Como funciona este grupo?<select value={g.kind||'choice'} onChange={e=>{
     const kind=e.target.value as 'choice'|'included';
     if(kind==='included'&&g.options.some(o=>o.priceCents!==0)){window.alert('Para marcar ingredientes que já vêm no lanche, coloque R$ 0,00 nas opções deste grupo primeiro.');return;}
@@ -50,7 +49,7 @@ export function CustomConfigEditor({value,onChange,baseCents=0}:{value:CustomCon
    {g.options.map((o,j)=><div className="custom-config-option" key={o.id}>
     <input required aria-label="Nome da opção" maxLength={100} value={o.name} onChange={e=>update(i,{options:g.options.map((x,k)=>k===j?{...x,name:e.target.value}:x)})}/>
     {g.kind==='included'?<span className="custom-included-price">Incluso</span>:<EditableNumberInput aria-label={g.priceMode==='final'?'Preço final em reais':'Preço adicional em reais'} min={0} max={100000} step="0.01" value={o.priceCents/100} onValueChange={value=>update(i,{options:g.options.map((x,k)=>k===j?{...x,priceCents:Math.round(value*100)}:x)})}/>}
-    {finalGroup&&g.id!==finalGroup.id&&g.kind!=='included'&&<div className="custom-size-price-grid"><small>Preço adicional por tamanho (substitui o adicional padrão)</small>{finalGroup.options.map(size=><label key={size.id}>{size.name}<EditableNumberInput aria-label={'Preço de '+o.name+' para '+size.name} min={0} max={100000} step="0.01" value={(o.priceByOptionId?.[size.id]??o.priceCents)/100} onValueChange={amount=>update(i,{options:g.options.map((x,k)=>k===j?{...x,priceByOptionId:{...(x.priceByOptionId||{}),[size.id]:Math.round(amount*100)}}:x)})}/></label>)}</div>}
+    {!value.pizzaModel&&finalGroup&&g.id!==finalGroup.id&&g.kind!=='included'&&<div className="custom-size-price-grid"><small>Preço adicional por tamanho (substitui o adicional padrão)</small>{finalGroup.options.map(size=><label key={size.id}>{size.name}<EditableNumberInput aria-label={'Preço de '+o.name+' para '+size.name} min={0} max={100000} step="0.01" value={(o.priceByOptionId?.[size.id]??o.priceCents)/100} onValueChange={amount=>update(i,{options:g.options.map((x,k)=>k===j?{...x,priceByOptionId:{...(x.priceByOptionId||{}),[size.id]:Math.round(amount*100)}}:x)})}/></label>)}</div>}
     <input type="checkbox" aria-label={'Disponível: '+o.name} checked={o.active} onChange={e=>update(i,{options:g.options.map((x,k)=>k===j?{...x,active:e.target.checked}:x)})}/>
     <button type="button" className="icon-btn" aria-label="Excluir opção" disabled={g.options.length<=1} onClick={()=>{const options=g.options.filter(x=>x.id!==o.id);update(i,{options,max:g.kind==='included'?options.length:Math.min(g.max,options.length),min:g.kind==='included'?0:Math.min(g.min,options.length)});}}><X size={15}/></button>
    </div>)}
@@ -71,6 +70,7 @@ export function CustomProductCard({product,img,onAdd,onChooseSecondFlavor,pendin
  const base=typeof product.promo_price_cents==='number'&&product.promo_price_cents>=0&&product.promo_price_cents<original?product.promo_price_cents:original;
  const cheapest=minimumCustomPrice(config,base);
  const hasFinal=config.groups.some(g=>g.priceMode==='final');
+ const halfAndHalf=supportsHalfAndHalf(config);
  const flavorGroup=config.groups.find(g=>g.selectionMode==='half-and-half');
  const includedGroups=config.groups.filter(g=>g.kind==='included');
  const includedNames=includedGroups.flatMap(g=>g.options.filter(o=>o.active).map(o=>o.name));
@@ -78,7 +78,7 @@ export function CustomProductCard({product,img,onAdd,onChooseSecondFlavor,pendin
  const quantityValid=isValidCustomQuantityInput(quantityInput);
  let valid=false,unitTotal=0;
  try{
-  const selection=resolveCustomSelection(config,{optionIds:ids,note,flavorMode:flavorMode||undefined,firstFlavorName:flavorGroup?product.name:undefined});
+  const selection=resolveCustomSelection(config,{optionIds:ids,note,flavorMode:flavorMode||undefined,firstFlavorName:halfAndHalf?product.name:undefined});
   const finalGroup=config.groups.find(g=>g.priceMode==='final');
   const selectedSize=finalGroup?.options.find(o=>ids.includes(o.id));
   // O preço do tamanho substitui o preço base; os adicionais continuam sendo somados.
@@ -106,11 +106,11 @@ export function CustomProductCard({product,img,onAdd,onChooseSecondFlavor,pendin
      {config.groups.filter(g=>g.kind!=='included'&&g.selectionMode!=='half-and-half').map(g=>{const selected=g.options.filter(o=>ids.includes(o.id)).length;return <section key={g.id} className="custom-choice-group"><h3>{g.name}</h3><small>{g.min?'Obrigatório':'Opcional'} · {g.min===g.max?'Escolha '+g.max:'Escolha de '+g.min+' a '+g.max} · {selected}/{g.max}</small>{g.options.map(o=>{const price=sizeId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents;const varies=!!o.priceByOptionId;return <label className="custom-choice-option" key={o.id}><input type={g.max===1&&g.min===1?'radio':'checkbox'} name={g.id} checked={ids.includes(o.id)} disabled={!o.active||(!ids.includes(o.id)&&g.max>1&&selected>=g.max)} onChange={()=>toggle(g,o.id)}/><span>{o.name}{!o.active?' (indisponível)':''}</span><b>{g.priceMode==='final'?formatBRL(o.priceCents):varies&&!sizeId?'Varia por tamanho':price?'+'+formatBRL(price):'Sem custo extra'}</b></label>})}</section>})}
      {includedGroups.some(g=>g.options.some(o=>o.active))&&<section className="custom-choice-group custom-removal-group"><h3>Deseja retirar algum ingrediente?</h3><small>Opcional · Marque somente o que deseja retirar. Sem cobrança adicional.</small>{includedGroups.flatMap(g=>g.options.filter(o=>o.active).map(o=><label className="custom-choice-option custom-removal-option" key={o.id}><input type="checkbox" checked={ids.includes(o.id)} onChange={()=>toggle(g,o.id)} aria-label={'Retirar '+o.name}/><span>{o.name}</span><b>{ids.includes(o.id)?'RETIRAR':'Manter'}</b></label>))}</section>}
      {config.allowNotes&&<label>Observações / retirar ingredientes<textarea rows={3} maxLength={300} placeholder="Ex.: sem cebola" value={note} onChange={e=>setNote(e.target.value)}/></label>}
-     {flavorGroup&&<section className="custom-choice-group custom-flavor-mode"><h3>Como deseja sua pizza?</h3><small>Escolha uma opção para continuar.</small><div className="custom-flavor-mode-options"><label className="custom-choice-option"><input type="radio" name="pizza-flavor-mode" checked={flavorMode==='single'} onChange={()=>{setFlavorMode('single');setIds(old=>old.filter(id=>!flavorGroup.options.some(o=>o.id===id)));}}/><span>Somente 1 sabor</span></label><label className="custom-choice-option"><input type="radio" name="pizza-flavor-mode" checked={flavorMode==='half-and-half'} onChange={()=>{setFlavorMode('half-and-half');setIds(old=>old.filter(id=>!flavorGroup.options.some(o=>o.id===id)));}}/><span>Meio a meio (2 sabores)</span></label></div>
+     {halfAndHalf&&<section className="custom-choice-group custom-flavor-mode"><h3>Como deseja sua pizza?</h3><small>Escolha uma opção para continuar.</small><div className="custom-flavor-mode-options"><label className="custom-choice-option"><input type="radio" name="pizza-flavor-mode" checked={flavorMode==='single'} onChange={()=>{setFlavorMode('single');setIds(old=>old.filter(id=>!flavorGroup?.options.some(o=>o.id===id)));}}/><span>Somente 1 sabor</span></label><label className="custom-choice-option"><input type="radio" name="pizza-flavor-mode" checked={flavorMode==='half-and-half'} onChange={()=>{setFlavorMode('half-and-half');setIds(old=>old.filter(id=>!flavorGroup?.options.some(o=>o.id===id)));}}/><span>Meio a meio (2 sabores)</span></label></div>
       {flavorMode==='half-and-half'&&<p className="custom-half-hint">Ao continuar, você voltará à vitrine para escolher o segundo sabor. Os dois serão adicionados juntos ao carrinho.</p>}
      </section>}
     </div>
-    <footer className="fixed-price-footer custom-product-footer"><input aria-label="Quantidade" type="number" inputMode="numeric" min={1} max={99} step={1} value={quantityInput} onChange={e=>setQuantityInput(e.target.value)} onBlur={()=>{if(quantityInput==='')setQuantityInput('1');}}/><button type="button" className="btn btn-primary" disabled={!valid||!quantityValid} onClick={()=>{if(!quantityValid||!valid)return;const choice={optionIds:ids,note,flavorMode:flavorMode||undefined,firstFlavorName:flavorGroup?product.name:undefined};if(flavorMode==='half-and-half')onChooseSecondFlavor?.(choice,quantity);else onAdd(choice,quantity);setOpen(false);}}>{flavorGroup&&flavorMode==='half-and-half'?'Escolher segundo sabor':'Adicionar · '+(quantityValid?formatBRL(unitTotal*quantity):'—')}</button></footer>
+    <footer className="fixed-price-footer custom-product-footer"><input aria-label="Quantidade" type="number" inputMode="numeric" min={1} max={99} step={1} value={quantityInput} onChange={e=>setQuantityInput(e.target.value)} onBlur={()=>{if(quantityInput==='')setQuantityInput('1');}}/><button type="button" className="btn btn-primary" disabled={!valid||!quantityValid} onClick={()=>{if(!quantityValid||!valid)return;const choice={optionIds:ids,note,flavorMode:flavorMode||undefined,firstFlavorName:halfAndHalf?product.name:undefined};if(flavorMode==='half-and-half')onChooseSecondFlavor?.(choice,quantity);else onAdd(choice,quantity);setOpen(false);}}>{halfAndHalf&&flavorMode==='half-and-half'?'Escolher segundo sabor':'Adicionar · '+(quantityValid?formatBRL(unitTotal*quantity):'—')}</button></footer>
    </div></div>,document.body)}
  </article>;
 }

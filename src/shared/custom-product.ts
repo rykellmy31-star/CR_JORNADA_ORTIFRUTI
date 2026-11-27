@@ -3,7 +3,7 @@ const id=z.string().min(1).max(80);
 const name=z.string().trim().min(1).max(100).regex(/^[^\r\n]+$/);
 const option=z.object({id,name,priceCents:z.number().int().min(0).max(10000000),priceByOptionId:z.record(z.string().min(1).max(80),z.number().int().min(0).max(10000000)).optional(),active:z.boolean()});
 const group=z.object({id,name,min:z.number().int().min(0).max(30),max:z.number().int().min(1).max(30),priceMode:z.enum(['additional','final']).optional(),kind:z.enum(['choice','included']).optional(),selectionMode:z.enum(['half-and-half']).optional(),options:z.array(option).min(1).max(30)});
-export const customConfigSchema=z.object({groups:z.array(group).min(1).max(12),allowNotes:z.boolean()}).superRefine((c,ctx)=>{
+export const customConfigSchema=z.object({groups:z.array(group).min(1).max(12),allowNotes:z.boolean(),pizzaModel:z.boolean().optional(),halfAndHalf:z.boolean().optional()}).superRefine((c,ctx)=>{
  const ids=new Set<string>();
  const finalGroups=c.groups.filter(g=>g.priceMode==='final');
  if(finalGroups.length>1)ctx.addIssue({code:'custom',message:'Somente um grupo pode definir o preço final do produto.'});
@@ -26,12 +26,29 @@ export function readCustomConfig(raw:unknown):CustomConfig|null{
  if(raw==null||raw==='')return null;
  return customConfigSchema.parse(typeof raw==='string'?JSON.parse(raw):raw);
 }
+/** Compatibilidade com pizzas cadastradas antes da opção independente. */
+export function supportsHalfAndHalf(config:CustomConfig|null|undefined):boolean{
+ return config?.halfAndHalf??!!config?.groups.some(g=>g.selectionMode==='half-and-half');
+}
+export function isPizzaConfig(config:CustomConfig|null|undefined,pizzeria=false):boolean{
+ return !!config&&(!!config.pizzaModel||config.halfAndHalf!==undefined||supportsHalfAndHalf(config)||
+  (pizzeria&&config.groups.some(g=>g.priceMode==='final')));
+}
+/** Prepara o cadastro da pizza sem grupos de sabores artificiais ou adicionais por tamanho.
+ * Aplicado somente à edição/criação; não altera cadastros existentes até salvar.
+ */
+export function simplifyPizzaConfig(config:CustomConfig,halfAndHalf=supportsHalfAndHalf(config)):CustomConfig{
+ const groups=config.groups
+  .filter(g=>g.selectionMode!=='half-and-half'&&!(g.kind!=='included'&&/^sabores?$/i.test(g.name.trim())))
+  .map(g=>({...g,options:g.options.map(({priceByOptionId,...o})=>o)}));
+ return {...config,pizzaModel:true,halfAndHalf,groups};
+}
 export function customSelectionKey(selection?:CustomSelection|null):string{
  return selection?JSON.stringify([Array.from(new Set(selection.optionIds)).sort(),selection.note.trim(),selection.flavorMode||'',selection.firstFlavorName||'',selection.pairedFlavorName||'']):'';
 }
 export function resolveCustomSelection(config:CustomConfig,raw:unknown){
  const choice=customSelectionSchema.parse(raw);
- if(config.groups.some(g=>g.selectionMode==='half-and-half')&&(!choice.flavorMode||!choice.firstFlavorName))throw Error('Escolha se deseja uma pizza de um sabor ou meio a meio.');
+ if(supportsHalfAndHalf(config)&&(!choice.flavorMode||!choice.firstFlavorName))throw Error('Escolha se deseja uma pizza de um sabor ou meio a meio.');
  const ids=new Set(choice.optionIds);
  if(ids.size!==choice.optionIds.length)throw Error('Opção repetida.');
  if(!config.allowNotes&&choice.note)throw Error('Este produto não aceita observações.');
@@ -64,7 +81,7 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
  return {extrasCents,selectedBaseCents,details:details.join('\n')};
 }
 export function customConfigAvailable(config:CustomConfig){
- return config.groups.every(g=>g.kind==='included'||g.options.filter(o=>o.active).length>=g.min);
+ return config.groups.every(g=>g.kind==='included'||g.selectionMode==='half-and-half'||g.options.filter(o=>o.active).length>=g.min);
 }
 
 /** Uma escolha de preço final substitui o preço base, nunca é somada a ele. */
@@ -85,12 +102,12 @@ export function minimumCustomPrice(config:CustomConfig,baseCents:number):number{
   if(!sizes.length)return baseCents;
   return Math.min(...sizes.map(size=>
    size.priceCents+config.groups
-    .filter(g=>g.kind!=='included'&&g.id!==finalGroup.id)
+    .filter(g=>g.kind!=='included'&&g.selectionMode!=='half-and-half'&&g.id!==finalGroup.id)
     .reduce((sum,g)=>sum+costFor(g,size.id),0)
   ));
  }
  return baseCents+config.groups
-  .filter(g=>g.kind!=='included')
+  .filter(g=>g.kind!=='included'&&g.selectionMode!=='half-and-half')
   .reduce((sum,g)=>sum+costFor(g,null),0);
 }
 
