@@ -19,7 +19,7 @@ export const customConfigSchema=z.object({groups:z.array(group).min(1).max(12),a
   }
  }
 });
-export const customSelectionSchema=z.object({optionIds:z.array(id).max(120),note:z.string().trim().max(300).default(''),flavorMode:z.enum(['single','half-and-half']).optional(),firstFlavorName:z.string().trim().min(1).max(100).optional(),pairedFlavorName:z.string().trim().min(1).max(100).optional(),pairedFlavorPriceCents:z.number().int().min(0).max(10000000).optional()});
+export const customSelectionSchema=z.object({optionIds:z.array(id).max(120),note:z.string().trim().max(300).default(''),flavorMode:z.enum(['single','half-and-half']).optional(),firstFlavorName:z.string().trim().min(1).max(100).optional(),pairedFlavorName:z.string().trim().min(1).max(100).optional(),pairedFlavorPriceCents:z.number().int().min(0).max(10000000).optional(),pairedProductId:id.optional(),pairedRemovalIds:z.array(id).max(120).optional(),pairedRemovedNames:z.array(name).max(120).optional(),pairedRemainingNames:z.array(name).max(360).optional()});
 export type CustomConfig=z.infer<typeof customConfigSchema>;
 export type CustomSelection=z.infer<typeof customSelectionSchema>;
 export function readCustomConfig(raw:unknown):CustomConfig|null{
@@ -63,7 +63,32 @@ export function simplifyPizzaConfig(config:CustomConfig,halfAndHalf=supportsHalf
  return {...config,pizzaModel:true,halfAndHalf,groups};
 }
 export function customSelectionKey(selection?:CustomSelection|null):string{
- return selection?JSON.stringify([Array.from(new Set(selection.optionIds)).sort(),selection.note.trim(),selection.flavorMode||'',selection.firstFlavorName||'',selection.pairedFlavorName||'']):'';
+ return selection?JSON.stringify([Array.from(new Set(selection.optionIds)).sort(),selection.note.trim(),selection.flavorMode||'',selection.firstFlavorName||'',selection.pairedFlavorName||'',selection.pairedProductId||'',Array.from(new Set(selection.pairedRemovalIds||[])).sort()]):'';
+}
+type PizzaFlavorProduct={id:string;name:string;custom_config_json:unknown;price_cents:number;promo_price_cents?:number|null};
+export function pizzaPairSize(first:PizzaFlavorProduct,choice:CustomSelection,second:PizzaFlavorProduct){
+ if(first.id===second.id)return null;
+ const a=readCustomConfig(first.custom_config_json),b=readCustomConfig(second.custom_config_json);
+ if(!supportsHalfAndHalf(a)||!supportsHalfAndHalf(b)||!a||!b)return null;
+ const selected=a.groups.find(g=>g.priceMode==='final')?.options.find(o=>o.active&&choice.optionIds.includes(o.id));
+ if(!selected)return null;
+ const normalize=(s:string)=>s.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ');
+ const matched=b.groups.find(g=>g.priceMode==='final')?.options.find(o=>o.active&&normalize(o.name)===normalize(selected.name));
+ return matched?{name:selected.name,priceCents:matched.priceCents}:null;
+}
+/** A segunda metade só pode retirar ingredientes. Preços e nomes vêm do catálogo. */
+export function completePizzaPair(first:PizzaFlavorProduct,choice:CustomSelection,second:PizzaFlavorProduct,removalIds:string[]):CustomSelection{
+ if(choice.flavorMode!=='half-and-half')throw Error('Escolha meio a meio antes de selecionar o segundo sabor.');
+ const size=pizzaPairSize(first,choice,second);
+ if(!size)throw Error('O segundo sabor não está disponível no tamanho escolhido.');
+ const config=readCustomConfig(second.custom_config_json)!;
+ const ingredients=config.groups.filter(g=>g.kind==='included').flatMap(g=>g.options.filter(o=>o.active));
+ const removed=new Set(removalIds);
+ if(removed.size!==removalIds.length||removalIds.some(id=>!ingredients.some(o=>o.id===id)))throw Error('Ingrediente inválido para o segundo sabor.');
+ return {...choice,firstFlavorName:first.name,pairedProductId:second.id,pairedFlavorName:second.name,
+  pairedFlavorPriceCents:size.priceCents,pairedRemovalIds:removalIds,
+  pairedRemovedNames:ingredients.filter(o=>removed.has(o.id)).map(o=>o.name),
+  pairedRemainingNames:ingredients.filter(o=>!removed.has(o.id)).map(o=>o.name)};
 }
 export function resolveCustomSelection(config:CustomConfig,raw:unknown){
  const choice=customSelectionSchema.parse(raw);
@@ -82,8 +107,8 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
    for(const o of selected)ids.delete(o.id);
    const remaining=g.options.filter(o=>o.active&&!selected.includes(o)).map(o=>o.name);
    const removed=selected.map(o=>o.name);
-   details.push('Ingredientes inclusos: '+(remaining.join(', ')||'nenhum'));
-   if(removed.length)details.push('RETIRAR: '+removed.join(', '));
+   details.push((choice.pairedFlavorName?'½ '+choice.firstFlavorName+' — ':'')+'Ingredientes inclusos: '+(remaining.join(', ')||'nenhum'));
+   if(removed.length)details.push((choice.pairedFlavorName?'½ '+choice.firstFlavorName+' — ':'')+'RETIRAR: '+removed.join(', '));
    continue;
   }
   const min=g.selectionMode==='half-and-half'?1:g.min;
@@ -95,7 +120,7 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
   if(selected.length)details.push(g.name+': '+selected.map(o=>o.name).join(', '));
  }
  if(ids.size)throw Error('Complemento inválido para este produto.');
- if(choice.pairedFlavorName){details.push('Meio a meio: '+choice.firstFlavorName+' + '+choice.pairedFlavorName);if(choice.pairedFlavorPriceCents!==undefined)selectedBaseCents=Math.max(selectedBaseCents??0,choice.pairedFlavorPriceCents);}else if(choice.firstFlavorName){details.push('Sabor: '+choice.firstFlavorName);}
+ if(choice.pairedFlavorName){details.unshift('Meio a meio: '+choice.firstFlavorName+' + '+choice.pairedFlavorName);if(choice.pairedRemainingNames?.length||choice.pairedRemovedNames?.length){details.push('½ '+choice.pairedFlavorName+' — Ingredientes inclusos: '+(choice.pairedRemainingNames?.join(', ')||'nenhum'));}if(choice.pairedRemovedNames?.length)details.push('½ '+choice.pairedFlavorName+' — RETIRAR: '+choice.pairedRemovedNames.join(', '));if(choice.pairedFlavorPriceCents!==undefined)selectedBaseCents=Math.max(selectedBaseCents??0,choice.pairedFlavorPriceCents);}else if(choice.firstFlavorName){details.push('Sabor: '+choice.firstFlavorName);}
  if(choice.note)details.push('Observação: '+choice.note.replace(/[\r\n]+/g,' '));
  return {extrasCents,selectedBaseCents,details:details.join('\n')};
 }

@@ -14,7 +14,7 @@ import {LoyaltyPanel,LoyaltyNotice} from './Loyalty';
 import {getStoreStatus,readSchedule,type StoreStatus} from '../shared/store-hours';
 import {StoreStatusNotice,StoreScheduleEditor} from './StoreHours';
 import {CustomProductCard,CustomConfigEditor,newCustomConfig} from './CustomProduct';
-import {readCustomConfig,resolveCustomSelection,customUnitPrice,customSelectionKey,supportsHalfAndHalf,isPizzaConfig,simplifyPizzaConfig,type CustomSelection} from '../shared/custom-product';
+import {readCustomConfig,resolveCustomSelection,customUnitPrice,customSelectionKey,supportsHalfAndHalf,isPizzaConfig,simplifyPizzaConfig,pizzaPairSize,completePizzaPair,type CustomSelection} from '../shared/custom-product';
 import MobileBagBar from './MobileBagBar';
 import StoreShareButton from './StoreShareButton';
 import WhatsAppAutoReplies from './WhatsAppAutoReplies';
@@ -225,7 +225,7 @@ function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOve
  }
  const store=storeData?.store,products=storeData?.products||[],categories=storeData?.categories||[],neighborhoods=storeData?.neighborhoods||[];
  const shown=products.filter((p:any)=>(cat==='all'||p.category_id===cat)&&p.name.toLowerCase().includes(search.toLowerCase()));
- const visibleProducts=pendingHalfAndHalf?shown.filter((p:any)=>p.custom_config_json&&p.id!==pendingHalfAndHalf.product.id):shown;
+ const visibleProducts=pendingHalfAndHalf?shown.filter((p:any)=>p.custom_config_json&&pizzaPairSize(pendingHalfAndHalf.product,pendingHalfAndHalf.choice,p)):shown;
  useEffect(()=>{
    const list=categoryListRef.current;
    if(!list)return;
@@ -248,18 +248,12 @@ function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOve
  const getLine=(product:any,variant:any,purchaseMode:PurchaseMode)=>cart.find(x=>cartLineKey(x)===cartLineKey({product,variant,purchaseMode,quantity:1}))?.quantity||0;
  const removeLine=(line:CartLine)=>setCart(old=>removeCartSelection(old,line));
  const startHalfAndHalf=(product:any,choice:CustomSelection,quantity:number)=>{setPendingHalfAndHalf({product,choice,quantity});setCat('all');setSearch('');window.scrollTo({top:0,behavior:'smooth'});};
- const finishHalfAndHalf=(secondProduct:any)=>{
+ const finishHalfAndHalf=(secondProduct:any,removalIds:string[])=>{
   if(!pendingHalfAndHalf)return;
   const first=pendingHalfAndHalf.product;
-  if(first.id===secondProduct.id){window.alert('Escolha um sabor diferente do primeiro.');return;}
-  const firstConfig=readCustomConfig(first.custom_config_json)!;
-  const secondConfig=readCustomConfig(secondProduct.custom_config_json)!;
-  const firstSizeGroup=firstConfig.groups.find(g=>g.priceMode==='final');
-  const selectedSize=firstSizeGroup?.options.find(o=>pendingHalfAndHalf.choice.optionIds.includes(o.id));
-  const secondSizeGroup=secondConfig.groups.find(g=>g.priceMode==='final');
-  const matchingSecondSize=selectedSize&&secondSizeGroup?.options.find(o=>o.name.trim().toLowerCase()===selectedSize.name.trim().toLowerCase());
-  const secondFlavorPriceCents=matchingSecondSize?.priceCents??Number(secondProduct.price_cents||0);
-  const choice:CustomSelection={...pendingHalfAndHalf.choice,pairedFlavorName:secondProduct.name,pairedFlavorPriceCents:secondFlavorPriceCents};
+  let choice:CustomSelection;
+  try{choice=completePizzaPair(first,pendingHalfAndHalf.choice,secondProduct,removalIds);}
+  catch(e:any){window.alert(e.message);return;}
   const line:CartLine={product:first,purchaseMode:'unit',quantity:pendingHalfAndHalf.quantity,customization:choice};
   setCart(old=>{const key=cartLineKey(line);const existing=old.find(x=>cartLineKey(x)===key);return [...old.filter(x=>cartLineKey(x)!==key),{...line,quantity:line.quantity+(existing?.quantity||0)}];});
   setPendingHalfAndHalf(null);
@@ -277,7 +271,7 @@ function Storefront({slugOverride}:{slugOverride?:string}={}){const slug=slugOve
  </div>
  <button type="button" className="category-nav-arrow" aria-label="Ver próximas categorias"
    disabled={!canScrollCategoriesForward} onClick={()=>moveCategories(1)}><ArrowRight size={18}/></button>
-</div>{pendingHalfAndHalf&&<div className="custom-half-pending"><b>Escolha o segundo sabor da sua pizza</b><span>Primeiro sabor: {pendingHalfAndHalf.choice.optionIds.map((id:string)=>readCustomConfig(pendingHalfAndHalf.product.custom_config_json)?.groups.find(g=>g.selectionMode==='half-and-half')?.options.find(o=>o.id===id)?.name).filter(Boolean).join(', ')||pendingHalfAndHalf.product.name}</span><button type="button" className="btn btn-outline" onClick={()=>setPendingHalfAndHalf(null)}>Cancelar meio a meio</button></div>}{visibleProducts.length===0?<div className="empty-state"><Search size={28}/><b>Nenhum produto encontrado</b><p>Tente outra busca ou categoria.</p></div>:<div className="product-grid">{visibleProducts.map((p:any)=>p.custom_config_json?<CustomProductCard key={p.id} product={p} img={img} pendingSecondFlavor={!!pendingHalfAndHalf} onPickSecondFlavor={()=>finishHalfAndHalf(p)} onChooseSecondFlavor={(choice,qty)=>startHalfAndHalf(p,choice,qty)} onAdd={(choice,qty)=>setCart(old=>{const line:CartLine={product:p,purchaseMode:'unit',quantity:qty,customization:choice};const key=cartLineKey(line);const existing=old.find(x=>cartLineKey(x)===key);return [...old.filter(x=>cartLineKey(x)!==key),{...line,quantity:qty+(existing?.quantity||0)}];})}/>:p.fixed_options_enabled
+</div>{pendingHalfAndHalf&&<div className="custom-half-pending"><b>Escolha o segundo sabor da sua pizza</b><span>Primeiro sabor: {pendingHalfAndHalf.choice.optionIds.map((id:string)=>readCustomConfig(pendingHalfAndHalf.product.custom_config_json)?.groups.find(g=>g.selectionMode==='half-and-half')?.options.find(o=>o.id===id)?.name).filter(Boolean).join(', ')||pendingHalfAndHalf.product.name}</span><button type="button" className="btn btn-outline" onClick={()=>setPendingHalfAndHalf(null)}>Cancelar meio a meio</button></div>}{visibleProducts.length===0?<div className="empty-state"><Search size={28}/><b>Nenhum produto encontrado</b><p>Tente outra busca ou categoria.</p></div>:<div className="product-grid">{visibleProducts.map((p:any)=>p.custom_config_json?<CustomProductCard key={p.id} product={p} img={img} pendingSecondFlavor={!!pendingHalfAndHalf} secondFlavorSize={pendingHalfAndHalf?pizzaPairSize(pendingHalfAndHalf.product,pendingHalfAndHalf.choice,p)?.name:undefined} secondFlavorTotal={pendingHalfAndHalf?cartLineTotal({product:pendingHalfAndHalf.product,purchaseMode:'unit',quantity:pendingHalfAndHalf.quantity,customization:completePizzaPair(pendingHalfAndHalf.product,pendingHalfAndHalf.choice,p,[])}):undefined} onPickSecondFlavor={removals=>finishHalfAndHalf(p,removals)} onChooseSecondFlavor={(choice,qty)=>startHalfAndHalf(p,choice,qty)} onAdd={(choice,qty)=>setCart(old=>{const line:CartLine={product:p,purchaseMode:'unit',quantity:qty,customization:choice};const key=cartLineKey(line);const existing=old.find(x=>cartLineKey(x)===key);return [...old.filter(x=>cartLineKey(x)!==key),{...line,quantity:qty+(existing?.quantity||0)}];})}/>:p.fixed_options_enabled
  ?<FixedPriceProductCard key={p.id} p={p} getLine={getLine} setLine={setLine} img={img} money={money}/>
  :<ProductCard key={p.id} p={p} getLine={getLine} setLine={setLine}/>)}</div>}</section><aside className="cart-panel"><CartSummary cart={cart} subtotal={subtotal} store={store} onQty={setLine} onRemove={removeLine} onCheckout={()=>store.is_open&&cart.length&&setCheckout(true)}/></aside></div></main><footer className="store-footer"><div><b>{store.name}</b><span>{store.address_text}</span><span>{store.business_hours}</span></div><div><a href={store.instagram_url} target="_blank">Instagram</a><a href={`https://wa.me/${(store.whatsapp_public||'').replace(/\D/g,'')}`} target="_blank">WhatsApp</a></div></footer>
  {cartItemCount>0&&!mobileCart&&!checkout&&!placed&&!showSignup&&<MobileBagBar count={cartItemCount} subtotal={subtotal} onOpen={()=>setMobileCart(true)}/>}

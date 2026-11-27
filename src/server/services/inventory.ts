@@ -1,4 +1,4 @@
-import {readCustomConfig,resolveCustomSelection,customUnitPrice,type CustomSelection} from '../../shared/custom-product';
+import {readCustomConfig,resolveCustomSelection,customUnitPrice,completePizzaPair,type CustomSelection} from '../../shared/custom-product';
 import {
   type DbClient,
   type DbPreparedStatement,
@@ -131,7 +131,18 @@ export async function validateAndPrepareOrderLines(
     const config=readCustomConfig(product.custom_config_json);
     if(config&&(product.sale_mode!=='unit'||rawItem.variant_id||rawItem.purchase_mode==='weight'))throw Error('Modalidade inválida para produto personalizável.');
     if(!config&&rawItem.customization)throw Error('Este produto não possui complementos.');
-    const custom=config?resolveCustomSelection(config,rawItem.customization):null;
+    let selection=rawItem.customization;
+    if(config&&selection?.flavorMode==='half-and-half'){
+      if(!selection.pairedProductId)throw Error('Finalize a escolha do segundo sabor antes de concluir o pedido.');
+      const second=await db.prepare(`SELECT id,name,custom_config_json,price_cents,promo_price_cents,sale_mode,is_active,physical_qty,reserved_qty FROM products WHERE id=? AND tenant_id=? AND is_deleted=0`)
+       .bind(selection.pairedProductId,tenantId).first<ProductRow>();
+      if(!second||!second.is_active||second.sale_mode!=='unit'||second.physical_qty-second.reserved_qty<=0)
+       throw new StockConflictError('O segundo sabor não está mais disponível.');
+      selection=completePizzaPair(product,selection,second,selection.pairedRemovalIds||[]);
+    }else if(selection&&(selection.pairedProductId||selection.pairedFlavorName||selection.pairedFlavorPriceCents!==undefined||selection.pairedRemovalIds?.length||selection.pairedRemovedNames?.length||selection.pairedRemainingNames?.length)){
+      throw Error('Segundo sabor inválido para este pedido.');
+    }
+    const custom=config?resolveCustomSelection(config,selection):null;
     if (product.sale_mode === 'variants') {
       if (!rawItem.variant_id) {
         throw new Error(`Selecione uma opção/embalagem para o produto "${product.name}".`);
