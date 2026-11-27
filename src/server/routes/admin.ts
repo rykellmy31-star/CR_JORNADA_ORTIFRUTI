@@ -269,14 +269,14 @@ adminRoutes.get('/products/image-suggestions',async(c)=>{
 adminRoutes.post('/products/images/autofill',async(c)=>{
  const services=c.get('services'),db=services.db,tid=c.get('tenantId');
  const {results}=await db.prepare(`SELECT id,name FROM products WHERE tenant_id=? AND
-  is_deleted=0 AND (image_url IS NULL OR trim(image_url)='') ORDER BY created_at LIMIT 8`)
+  is_deleted=0 AND auto_image_disabled=0 AND (image_url IS NULL OR trim(image_url)='') ORDER BY created_at LIMIT 8`)
   .bind(tid).all<{id:string;name:string}>();
  let updated=0,notFound=0;
  for(const item of results){
   const photo=await autoProductImage(db,services.media,item.name,false);
   if(!photo.imageUrl){notFound++;continue;}
   const changed=await db.prepare(`UPDATE products SET image_url=?,updated_at=?
-   WHERE id=? AND tenant_id=? AND (image_url IS NULL OR trim(image_url)='')`)
+   WHERE id=? AND tenant_id=? AND is_deleted=0 AND auto_image_disabled=0 AND (image_url IS NULL OR trim(image_url)='')`)
    .bind(photo.imageUrl,new Date().toISOString(),item.id,tid).run();
   updated+=changed.meta.changes;
  }
@@ -337,8 +337,8 @@ adminRoutes.post('/products/with-variants',async(c)=>{
   normalized.push({name:optionName,price,promo,deduction,ownStock,sku:item.sku||null});
  }
  const time=new Date().toISOString(),productId=generateId(),poolId=shared?generateId():null;
- const automaticImage=!b.imageUrl?await autoProductImage(db,c.get('services').media,name):null;
- const imageUrl=b.imageUrl||automaticImage?.imageUrl||null;
+ const automaticImage=b.disableAutoImage!==true&&!b.imageUrl?await autoProductImage(db,c.get('services').media,name):null;
+ const imageUrl=b.disableAutoImage===true?null:b.imageUrl||automaticImage?.imageUrl||null;
  const statements:any[]=[];
  if(poolId)statements.push(db.prepare(`INSERT INTO stock_pools
   (id,tenant_id,name,sku_code,base_unit,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at)
@@ -348,10 +348,10 @@ adminRoutes.post('/products/with-variants',async(c)=>{
  statements.push(db.prepare(`INSERT INTO products
   (id,tenant_id,category_id,sku,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,
    min_qty,step_qty,price_cents,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,
-   fixed_options_enabled,created_at,updated_at)
-  VALUES(?,?,?,?,?,?,?,'variants','embalagem',1000,1,1,0,?,?,0,0,0,?,?,?)`)
+   fixed_options_enabled,created_at,updated_at,auto_image_disabled)
+  VALUES(?,?,?,?,?,?,?,'variants','embalagem',1000,1,1,0,?,?,0,0,0,?,?,?,?)`)
   .bind(productId,tid,b.categoryId||null,b.sku||null,name,b.description||'',imageUrl,
-   b.featured?1:0,b.active===false?0:1,fixed?1:0,time,time));
+   b.featured?1:0,b.active===false?0:1,fixed?1:0,time,time,b.disableAutoImage===true?1:0));
  for(let i=0;i<normalized.length;i++){
   const v=normalized[i];
   statements.push(db.prepare(`INSERT INTO product_variants
@@ -414,16 +414,16 @@ adminRoutes.post('/products',async(c)=>{
   if(!Number.isInteger(price)||price<0||!Number.isInteger(stock)||stock<0||!Number.isInteger(min)||min<1||!Number.isInteger(step)||step<1)return c.json({error:'Confira preço, estoque, mínimo e incremento do produto.'},400);
   if(isDual&&(!Number.isInteger(unitPrice)||(unitPrice??0)<=0||!Number.isInteger(unitWeight)||(unitWeight??0)<=0))return c.json({error:'Para vender por kg e unidade, informe preço por unidade e peso médio em gramas.'},400);
   const id=generateId(),time=new Date().toISOString();
-  const automaticImage=!b.imageUrl?await autoProductImage(db,c.get('services').media,name):null;
-  const imageUrl=b.imageUrl||automaticImage?.imageUrl||null;
-  await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,ean,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,promo_price_cents,unit_price_cents,unit_weight_grams,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at,custom_config_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)`)
-    .bind(id,tid,b.categoryId||null,b.sku||null,selected==='unit'||selected==='dual'?ean:null,name,b.description||'',imageUrl,isWeight?'weight':'unit',isWeight?'kg':(b.unitLabel||'un'),1000,min,step,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),unitPrice,unitWeight,b.featured?1:0,b.active===false?0:1,stock,Number(b.lowStockThreshold)||0,time,time,customConfig).run();
+  const automaticImage=b.disableAutoImage!==true&&!b.imageUrl?await autoProductImage(db,c.get('services').media,name):null;
+  const imageUrl=b.disableAutoImage===true?null:b.imageUrl||automaticImage?.imageUrl||null;
+  await db.prepare(`INSERT INTO products(id,tenant_id,category_id,sku,ean,name,description,image_url,sale_mode,unit_label,pricing_unit_grams,min_qty,step_qty,price_cents,promo_price_cents,unit_price_cents,unit_weight_grams,is_featured,is_active,physical_qty,reserved_qty,low_stock_threshold,created_at,updated_at,custom_config_json,auto_image_disabled) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)`)
+    .bind(id,tid,b.categoryId||null,b.sku||null,selected==='unit'||selected==='dual'?ean:null,name,b.description||'',imageUrl,isWeight?'weight':'unit',isWeight?'kg':(b.unitLabel||'un'),1000,min,step,price,b.promoPriceCents==null?null:Number(b.promoPriceCents),unitPrice,unitWeight,b.featured?1:0,b.active===false?0:1,stock,Number(b.lowStockThreshold)||0,time,time,customConfig,b.disableAutoImage===true?1:0).run();
   return c.json({id,imageUrl,photoSource:automaticImage?.source||'manual'},201);
 });
 adminRoutes.patch('/products/:id',async(c)=>{
   const db=c.get('services').db,tid=c.get('tenantId'),id=c.req.param('id'),b=await c.req.json().catch(()=>({}));
   if(b.categoryId&&!await tenantOwnsCategory(db,tid,b.categoryId))return c.json({error:'Categoria inválida para este estabelecimento.'},400);
-  const current=await db.prepare('SELECT sale_mode,stock_pool_id,image_url,name,custom_config_json FROM products WHERE id=? AND tenant_id=? AND is_deleted=0').bind(id,tid).first<{sale_mode:string;stock_pool_id:string|null;image_url:string|null;name:string;custom_config_json:string|null}>();
+  const current=await db.prepare('SELECT sale_mode,stock_pool_id,image_url,name,custom_config_json,auto_image_disabled FROM products WHERE id=? AND tenant_id=? AND is_deleted=0').bind(id,tid).first<{sale_mode:string;stock_pool_id:string|null;image_url:string|null;name:string;custom_config_json:string|null;auto_image_disabled:number}>();
   if(!current)return c.json({error:'Produto não encontrado.'},404);
   let configUpdate:string|undefined;
   if(b.customConfig!==undefined){
@@ -440,11 +440,13 @@ adminRoutes.patch('/products/:id',async(c)=>{
     b.unitWeightGrams=requestedMode==='dual'?Number(b.unitWeightGrams):null;
     delete b.saleMode;
   }
-  // Edição opcional: se apagar a imagem ou alterar o nome de um item sem
-  // imagem própria, reaproveitar automaticamente foto compatível.
-  if((b.imageUrl===null||b.imageUrl==='')&&b.name){
+  // A opção explícita de manter sem foto prevalece sobre a busca automática.
+  const explicitImage=typeof b.imageUrl==='string'&&b.imageUrl.trim()!=='';
+  const disabled=b.disableAutoImage===true?true:b.disableAutoImage===false||explicitImage?false:!!current.auto_image_disabled;
+  if(disabled){b.imageUrl=null;}
+  else if((b.imageUrl===null||b.imageUrl==='')&&b.name){
     const automatic=await autoProductImage(db,c.get('services').media,String(b.name));
-    if(automatic.imageUrl)b.imageUrl=automatic.imageUrl;
+    b.imageUrl=automatic.imageUrl||null;
   }else if(b.imageUrl===undefined&&b.name&&!current.image_url){
     const automatic=await autoProductImage(db,c.get('services').media,String(b.name));
     if(automatic.imageUrl)b.imageUrl=automatic.imageUrl;
@@ -454,6 +456,7 @@ adminRoutes.patch('/products/:id',async(c)=>{
   const sets:string[]=[],vals:any[]=[];
   for(const[k,v]of Object.entries(b)){const col=map[k]||k;if(allowed.includes(col)){if(['price_cents','unit_price_cents','unit_weight_grams','min_qty','step_qty'].includes(col)&&v!==null&&(!Number.isInteger(Number(v))||Number(v)<(col==='price_cents'?0:1)))return c.json({error:'Preço e quantidades devem ser válidos.'},400);sets.push(`${col}=?`);vals.push(typeof v==='boolean'?Number(v):v);}}
   if(configUpdate!==undefined){sets.push('custom_config_json=?');vals.push(configUpdate);}
+  if(b.disableAutoImage===true||b.disableAutoImage===false||explicitImage){sets.push('auto_image_disabled=?');vals.push(disabled?1:0);}
   if(!sets.length)return c.json({error:'Nenhum campo válido.'},400);
   sets.push('updated_at=?');vals.push(new Date().toISOString(),id,tid);
   const r=await db.prepare(`UPDATE products SET ${sets.join(',')} WHERE id=? AND tenant_id=? AND is_deleted=0`).bind(...vals).run();

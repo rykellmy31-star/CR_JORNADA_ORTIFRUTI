@@ -134,3 +134,30 @@ describe('fotos automáticas do Hortifruti',()=>{
   expect(table.find((x:any)=>x.id==='manual-image')?.image_url).toBe('/media/tenants/private/custom.jpg');
  });
 });
+
+ describe('remoção de foto do catálogo',()=>{
+ it('remove a foto existente e impede que a busca automática ou preenchimento em lote a restaure',async()=>{
+  const created=await api('/admin/products','POST',{name:'Banana Prata',saleMode:'unit',priceCents:200,stockQty:10});
+  expect(created.status).toBe(201);
+  const {id}=await created.json() as any;
+  const saved=await api('/admin/products/'+id,'PATCH',{name:'Banana Prata',imageUrl:null,disableAutoImage:true});
+  expect(saved.status).toBe(200);
+  const row=()=>db.prepare('SELECT image_url,auto_image_disabled FROM products WHERE id=?').bind(id).first<any>();
+  expect(await row()).toMatchObject({image_url:null,auto_image_disabled:1});
+  expect((await api('/admin/products/'+id,'PATCH',{name:'Banana Prata'})).status).toBe(200);
+  expect((await api('/admin/products/images/autofill','POST',{})).status).toBe(200);
+  expect(await row()).toMatchObject({image_url:null,auto_image_disabled:1});
+  expect((await api('/admin/products/'+id,'PATCH',{imageUrl:'/images/products/banana.jpg',disableAutoImage:false})).status).toBe(200);
+  expect(await row()).toMatchObject({image_url:'/images/products/banana.jpg',auto_image_disabled:0});
+ });
+ it('permite cadastrar produto comum e produto com variações sem foto',async()=>{
+  const simple=await api('/admin/products','POST',{name:'Banana Prata',saleMode:'unit',priceCents:200,stockQty:10,disableAutoImage:true});
+  expect(simple.status).toBe(201);
+  const variants=await api('/admin/products/with-variants','POST',{name:'Banana Prata',disableAutoImage:true,sharedPool:true,poolPhysicalQty:10,variants:[{name:'Pacote',priceCents:200,deductionQty:1}]});
+  expect(variants.status).toBe(201);
+  for(const response of [simple,variants]){
+   const {id}=await response.json() as any;
+   expect(await db.prepare('SELECT image_url,auto_image_disabled FROM products WHERE id=?').bind(id).first()).toMatchObject({image_url:null,auto_image_disabled:1});
+  }
+ });
+});
