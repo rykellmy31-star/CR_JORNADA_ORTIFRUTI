@@ -34,13 +34,32 @@ export function isPizzaConfig(config:CustomConfig|null|undefined,pizzeria=false)
  return !!config&&(!!config.pizzaModel||config.halfAndHalf!==undefined||supportsHalfAndHalf(config)||
   (pizzeria&&config.groups.some(g=>g.priceMode==='final')));
 }
-/** Prepara o cadastro da pizza sem grupos de sabores artificiais ou adicionais por tamanho.
+/** Somente as bordas de pizza têm cobrança diferenciada por tamanho. */
+export function isPizzaBorderGroup(group:CustomConfig['groups'][number]):boolean{
+ return group.kind!=='included'&&group.priceMode!=='final'&&/\bbordas?\b/i.test(group.name);
+}
+export function isFreePizzaBorder(group:CustomConfig['groups'][number],option:CustomConfig['groups'][number]['options'][number]):boolean{
+ return isPizzaBorderGroup(group)&&/^sem\s+bordas?\b/i.test(option.name.trim());
+}
+export function customOptionPrice(group:CustomConfig['groups'][number],option:CustomConfig['groups'][number]['options'][number],sizeId?:string|null):number{
+ if(isFreePizzaBorder(group,option))return 0;
+ return sizeId&&option.priceByOptionId&&Object.prototype.hasOwnProperty.call(option.priceByOptionId,sizeId)?option.priceByOptionId[sizeId]:option.priceCents;
+}
+/** Prepara o cadastro da pizza sem grupos de sabores artificiais e preserva preços por tamanho somente nas bordas.
  * Aplicado somente à edição/criação; não altera cadastros existentes até salvar.
  */
 export function simplifyPizzaConfig(config:CustomConfig,halfAndHalf=supportsHalfAndHalf(config)):CustomConfig{
  const groups=config.groups
   .filter(g=>g.selectionMode!=='half-and-half'&&!(g.kind!=='included'&&/^sabores?$/i.test(g.name.trim())))
-  .map(g=>({...g,options:g.options.map(({priceByOptionId,...o})=>o)}));
+  .map(g=>({...g,options:g.options.map(({priceByOptionId,...o})=>{
+   if(isFreePizzaBorder(g,o))return {...o,priceCents:0};
+   if(isPizzaBorderGroup(g)&&priceByOptionId){
+    const sizes=new Set(config.groups.find(x=>x.priceMode==='final')?.options.map(x=>x.id)||[]);
+    const prices=Object.fromEntries(Object.entries(priceByOptionId).filter(([key])=>sizes.has(key)));
+    return Object.keys(prices).length?{...o,priceByOptionId:prices}:o;
+   }
+   return o;
+  })}));
  return {...config,pizzaModel:true,halfAndHalf,groups};
 }
 export function customSelectionKey(selection?:CustomSelection|null):string{
@@ -72,7 +91,7 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
   if(selected.length<min||selected.length>max)throw Error('Selecione '+(min===max?min:'de '+min+' a '+max)+' opção(ões) em '+g.name+'.');
   if(selected.some(o=>!o.active))throw Error('Uma opção de '+g.name+' está indisponível.');
   for(const o of selected){ids.delete(o.id);if(g.priceMode==='final')selectedBaseCents=o.priceCents;}
-  if(g.priceMode!=='final')for(const o of selected){const dependent=selectedFinalOptionId&&o.priceByOptionId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,selectedFinalOptionId)?o.priceByOptionId[selectedFinalOptionId]:o.priceCents;extrasCents+=dependent;}
+  if(g.priceMode!=='final')for(const o of selected){extrasCents+=customOptionPrice(g,o,selectedFinalOptionId);}
   if(selected.length)details.push(g.name+': '+selected.map(o=>o.name).join(', '));
  }
  if(ids.size)throw Error('Complemento inválido para este produto.');
@@ -93,7 +112,7 @@ export function minimumCustomPrice(config:CustomConfig,baseCents:number):number{
  const finalGroup=config.groups.find(g=>g.priceMode==='final');
  const costFor=(g:CustomConfig['groups'][number],sizeId:string|null)=>g.options
   .filter(o=>o.active)
-  .map(o=>o.priceByOptionId&&sizeId&&Object.prototype.hasOwnProperty.call(o.priceByOptionId,sizeId)?o.priceByOptionId[sizeId]:o.priceCents)
+  .map(o=>customOptionPrice(g,o,sizeId))
   .sort((a,b)=>a-b)
   .slice(0,g.min)
   .reduce((sum,value)=>sum+value,0);
