@@ -120,7 +120,7 @@ export function resolveCustomSelection(config:CustomConfig,raw:unknown){
   if(selected.length)details.push(g.name+': '+selected.map(o=>o.name).join(', '));
  }
  if(ids.size)throw Error('Complemento inválido para este produto.');
- if(choice.pairedFlavorName){details.unshift('Meio a meio: '+choice.firstFlavorName+' + '+choice.pairedFlavorName);if(choice.pairedRemainingNames?.length||choice.pairedRemovedNames?.length){details.push('½ '+choice.pairedFlavorName+' — Ingredientes inclusos: '+(choice.pairedRemainingNames?.join(', ')||'nenhum'));}if(choice.pairedRemovedNames?.length)details.push('½ '+choice.pairedFlavorName+' — RETIRAR: '+choice.pairedRemovedNames.join(', '));if(choice.pairedFlavorPriceCents!==undefined)selectedBaseCents=Math.max(selectedBaseCents??0,choice.pairedFlavorPriceCents);}else if(choice.firstFlavorName){details.push('Sabor: '+choice.firstFlavorName);}
+ if(choice.pairedFlavorName){details.push('Meio a meio: '+choice.firstFlavorName+' + '+choice.pairedFlavorName);if(choice.pairedRemainingNames?.length||choice.pairedRemovedNames?.length){details.push('½ '+choice.pairedFlavorName+' — Ingredientes inclusos: '+(choice.pairedRemainingNames?.join(', ')||'nenhum'));}if(choice.pairedRemovedNames?.length)details.push('½ '+choice.pairedFlavorName+' — RETIRAR: '+choice.pairedRemovedNames.join(', '));if(choice.pairedFlavorPriceCents!==undefined)selectedBaseCents=Math.max(selectedBaseCents??0,choice.pairedFlavorPriceCents);}else if(choice.firstFlavorName){details.push('Sabor: '+choice.firstFlavorName);}
  if(choice.note)details.push('Observação: '+choice.note.replace(/[\r\n]+/g,' '));
  return {extrasCents,selectedBaseCents,details:details.join('\n')};
 }
